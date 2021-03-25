@@ -28,11 +28,11 @@ Pipeline overview:
   Bcftools
 
 	PATHS FOR EASTLAKE KC iMac - TESTING & DEBUGGING
-	PATH to Reference Fasta:
-	/Users/Kurtisc/Downloads/CURRENT/ref_db/virus/rhv_abc_sars2.fasta 
+	PATH to Virus Reference Fasta:
+	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
 	
-	PATH to indexed Fasta:
-	/Users/Kurtisc/Downloads/CURRENT/ref_db/virus
+	PATH to indexed Reference Fasta Database Files:
+	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
 
  ----------------------------------------------------------------------------------------
 */
