@@ -50,13 +50,13 @@ def helpmsg() {
 
     To run the pipeline, enter the following in the command line:
 
-        nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --viral_fasta .PATH_TO_VIR_FASTA --viral_index PATH_TO_VIR_INDEX --outdir ./output
+        nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --virus_fasta .PATH_TO_VIR_FASTA --virus_index PATH_TO_VIR_INDEX --outdir ./output
 
 
     Valid CLI Arguments:
       --reads                       Path to input fastq.gz folder).
-      --viral_fasta                 Path to fasta reference sequences (concatenated)
-      --viral_index                 Path to indexed virus reference databases
+      --virus_fasta                 Path to fasta reference sequences (concatenated)
+      --virus_index                 Path to indexed virus reference databases
       --singleEnd                   Specifies that the input fastq files are single end reads
       --notrim                      Specifying --notrim will skip the adapter trimming step
       --saveTrimmed                 Save the trimmed Fastq files in the the Results directory
@@ -91,10 +91,10 @@ if (params.help){
     exit 0
 }
 // Check for virus genome reference indexes
-params.viral_fasta = false
-if( params.viral_fasta ){
-    viral_fasta_file = file(params.viral_fasta)
-    if( !viral_fasta_file.exists() ) exit 1, "> Virus fasta file not found: ${params.viral_fasta}.\n> Please specify a valid file path!"
+params.virus_fasta = false
+if( params.virus_fasta ){
+    virus_fasta_file = file(params.virus_fasta)
+    if( !virus_fasta_file.exists() ) exit 1, "> Virus fasta file not found: ${params.virus_fasta}.\n> Please specify a valid file path!"
 }
 // Channel for input fastq files
 Channel
@@ -102,12 +102,12 @@ Channel
     .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
     .into { raw_reads_fastqc; raw_reads_trimming }
 
-if( params.viral_index ){
+if( params.virus_index ){
 // Channel for virus genome reference indexes
 	Channel
-        .fromPath(params.viral_index)
-        .ifEmpty { exit 1, "> Error: Virus index not found: ${params.viral_index}.\n> Please specify a valid file path!"}
-        .into { viral_index_files; viral_index_files_ivar; viral_index_files_variant_calling }
+        .fromPath(params.virus_index)
+        .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
+        .into { virus_index_files; virus_index_files_ivar; virus_index_files_variant_calling }
 }
 // Check for fastq
 params.reads = false
@@ -132,7 +132,7 @@ log.info "____________________________________________"
 def summary = [:]
 summary['Fastq Files:']               = params.reads
 summary['Read type:']           = params.singleEnd ? 'Single-End' : 'Paired-End'
-summary['Virus Reference:']           = params.viral_fasta
+summary['Virus Reference:']           = params.virus_fasta
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Current directory path:']        = "$PWD"
 summary['Working directory path:']         = workflow.workDir
@@ -231,8 +231,8 @@ process mapping_virus {
 
 	input:
 	set file(readsR1),file(readsR2) from trimmed_paired_reads_bwa_virus
-    file refvirus from viral_fasta_file
-    file index from viral_index_files.collect()
+    file refvirus from virus_fasta_file
+    file index from virus_index_files.collect()
 
 	output:
 	file '*_sorted.bam' into mapping_virus_sorted_bam,mapping_virus_sorted_bam_consensus
@@ -260,7 +260,7 @@ process genome_consensus {
 	}
 
   input:
-  file refvirus from viral_fasta_file
+  file refvirus from virus_fasta_file
   file sorted_bam from sorted_bam_consensus
   file sorted_bai from bai_consensus
 
