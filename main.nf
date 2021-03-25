@@ -19,7 +19,11 @@ Pipeline overview:
  - 3. : Variant calling, annotation and consensus:
   		-Bcftools - Consensus in *.fasta format
 
-  Dependencies:
+Optional:
+	-withFastQC
+	-Add Blast consensus to NCBI? (or Vapid functionalities?)
+
+Dependencies:
   
   trimmomatic
   bowtie2
@@ -31,8 +35,14 @@ Pipeline overview:
 	PATH to Virus Reference Fasta:
 	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
 	
-	PATH to indexed Reference Fasta Database Files:
+	PATH to indexed (indexed by bowtie2) Reference Fasta Database Files:
 	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
+
+	PATH to fastq files from 031221 shotgun run (down-sized to 1m reads) for testing & debugging purposes:
+	/Users/Kurtisc/Downloads/CURRENT/test_fastq  ---> These are single-end reads
+
+	CLI Commands
+	nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db --outdir ./VGMP_output --singleEnd
 
  ----------------------------------------------------------------------------------------
 */
@@ -224,8 +234,6 @@ process map_virus {
 		saveAs: {filename ->
 			if (filename.indexOf(".bam") > 0) "mapping/$filename"
 			else if (filename.indexOf(".bai") > 0) "mapping/$filename"
-      else if (filename.indexOf(".txt") > 0) "stats/$filename"
-      else if (filename.indexOf(".stats") > 0) "stats/$filename"
 	}
 
 	input:
@@ -277,3 +285,6 @@ process genome_consensus {
   """
 }
 
+// CODE - Blast Consensus?
+
+// Vapid-like genbank prep?
