@@ -1,89 +1,22 @@
-Mar-25 15:45:19.040 [main] DEBUG nextflow.cli.Launcher - $> nextflow run 'https://github.com/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline'
-Mar-25 15:45:19.123 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 20.10.0
-Mar-25 15:45:19.184 [main] DEBUG nextflow.scm.AssetManager - Repository URL: https://github.com/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline; Project: Paul-rk-cruz/Virus_Genome_Mapping_Pipeline; Hub provider: github
-Mar-25 15:45:19.195 [main] INFO  nextflow.cli.CmdRun - Pulling Paul-rk-cruz/Virus_Genome_Mapping_Pipeline ...
-Mar-25 15:45:19.196 [main] DEBUG nextflow.scm.RepositoryProvider - Request [credentials -:-] -> https://api.github.com/repos/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline/contents/nextflow.config
-Mar-25 15:45:19.640 [main] DEBUG nextflow.scm.RepositoryProvider - Response status: 404 -- {"message":"Not Found","documentation_url":"https://docs.github.com/rest/reference/repos#get-repository-content"}
-Mar-25 15:45:19.649 [main] WARN  nextflow.scm.AssetManager - Cannot read project manifest -- Cause: Remote resource not found: https://api.github.com/repos/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline/contents/nextflow.config
-nextflow.exception.AbortOperationException: Remote resource not found: https://api.github.com/repos/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline/contents/nextflow.config
-	at nextflow.scm.RepositoryProvider.checkResponse(RepositoryProvider.groovy:178)
-	at nextflow.scm.RepositoryProvider.invoke(RepositoryProvider.groovy:126)
-	at nextflow.scm.RepositoryProvider.memoizedMethodPriv$invokeAndParseResponseString(RepositoryProvider.groovy:209)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
-	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
-	at org.codehaus.groovy.reflection.CachedMethod.invoke(CachedMethod.java:107)
-	at groovy.lang.MetaMethod.doMethodInvoke(MetaMethod.java:323)
-	at groovy.lang.MetaClassImpl.invokeMethod(MetaClassImpl.java:1259)
-	at groovy.lang.MetaClassImpl.invokeMethod(MetaClassImpl.java:1026)
-	at org.codehaus.groovy.runtime.InvokerHelper.invokePogoMethod(InvokerHelper.java:1029)
-	at org.codehaus.groovy.runtime.InvokerHelper.invokeMethod(InvokerHelper.java:1012)
-	at org.codehaus.groovy.runtime.InvokerHelper.invokeMethodSafe(InvokerHelper.java:101)
-	at nextflow.scm.RepositoryProvider$_closure2.doCall(RepositoryProvider.groovy)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
-	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
-	at org.codehaus.groovy.reflection.CachedMethod.invoke(CachedMethod.java:107)
-	at groovy.lang.MetaMethod.doMethodInvoke(MetaMethod.java:323)
-	at org.codehaus.groovy.runtime.metaclass.ClosureMetaClass.invokeMethod(ClosureMetaClass.java:263)
-	at groovy.lang.MetaClassImpl.invokeMethod(MetaClassImpl.java:1026)
-	at groovy.lang.Closure.call(Closure.java:412)
-	at org.codehaus.groovy.runtime.memoize.Memoize$MemoizeFunction.lambda$call$0(Memoize.java:137)
-	at org.codehaus.groovy.runtime.memoize.ConcurrentCommonCache.getAndPut(ConcurrentCommonCache.java:137)
-	at org.codehaus.groovy.runtime.memoize.ConcurrentCommonCache.getAndPut(ConcurrentCommonCache.java:113)
-	at org.codehaus.groovy.runtime.memoize.Memoize$MemoizeFunction.call(Memoize.java:136)
-	at groovy.lang.Closure.call(Closure.java:428)
-	at nextflow.scm.RepositoryProvider.invokeAndParseResponse(RepositoryProvider.groovy)
-	at nextflow.scm.GithubRepositoryProvider.readBytes(GithubRepositoryProvider.groovy:94)
-	at nextflow.scm.RepositoryProvider.readText(RepositoryProvider.groovy:223)
-	at nextflow.scm.AssetManager.getManifest0(AssetManager.groovy:437)
-	at nextflow.scm.AssetManager.memoizedMethodPriv$getManifest(AssetManager.groovy:430)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
-	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
-	at org.codehaus.groovy.reflection.CachedMethod.invoke(CachedMethod.java:107)
-	at groovy.lang.MetaMethod.doMethodInvoke(MetaMethod.java:323)
-	at groovy.lang.MetaClassImpl.invokeMethod(MetaClassImpl.java:1259)
-	at groovy.lang.MetaClassImpl.invokeMethod(MetaClassImpl.java:1026)
-	at org.codehaus.groovy.runtime.InvokerHelper.invokePogoMethod(InvokerHelper.java:1029)
-	at org.codehaus.groovy.runtime.InvokerHelper.invokeMethod(InvokerHelper.java:1012)
-	at org.codehaus.groovy.runtime.InvokerHelper.invokeMethodSafe(InvokerHelper.java:101)
-	at nextflow.scm.AssetManager$_closure2.doCall(AssetManager.groovy)
-	at nextflow.scm.AssetManager$_closure2.doCall(AssetManager.groovy)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
-	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
-	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
-	at org.codehaus.groovy.reflection.CachedMethod.invoke(CachedMethod.java:107)
-	at groovy.lang.MetaMethod.doMethodInvoke(MetaMethod.java:323)
-	at org.codehaus.groovy.runtime.metaclass.ClosureMetaClass.invokeMethod(ClosureMetaClass.java:263)
-	at groovy.lang.MetaClassImpl.invokeMethod(MetaClassImpl.java:1026)
-	at groovy.lang.Closure.call(Closure.java:412)
-	at org.codehaus.groovy.runtime.memoize.Memoize$MemoizeFunction.lambda$call$0(Memoize.java:137)
-	at org.codehaus.groovy.runtime.memoize.ConcurrentCommonCache.getAndPut(ConcurrentCommonCache.java:137)
-	at org.codehaus.groovy.runtime.memoize.ConcurrentCommonCache.getAndPut(ConcurrentCommonCache.java:113)
-	at org.codehaus.groovy.runtime.memoize.Memoize$MemoizeFunction.call(Memoize.java:136)
-	at groovy.lang.Closure.call(Closure.java:406)
-	at nextflow.scm.AssetManager.getManifest(AssetManager.groovy)
-	at nextflow.scm.AssetManager.getMainScriptName(AssetManager.groovy:413)
-	at nextflow.scm.AssetManager.checkValidRemoteRepo(AssetManager.groovy:371)
-	at nextflow.scm.AssetManager.download(AssetManager.groovy:580)
-	at nextflow.scm.AssetManager.download(AssetManager.groovy)
-	at nextflow.cli.CmdRun.getScriptFile(CmdRun.groovy:343)
-	at nextflow.cli.CmdRun.run(CmdRun.groovy:249)
-	at nextflow.cli.Launcher.run(Launcher.groovy:466)
-	at nextflow.cli.Launcher.main(Launcher.groovy:648)
-Mar-25 15:45:19.654 [main] DEBUG nextflow.scm.RepositoryProvider - Request [credentials -:-] -> https://api.github.com/repos/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline/contents/main.nf
-Mar-25 15:45:19.841 [main] DEBUG nextflow.scm.RepositoryProvider - Request [credentials -:-] -> https://api.github.com/repos/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline
-Mar-25 15:45:19.989 [main] DEBUG nextflow.scm.AssetManager - Pulling Paul-rk-cruz/Virus_Genome_Mapping_Pipeline -- Using remote clone url: https://github.com/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline.git
-Mar-25 15:45:21.524 [main] INFO  nextflow.cli.CmdRun -  downloaded from https://github.com/Paul-rk-cruz/Virus_Genome_Mapping_Pipeline.git
-Mar-25 15:45:21.528 [main] DEBUG nextflow.cli.Launcher - Operation aborted
-nextflow.exception.AbortOperationException: Project `Paul-rk-cruz/Virus_Genome_Mapping_Pipeline` currently is sticked on revision: main -- you need to specify explicitly a revision with the option `-r` to use it
-	at nextflow.scm.AssetManager.checkout(AssetManager.groovy:903)
-	at nextflow.cli.CmdRun.getScriptFile(CmdRun.groovy:350)
-	at nextflow.cli.CmdRun.run(CmdRun.groovy:249)
-	at nextflow.cli.Launcher.run(Launcher.groovy:466)
-	at nextflow.cli.Launcher.main(Launcher.groovy:648)
+Mar-25 16:31:25.291 [main] DEBUG nextflow.cli.Launcher - $> nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf
+Mar-25 16:31:25.367 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 20.10.0
+Mar-25 16:31:25.377 [main] INFO  nextflow.cli.CmdRun - Launching `/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf` [distraught_brenner] - revision: 4185499cbf
+Mar-25 16:31:25.471 [main] DEBUG nextflow.Session - Session uuid: 8b7d0c4b-e5a9-4f23-bf47-63946301f33d
+Mar-25 16:31:25.471 [main] DEBUG nextflow.Session - Run name: distraught_brenner
+Mar-25 16:31:25.473 [main] DEBUG nextflow.Session - Executor pool size: 20
+Mar-25 16:31:25.502 [main] DEBUG nextflow.cli.CmdRun - 
+  Version: 20.10.0 build 5430
+  Created: 01-11-2020 15:14 UTC (07:14 PDT)
+  System: Mac OS X 10.15.7
+  Runtime: Groovy 3.0.5 on OpenJDK 64-Bit Server VM 11.0.6+8-b765.1
+  Encoding: UTF-8 (UTF-8)
+  Process: 21985@uwvirologys-iMac.local [127.0.0.1]
+  CPUs: 20 - Mem: 72 GB (42.9 GB) - Swap: 3 GB (1.5 GB)
+Mar-25 16:31:25.518 [main] DEBUG nextflow.Session - Work-dir: /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/work [Mac OS X]
+Mar-25 16:31:25.519 [main] DEBUG nextflow.Session - Script base path does not exist or is not a directory: /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/bin
+Mar-25 16:31:25.554 [main] DEBUG nextflow.Session - Observer factory: TowerFactory
+Mar-25 16:31:25.556 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
+Mar-25 16:31:25.661 [main] DEBUG nextflow.Session - Session start invoked
+Mar-25 16:31:26.585 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
+Mar-25 16:31:26.592 [main] DEBUG nextflow.Session - Workflow process names [dsl1]: map_virus, fastqc, trimming, genome_consensus
+Mar-25 16:31:26.599 [main] ERROR nextflow.Nextflow - > Error: Fastq files not found: false. Please specify a valid path with --reads

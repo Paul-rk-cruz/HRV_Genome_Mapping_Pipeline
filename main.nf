@@ -83,9 +83,9 @@ def helpMsg() {
 }
 // Pipeline version
 version = '1.0'
-params.help = false
+params.helpMsg = false
 // Show help msg
-if (params.help){
+if (params.helpMsg){
     helpmsg()
     exit 0
 }
@@ -108,7 +108,7 @@ if( params.virus_fasta ){
 }
 // Check for fastq
 params.reads = false
-if (! params.reads ) exit 1, "> Error: Fastq files not found: $params.reads. Please specify a valid path with --reads"
+if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a valid path with --reads"
 // Single-end read option
 params.singleEnd = false
 // Trimming parameters
