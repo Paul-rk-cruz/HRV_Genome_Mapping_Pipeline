@@ -1,0 +1,36 @@
+Mar-25 16:08:38.944 [main] DEBUG nextflow.cli.Launcher - $> nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg
+Mar-25 16:08:39.009 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 20.10.0
+Mar-25 16:08:39.019 [main] INFO  nextflow.cli.CmdRun - Launching `/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf` [exotic_easley] - revision: bbb04c940c
+Mar-25 16:08:39.107 [main] DEBUG nextflow.Session - Session uuid: 3e933688-9da0-474b-a468-68dc7f7584c7
+Mar-25 16:08:39.107 [main] DEBUG nextflow.Session - Run name: exotic_easley
+Mar-25 16:08:39.109 [main] DEBUG nextflow.Session - Executor pool size: 20
+Mar-25 16:08:39.329 [main] DEBUG nextflow.cli.CmdRun - 
+  Version: 20.10.0 build 5430
+  Created: 01-11-2020 15:14 UTC (07:14 PDT)
+  System: Mac OS X 10.15.7
+  Runtime: Groovy 3.0.5 on OpenJDK 64-Bit Server VM 11.0.6+8-b765.1
+  Encoding: UTF-8 (UTF-8)
+  Process: 21439@uwvirologys-iMac.local [127.0.0.1]
+  CPUs: 20 - Mem: 72 GB (42.5 GB) - Swap: 3 GB (1.5 GB)
+Mar-25 16:08:39.340 [main] DEBUG nextflow.Session - Work-dir: /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/work [Mac OS X]
+Mar-25 16:08:39.340 [main] DEBUG nextflow.Session - Script base path does not exist or is not a directory: /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/bin
+Mar-25 16:08:39.368 [main] DEBUG nextflow.Session - Observer factory: TowerFactory
+Mar-25 16:08:39.369 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
+Mar-25 16:08:39.460 [main] DEBUG nextflow.Session - Session start invoked
+Mar-25 16:08:40.404 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
+Mar-25 16:08:40.413 [main] DEBUG nextflow.Session - Workflow process names [dsl1]: map_virus, fastqc, trimming, genome_consensus
+Mar-25 16:08:40.416 [main] DEBUG nextflow.Session - Session aborted -- Cause: No such property: True for class: Script_ea2bd942
+Mar-25 16:08:40.432 [main] ERROR nextflow.cli.Launcher - @unknown
+groovy.lang.MissingPropertyException: No such property: True for class: Script_ea2bd942
+	at org.codehaus.groovy.runtime.ScriptBytecodeAdapter.unwrap(ScriptBytecodeAdapter.java:65)
+	at org.codehaus.groovy.runtime.callsite.PogoGetPropertySite.getProperty(PogoGetPropertySite.java:51)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callGroovyObjectGetProperty(AbstractCallSite.java:341)
+	at Script_ea2bd942.runScript(Script_ea2bd942:92)
+	at nextflow.script.BaseScript.runDsl1(BaseScript.groovy:164)
+	at nextflow.script.BaseScript.run(BaseScript.groovy:200)
+	at nextflow.script.ScriptParser.runScript(ScriptParser.groovy:219)
+	at nextflow.script.ScriptRunner.run(ScriptRunner.groovy:219)
+	at nextflow.script.ScriptRunner.execute(ScriptRunner.groovy:127)
+	at nextflow.cli.CmdRun.run(CmdRun.groovy:277)
+	at nextflow.cli.Launcher.run(Launcher.groovy:466)
+	at nextflow.cli.Launcher.main(Launcher.groovy:648)

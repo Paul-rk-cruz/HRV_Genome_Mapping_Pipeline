@@ -54,8 +54,7 @@ Dependencies:
 
 
 def helpMsg() {
-
-    log.info""""
+    log.info"""
     ____________________________________________
      Virus Genome Mapping Pipeline :  v${version}
     ____________________________________________
@@ -82,6 +81,15 @@ def helpMsg() {
 
     """.stripIndent()
 }
+// Pipeline version
+version = '1.0'
+params.help = false
+// Show help msg
+if (params.help){
+    helpmsg()
+    exit 0
+}
+
 // Check Nextflow version
 nextflow_req_v = '20.10.0'
 try {
@@ -91,37 +99,12 @@ try {
 } catch (all) {
 	log.error"ERROR: This version of Nextflow is out of date.\nPlease update to the latest version of Nextflow."
 }
-/*
- * Configuration Setup
- */
-params.helpMsg = True
 
-// Pipeline version
-version = '1.0'
-
-// Show help msg
-if (params.help){
-    helpmsg()
-    exit 0
-}
 // Check for virus genome reference indexes
 params.virus_fasta = false
 if( params.virus_fasta ){
     virus_fasta_file = file(params.virus_fasta)
     if( !virus_fasta_file.exists() ) exit 1, "> Virus fasta file not found: ${params.virus_fasta}.\n> Please specify a valid file path!"
-}
-// Channel for input fastq files
-Channel
-    .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
-    .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
-    .into { raw_reads_fastqc; raw_reads_trimming }
-
-if( params.virus_index ){
-// Channel for virus genome reference indexes
-	Channel
-        .fromPath(params.virus_index)
-        .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
-        .into { virus_index_files; virus_index_files_ivar; virus_index_files_variant_calling }
 }
 // Check for fastq
 params.reads = false
@@ -145,7 +128,7 @@ log.info " Virus Genome Mapping Pipeline :  v${version}"
 log.info "____________________________________________"
 def summary = [:]
 summary['Fastq Files:']               = params.reads
-summary['Read type:']           = params.singleEnd ? 'Single-End' : 'Paired-End'
+summary['Read type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
 summary['Virus Reference:']           = params.virus_fasta
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Current directory path:']        = "$PWD"
@@ -163,6 +146,20 @@ summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "____________________________________________"
 
+// Channel for input fastq files
+Channel
+    .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
+    .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
+    .into { raw_reads; raw_reads_trimming }
+
+if( params.virus_index ){
+// Channel for virus genome reference indexes
+	Channel
+        .fromPath(params.virus_index)
+        .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
+        .into { virus_index_files; virus_index_files_ivar; virus_index_files_variant_calling }
+}
+
 if (! params.withFastQC ) {
 /*
  * Fastq File Processing
@@ -175,7 +172,7 @@ process fastqc {
 		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
 	input:
-	set val(name), file(reads) from raw_reads_fastqc
+	set val(name), file(reads) from raw_reads
 
 	output:
 	file '*_fastqc.{zip,html}' into fastqc_results
