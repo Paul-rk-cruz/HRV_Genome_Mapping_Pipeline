@@ -165,7 +165,6 @@ if (! params.withFastQC ) {
  * Fastqc
  */
 process fastqc {
-	label "small"
 	tag "$prefix"
 	publishDir "${params.outdir}/fastQC", mode: 'copy',
 		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
@@ -193,7 +192,6 @@ process fastqc {
  * Trimmomatic
  */
 process trimming {
-	label "small"
 	tag "$prefix"
 	publishDir "${params.outdir}/fastq_processing", mode: 'copy',
 		saveAs: {filename ->
