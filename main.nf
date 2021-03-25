@@ -21,19 +21,18 @@ Pipeline overview:
 
   Dependencies:
   
-  fastqc
   trimmomatic
   bowtie2
   samtools
   bedtools
   Bcftools
 
-PATH to Reference Fasta:
-/Users/Kurtisc/Downloads/CURRENT/ref_db/virus/rhv_abc_sars2.fasta 
-zsh: permission denied: /Users/Kurtisc/Downloads/CURRENT/ref_db/virus/rhv_abc_sars2.fasta
-
-PATH to indexed Fasta:
-/Users/Kurtisc/Downloads/CURRENT/ref_db/virus
+	PATHS FOR EASTLAKE KC iMac - TESTING & DEBUGGING
+	PATH to Reference Fasta:
+	/Users/Kurtisc/Downloads/CURRENT/ref_db/virus/rhv_abc_sars2.fasta 
+	
+	PATH to indexed Fasta:
+	/Users/Kurtisc/Downloads/CURRENT/ref_db/virus
 
  ----------------------------------------------------------------------------------------
 */
