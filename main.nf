@@ -14,10 +14,10 @@ Pipeline overview:
  - 1. : Fastq File Processing
  		-Trimmomatic - sequence trimming of adaptors and low quality reads.
  - 2. : Genome Mapping
- 		-Bowtie2 - Remove host genome and map to reference Virus genome.
+ 		-Bowtie2 - align to reference Virus genome.
  		-Samtools - SAM and BAM file processing.
- - 3. : Variant calling, annotation and consensus:
-  		-Bcftools - Consensus in *.fasta format
+ - 3. : Consensus generation (*.fasta):
+  		-Bcftools - consensus formatting.
 
 Optional:
 	-withFastQC
