@@ -235,8 +235,8 @@ process mapping_virus {
     file index from viral_index_files.collect()
 
 	output:
-	file '*_sorted.bam' into mapping_virus_sorted_bam,mapping_virus_sorted_bam_variant_calling,mapping_virus_sorted_bam_consensus
-    file '*.bam.bai' into mapping_virus_bai,mapping_virus_bai_variant_calling,mapping_virus_bai_consensus
+	file '*_sorted.bam' into mapping_virus_sorted_bam,mapping_virus_sorted_bam_consensus
+    file '*_consensus_masked.fasta' into masked_fasta
 
 	script:
   prefix = readsR1.toString() - '_paired_R1.fastq.gz'
@@ -266,7 +266,6 @@ process genome_consensus {
 
   output:
   file '*_consensus.fasta' into consensus_fasta
-  file '*_consensus_masked.fasta' into masked_fasta
 
   script:
   prefix = variants.baseName - ~/(_majority)?(_paired)?(\.vcf)?(\.gz)?$/
