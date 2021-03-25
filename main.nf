@@ -48,7 +48,7 @@ Dependencies:
 */
 
 
-def helpmsg() {
+def helpMsg() {
 
     log.info""""
     ____________________________________________
@@ -89,7 +89,7 @@ try {
 /*
  * Configuration Setup
  */
-params.help = True
+params.helpMsg = True
 
 // Pipeline version
 version = '1.0'
@@ -225,12 +225,13 @@ process trimming {
  */
 process map_virus {
 	tag "$prefix"
+	// Create new directory
 	publishDir "${params.outdir}/map_virus", mode: 'copy',
 		saveAs: {filename ->
 			if (filename.indexOf(".bam") > 0) "mapping/$filename"
 			else if (filename.indexOf(".bai") > 0) "mapping/$filename"
 	}
-
+	// Specify inputs and outputs
 	input:
 	set file(readsR1),file(readsR2) from virustrimmed_paired_reads_irus
     file refvirus from virus_fasta_file
@@ -239,6 +240,7 @@ process map_virus {
 	output:
 	file '*_sorted.bam' into mapping_virus_sorted_bam,mapping_virus_sorted_bam_consensus
     file '*_consensus_masked.fasta' into masked_fasta
+	// Use these files for consensus generation
 
 	script:
   prefix = readsR1.toString() - '_paired_R1.fastq.gz'
@@ -280,6 +282,6 @@ process genome_consensus {
   """
 }
 
-// CODE - Blast Consensus?
+// CODE - Blast Consensus? Specify with --WithBlastConsensus
 
-// Vapid-like genbank prep?
+// CODE - Vapid-like genbank prep? Specify with --GenBankPrep
