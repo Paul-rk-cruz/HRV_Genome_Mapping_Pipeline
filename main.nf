@@ -112,7 +112,7 @@ params.notrim = false
 // Output files options
 params.saveTrimmed = false
 // Default trimming options
-params.trimmomatic_adapters_file = "\$TRIMMOMATIC_PATH/adapters/NexteraPE-PE.fa"
+params.trimmomatic_adapters_file = "\$TRIMMOMATIC_PATH/adapters/TruSeq3-PE.fa"
 params.trimmomatic_adapters_parameters = "2:30:10"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
@@ -142,6 +142,7 @@ summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "____________________________________________"
 
+if (! params.withFastQC ) {
 /*
  * Fastq File Processing
  * 
@@ -223,14 +224,12 @@ process mapping_virus {
 
 	input:
 	set file(readsR1),file(readsR2) from trimmed_paired_reads_bwa_virus
-  file refvirus from viral_fasta_file
-  file index from viral_index_files.collect()
+    file refvirus from viral_fasta_file
+    file index from viral_index_files.collect()
 
 	output:
 	file '*_sorted.bam' into mapping_virus_sorted_bam,mapping_virus_sorted_bam_variant_calling,mapping_virus_sorted_bam_consensus
-  file '*.bam.bai' into mapping_virus_bai,mapping_virus_bai_variant_calling,mapping_virus_bai_consensus
-	file '*_flagstat.txt' into mapping_virus_flagstat
-	file '*.stats' into mapping_virus_picardstats
+    file '*.bam.bai' into mapping_virus_bai,mapping_virus_bai_variant_calling,mapping_virus_bai_consensus
 
 	script:
   prefix = readsR1.toString() - '_paired_R1.fastq.gz'
