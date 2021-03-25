@@ -1,3 +1,8 @@
 
 .nextflow.log
 *.1
+*.log
+.nextflow/cache/a445bf8c-2e3d-4141-9486-2ff7c2b73e99/db/CURRENT
+.nextflow/cache/a445bf8c-2e3d-4141-9486-2ff7c2b73e99/db/LOCK
+.nextflow/cache/a445bf8c-2e3d-4141-9486-2ff7c2b73e99/db/MANIFEST-000002
+*.mad_gautier
