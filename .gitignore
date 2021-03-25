@@ -70,3 +70,4 @@
 .nextflow.log.5
 .nextflow.log.4
 *.9
+.DS_Store
