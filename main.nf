@@ -83,7 +83,9 @@ def helpMsg() {
 }
 // Pipeline version
 version = '1.0'
+// Initialize parameters
 params.helpMsg = false
+params.withFastQC = false
 // Show help msg
 if (params.helpMsg){
     helpmsg()
@@ -207,9 +209,8 @@ process trimming {
 	set val(name), file(reads) from raw_reads_trimming
 
 	output:
-	file '*_paired_*.fastq.gz' into trimmed_paired_reads,trimmed_paired_reads_bwa,virustrimmed_paired_reads_irus
+	file '*_paired_*.fastq.gz' into trimmed_paired_reads
 	file '*_unpaired_*.fastq.gz' into trimmed_unpaired_reads
-	file '*_fastqc.{zip,html}' into trimmomatic_fastqc_reports
 	file '*.log' into trimmomatic_results
 
 	script:
@@ -233,12 +234,12 @@ process map_virus {
 	}
 	// Specify inputs and outputs
 	input:
-	set file(readsR1),file(readsR2) from virustrimmed_paired_reads_irus
+	set file(readsR1),file(readsR2) from trimmed_paired_reads, trimmed_unpaired_reads
     file refvirus from virus_fasta_file
     file index from virus_index_files.collect()
 
 	output:
-	file '*_sorted.bam' into mapping_virus_sorted_bam,mapping_virus_sorted_bam_consensus
+	file '*_sorted.bam' into alignment_sorted_bam
     file '*_consensus_masked.fasta' into masked_fasta
 	// Use these files for consensus generation
 
@@ -265,8 +266,7 @@ process genome_consensus {
 
   input:
   file refvirus from virus_fasta_file
-  file sorted_bam from sorted_bam_consensus
-  file sorted_bai from bai_consensus
+  file sorted_bam from alignment_sorted_bam
 
   output:
   file '*_consensus.fasta' into consensus_fasta
