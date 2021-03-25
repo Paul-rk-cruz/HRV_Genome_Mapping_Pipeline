@@ -234,7 +234,8 @@ process map_virus {
 	}
 	// Specify inputs and outputs
 	input:
-	set file(readsR1),file(readsR2) from trimmed_paired_reads, trimmed_unpaired_reads
+	set file(readsR1),file(readsR2) from trimmed_paired_reads
+	set file(readsR1),file(readsR2) from trimmed_unpaired_reads
     file refvirus from virus_fasta_file
     file index from virus_index_files.collect()
 
