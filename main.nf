@@ -167,7 +167,7 @@ if (! params.withFastQC ) {
 process fastqc {
 	label "small"
 	tag "$prefix"
-	publishDir "${params.outdir}/01-fastQC", mode: 'copy',
+	publishDir "${params.outdir}/fastQC", mode: 'copy',
 		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
 	input:
@@ -188,18 +188,18 @@ process fastqc {
 }
 
 /*
- * Trimm sequence reads
+ * Processing: Trim fastq sequence reads
  * 
  * Trimmomatic
  */
 process trimming {
 	label "small"
 	tag "$prefix"
-	publishDir "${params.outdir}/02-preprocessing", mode: 'copy',
+	publishDir "${params.outdir}/fastq_processing", mode: 'copy',
 		saveAs: {filename ->
-			if (filename.indexOf("_fastqc") > 0) "../03-preprocQC/$filename"
+			if (filename.indexOf("_fastqc") > 0) "../qc/$filename"
 			else if (filename.indexOf(".log") > 0) "logs/$filename"
-      else if (params.saveTrimmed && filename.indexOf(".fastq.gz")) "trimmed/$filename"
+      else if (params.filename.indexOf(".fastq.gz")) "trimmed/$filename"
 			else null
 	}
 
@@ -217,16 +217,11 @@ process trimming {
 	"""
 	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
 
-	gzip *.fastq
-	mkdir tmp
-	fastqc -t ${task.cpus} -q *_paired_*.fastq.gz
-	rm -rf tmp
-
 	"""
 }
 
 /*
- * STEPS 2.2 Mapping virus
+ * Map sequence reads to local virus database
  */
 process map_virus {
 	tag "$prefix"
@@ -256,7 +251,7 @@ process map_virus {
 }
 
 /*
- * STEPS 3.3 Consensus Genome
+ * Generate Consensus
  */
 process genome_consensus {
   tag "$prefix"
