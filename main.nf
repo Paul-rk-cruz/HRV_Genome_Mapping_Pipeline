@@ -81,7 +81,7 @@ def helpMsg() {
 nextflow_req_v = '20.10.0'
 try {
     if( ! nextflow.version.matches(">= $nextflow_req_v") ){
-        throw GroovyException('> ERROR: The version of Nextflow running on your machine is out dated.\n>Please update to Version '$nextflow_req_v)
+        throw GroovyException("> ERROR: The version of Nextflow running on your machine is out dated.\n>Please update to Version $nextflow_req_v")
     }
 } catch (all) {
 	log.error"ERROR: This version of Nextflow is out of date.\nPlease update to the latest version of Nextflow."
