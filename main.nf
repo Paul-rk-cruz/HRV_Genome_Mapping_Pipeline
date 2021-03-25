@@ -198,7 +198,7 @@ process trimming {
 	set val(name), file(reads) from raw_reads_trimming
 
 	output:
-	file '*_paired_*.fastq.gz' into trimmed_paired_reads,trimmed_paired_reads_bwa,trimmed_paired_reads_bwa_virus
+	file '*_paired_*.fastq.gz' into trimmed_paired_reads,trimmed_paired_reads_bwa,virustrimmed_paired_reads_irus
 	file '*_unpaired_*.fastq.gz' into trimmed_unpaired_reads
 	file '*_fastqc.{zip,html}' into trimmomatic_fastqc_reports
 	file '*.log' into trimmomatic_results
@@ -219,9 +219,9 @@ process trimming {
 /*
  * STEPS 2.2 Mapping virus
  */
-process mapping_virus {
+process map_virus {
 	tag "$prefix"
-	publishDir "${params.outdir}/05-mapping_virus", mode: 'copy',
+	publishDir "${params.outdir}/map_virus", mode: 'copy',
 		saveAs: {filename ->
 			if (filename.indexOf(".bam") > 0) "mapping/$filename"
 			else if (filename.indexOf(".bai") > 0) "mapping/$filename"
@@ -230,7 +230,7 @@ process mapping_virus {
 	}
 
 	input:
-	set file(readsR1),file(readsR2) from trimmed_paired_reads_bwa_virus
+	set file(readsR1),file(readsR2) from virustrimmed_paired_reads_irus
     file refvirus from virus_fasta_file
     file index from virus_index_files.collect()
 
@@ -253,7 +253,7 @@ process mapping_virus {
  */
 process genome_consensus {
   tag "$prefix"
-  publishDir "${params.outdir}/08-mapping_consensus", mode: 'copy',
+  publishDir "${params.outdir}/map_consensus", mode: 'copy',
 		saveAs: {filename ->
 			if (filename.indexOf("_consensus.fasta") > 0) "consensus/$filename"
 			else if (filename.indexOf("_consensus_masked.fasta") > 0) "masked/$filename"
@@ -268,14 +268,13 @@ process genome_consensus {
   file '*_consensus.fasta' into consensus_fasta
 
   script:
-  prefix = variants.baseName - ~/(_majority)?(_paired)?(\.vcf)?(\.gz)?$/
   refname = refvirus.baseName - ~/(\.2)?(\.fasta)?$/
   """
-  bcftools index $prefix"_"$refname".vcf.gz"
-  cat $refvirus | bcftools consensus $prefix"_"$refname".vcf.gz" > $prefix"_"$refname"_consensus.fasta"
-  bedtools genomecov -bga -ibam $sorted_bam -g $refvirus | awk '\$4 < 20' | bedtools merge > $prefix"_"$refname"_bed4mask.bed"
-  bedtools maskfasta -fi $prefix"_"$refname"_consensus.fasta" -bed $prefix"_"$refname"_bed4mask.bed" -fo $prefix"_"$refname"_consensus_masked.fasta"
-  sed -i 's/$refname/$prefix/g' $prefix"_"$refname"_consensus_masked.fasta"
+  bcftools index "$refname".vcf.gz"
+  cat $refvirus | bcftools consensus "$refname".vcf.gz" > "$refname"_consensus.fasta"
+  bedtools genomecov -bga -ibam $sorted_bam -g $refvirus | awk '\$4 < 20' | bedtools merge > "$refname"_bed4mask.bed"
+  bedtools maskfasta -fi "$refname"_consensus.fasta" -bed "$refname"_bed4mask.bed" -fo "$refname"_consensus_masked.fasta"
+  sed -i 's/$refname/g' "$refname"_consensus_masked.fasta"
   """
 }
 
