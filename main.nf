@@ -42,7 +42,12 @@ Dependencies:
 	/Users/Kurtisc/Downloads/CURRENT/test_fastq  ---> These are single-end reads
 
 	CLI Commands
-	nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db --outdir ./VGMP_output --singleEnd
+
+	Run Pipeline --helpMsg
+	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg
+
+	Run Pipeline on test fastqc:
+	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db --outdir ./VGMP_output --singleEnd
 
  ----------------------------------------------------------------------------------------
 */
@@ -73,7 +78,7 @@ def helpMsg() {
       --trimmomatic_mininum_length  Minimum length of reads
 	  --withFastQC					Runs a quality control check on fastq files
       --outdir                      The output directory where the results will be saved
-	  --helpmsg						Displays help message in terminal
+	  --helpMsg						Displays help message in terminal
 
     """.stripIndent()
 }
@@ -280,11 +285,15 @@ process genome_consensus {
   """
 }
 
-// CODE - Blast Consensus? Specify with --WithBlastConsensus
+/*
+ * Next Steps (aside from fine tuning this thing and getting it running perfectly)
+ *
+ * CODE - Blast Consensus? Specify with --WithBlastConsensus
+ *
+ * CODE - Vapid-like genbank prep? Specify with --GenBankPrep
+ *
+ * To Do Keep testing individual processes in console ( CLI: nextflow console )
+ *
+ */
 
-// CODE - Vapid-like genbank prep? Specify with --GenBankPrep
-
-// To Do
-// 
-// Keep testing individual processes
-//
+}
