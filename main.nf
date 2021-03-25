@@ -28,6 +28,13 @@ Pipeline overview:
   bedtools
   Bcftools
 
+PATH to Reference Fasta:
+/Users/Kurtisc/Downloads/CURRENT/ref_db/virus/rhv_abc_sars2.fasta 
+zsh: permission denied: /Users/Kurtisc/Downloads/CURRENT/ref_db/virus/rhv_abc_sars2.fasta
+
+PATH to indexed Fasta:
+/Users/Kurtisc/Downloads/CURRENT/ref_db/virus
+
  ----------------------------------------------------------------------------------------
 */
 
@@ -73,7 +80,7 @@ try {
 /*
  * Configuration Setup
  */
-params.help = false
+params.help = True
 
 // Pipeline version
 version = '1.0'
