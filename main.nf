@@ -285,3 +285,8 @@ process genome_consensus {
 // CODE - Blast Consensus? Specify with --WithBlastConsensus
 
 // CODE - Vapid-like genbank prep? Specify with --GenBankPrep
+
+// To Do
+// 
+// Keep testing individual processes
+//
