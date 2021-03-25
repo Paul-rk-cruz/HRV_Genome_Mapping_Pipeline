@@ -12,7 +12,6 @@
 ----------------------------------------------------------------------------------------
 Pipeline overview:
  - 1. : Fastq File Processing
- 		-FastQC - sequence read quality control.
  		-Trimmomatic - sequence trimming of adaptors and low quality reads.
  - 2. : Genome Mapping
  		-Bowtie2 - Remove host genome and map to reference Virus genome.
@@ -44,21 +43,21 @@ def helpmsg() {
 
     To run the pipeline, enter the following in the command line:
 
-        nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --viral_fasta .PATH_TO_VIR_FASTA --viral_index PATH_TO_VIR_INDEX --host_fasta PATH_TO_HOST_FASTA --host_index PATH_TO_HOST_INDEX --outdir ./output
+        nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --viral_fasta .PATH_TO_VIR_FASTA --viral_index PATH_TO_VIR_INDEX --outdir ./output
 
 
     Valid CLI Arguments:
       --reads                       Path to input fastq.gz folder).
       --viral_fasta                 Path to fasta reference sequences (concatenated)
       --viral_index                 Path to indexed virus reference databases
-      --host_fasta                  Path to host Fasta sequence
-      --host_index                  Path to host fasta index
       --singleEnd                   Specifies that the input fastq files are single end reads
       --notrim                      Specifying --notrim will skip the adapter trimming step
       --saveTrimmed                 Save the trimmed Fastq files in the the Results directory
       --trimmomatic_adapters_file   Adapters index for adapter removal
       --trimmomatic_mininum_length  Minimum length of reads
+	  --withFastQC					Runs a quality control check on fastq files
       --outdir                      The output directory where the results will be saved
+	  --helpmsg						Displays help message in terminal
 
     """.stripIndent()
 }
@@ -90,12 +89,6 @@ if( params.viral_fasta ){
     viral_fasta_file = file(params.viral_fasta)
     if( !viral_fasta_file.exists() ) exit 1, "> Virus fasta file not found: ${params.viral_fasta}.\n> Please specify a valid file path!"
 }
-// Check for host genome reference indexes
-params.host_fasta = false
-if( params.host_fasta ){
-    host_fasta_file = file(params.host_fasta)
-    if( !host_fasta_file.exists() ) exit 1, "> Host fasta file not found: ${params.host_fasta}.\n> Please specify a valid file path!"
-}
 // Channel for input fastq files
 Channel
     .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
@@ -108,13 +101,6 @@ if( params.viral_index ){
         .fromPath(params.viral_index)
         .ifEmpty { exit 1, "> Error: Virus index not found: ${params.viral_index}.\n> Please specify a valid file path!"}
         .into { viral_index_files; viral_index_files_ivar; viral_index_files_variant_calling }
-}
-// Channel for host genome reference indexes
-if( params.host_index ){
-	Channel
-        .fromPath(params.host_index)
-        .ifEmpty { exit 1, "> Host index not found: ${params.host_index}.\n> Please specify a valid file path!"}
-        .into { host_index_files }
 }
 // Check for fastq
 params.reads = false
@@ -140,7 +126,6 @@ def summary = [:]
 summary['Fastq Files:']               = params.reads
 summary['Read type:']           = params.singleEnd ? 'Single-End' : 'Paired-End'
 summary['Virus Reference:']           = params.viral_fasta
-summary['Container:']           = workflow.container
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Current directory path:']        = "$PWD"
 summary['Working directory path:']         = workflow.workDir
@@ -224,42 +209,6 @@ process trimming {
 }
 
 /*
- * Map sequence reads to human host
- * 
- * Map to host for host removal
- */
-process mapping_host {
-	tag "$prefix"
-	publishDir "${params.outdir}/04-mapping_host", mode: 'copy',
-		saveAs: {filename ->
-			if (filename.indexOf(".bam") > 0) "mapping/$filename"
-			else if (filename.indexOf(".bai") > 0) "mapping/$filename"
-      else if (filename.indexOf(".txt") > 0) "stats/$filename"
-      else if (filename.indexOf(".stats") > 0) "stats/$filename"
-	}
-
-	input:
-	set file(readsR1),file(readsR2) from trimmed_paired_reads_bwa
-  file refhost from host_fasta_file
-  file index from host_index_files.collect()
-
-	output:
-	file '*_sorted.bam' into mapping_host_sorted_bam
-  file '*.bam.bai' into mapping_host_bai
-	file '*_flagstat.txt' into mapping_host_flagstat
-	file '*.stats' into mapping_host_picardstats
-
-	script:
-	prefix = readsR1.toString() - '_paired_R1.fastq.gz'
-	"""
-  bowtie2 -p ${task.cpus} --local -x $refhost -1 $readsR1 -2 $readsR2 --very-sensitive-local -S $prefix".sam"
-  samtools sort -o $prefix"_sorted.bam" -O bam -T $prefix $prefix".sam"
-  samtools index $prefix"_sorted.bam"
-  samtools flagstat $prefix"_sorted.bam" > $prefix"_flagstat.txt"
-	"""
-}
-
-/*
  * STEPS 2.2 Mapping virus
  */
 process mapping_virus {
@@ -305,7 +254,6 @@ process genome_consensus {
 	}
 
   input:
-  file variants from majority_allele_vcf_consensus
   file refvirus from viral_fasta_file
   file sorted_bam from sorted_bam_consensus
   file sorted_bai from bai_consensus
@@ -318,7 +266,6 @@ process genome_consensus {
   prefix = variants.baseName - ~/(_majority)?(_paired)?(\.vcf)?(\.gz)?$/
   refname = refvirus.baseName - ~/(\.2)?(\.fasta)?$/
   """
-  bgzip -c $variants > $prefix"_"$refname".vcf.gz"
   bcftools index $prefix"_"$refname".vcf.gz"
   cat $refvirus | bcftools consensus $prefix"_"$refname".vcf.gz" > $prefix"_"$refname"_consensus.fasta"
   bedtools genomecov -bga -ibam $sorted_bam -g $refvirus | awk '\$4 < 20' | bedtools merge > $prefix"_"$refname"_bed4mask.bed"
