@@ -47,7 +47,7 @@ Dependencies:
 	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 	Run Pipeline on test fastqc:
-	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/ --outdir /Users/Kurtisc/Downloads/CURRENT/test_output/ --singleEnd singleEnd
+	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq/ --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/ --outdir /Users/Kurtisc/Downloads/CURRENT/test_output/ --singleEnd singleEnd
 
  ----------------------------------------------------------------------------------------
 */
@@ -147,30 +147,20 @@ if( params.notrim ){
 summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "____________________________________________"
-
 // Channel for input fastq files
-// Channel
-//     .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
-//     .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
-//     .into { raw_reads; raw_reads_trimming }
-
 // Import reads depending on single end vs. paired end
 if(params.singleEnd == false) {
-    // Check for R1s and R2s in input directory
-    input_channel = Channel
-        .fromFilePairs("${params.reads}*_R{1,2}*.gz")
-        .ifEmpty { error "Cannot find any FASTQ pairs in ${params.reads} ending with .gz" }
-        .map { it -> [it[0], it[1][0], it[1][1]]}
-		.into { raw_reads; raw_reads_trimming }
+	Channel
+    .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
+    .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
+    .into { raw_reads; raw_reads_trimming }
 } else {
     // Looks for gzipped files, assumes all separate samples
-    input_channel = Channel
-        .fromPath("${params.reads}*.gz")
-        //.map { it -> [ file(it)]}
-        .map { it -> file(it)}
-		.into { raw_reads; raw_reads_trimming }
+	Channel
+    .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
+    .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
+    .into { raw_reads; raw_reads_trimming }
 }
-
 if(params.virus_index) {
 // Channel for virus genome reference indexes
 	Channel
@@ -178,14 +168,13 @@ if(params.virus_index) {
         .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
         .set { virus_index_files }
 }
-
 /*
  * Processing: Trim fastq sequence reads
  * 
  * Trimmomatic
  */
 if (params.singleEnd) {
-process Trim_Reads_SE {
+	process Trim_Reads_SE {
 	tag "$prefix"
     errorStrategy 'retry'
     maxRetries 3
@@ -197,9 +186,8 @@ process Trim_Reads_SE {
 		 else null
 	}
 
-	input:
- 	tuple val(prefix), path(reads) from raw_reads_trimming
-
+    input:
+	set val(name), file(reads) from raw_reads_trimming
 
 	output:
 	file '*_paired_*.fastq.gz' into trimmed_paired_reads
@@ -207,13 +195,14 @@ process Trim_Reads_SE {
 	file '*.log' into trimmomatic_results
 
 	script:
-	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
+	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(_001.fastq.gz)?(.fastq.gz)?(\.gz)?$/
 	"""
 	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
 
 	"""
   }
 } else {
+
 process Trim_Reads_PE {
 	tag "$prefix"
     errorStrategy 'retry'
@@ -227,7 +216,7 @@ process Trim_Reads_PE {
 	}
 
 	input:
- 	tuple val(prefix), path(reads) from raw_reads_trimming
+	set val(name), file(reads) from raw_reads_trimming
 
 
 	output:
