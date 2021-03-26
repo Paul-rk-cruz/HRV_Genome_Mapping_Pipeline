@@ -168,7 +168,7 @@ if (! params.withFastQC ) {
  * 
  * Fastqc
  */
-process fastqc {
+process FastQC {
 	tag "$prefix"
 	publishDir "${params.outdir}/fastQC", mode: 'copy',
 		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
@@ -189,13 +189,14 @@ process fastqc {
 	rm -rf tmp
 	"""
 }
+}
 
 /*
  * Processing: Trim fastq sequence reads
  * 
  * Trimmomatic
  */
-process trimming {
+process Trim_Reads {
 	tag "$prefix"
 	publishDir "${params.outdir}/fastq_processing", mode: 'copy',
 		saveAs: {filename ->
@@ -224,7 +225,7 @@ process trimming {
 /*
  * Map sequence reads to local virus database
  */
-process map_virus {
+process Align_To_Reference {
 	tag "$prefix"
 	// Create new directory
 	publishDir "${params.outdir}/map_virus", mode: 'copy',
@@ -257,7 +258,7 @@ process map_virus {
 /*
  * Generate Consensus
  */
-process genome_consensus {
+process Generate_Consensus {
   tag "$prefix"
   publishDir "${params.outdir}/map_consensus", mode: 'copy',
 		saveAs: {filename ->
@@ -294,4 +295,3 @@ process genome_consensus {
  *
  */
 
-}
