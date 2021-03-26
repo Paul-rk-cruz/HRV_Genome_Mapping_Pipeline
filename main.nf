@@ -56,15 +56,15 @@ Dependencies:
 version = '1.0'
 def helpMsg() {
     log.info"""
-    ____________________________________________
-     Virus Genome Mapping Pipeline :  v${version}
-    ____________________________________________
+	 __________________________________________________
+     Virus Genome Mapping Pipeline :  Version ${version}
+	__________________________________________________
     
 	Pipeline Usage:
 
     To run the pipeline, enter the following in the command line:
 
-        nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --virus_fasta .PATH_TO_VIR_FASTA --virus_index PATH_TO_VIR_INDEX --outdir ./output
+        nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --virus_fasta PATH_TO_VIR_FASTA --virus_index PATH_TO_VIR_INDEX --outdir PATH_TO_OUTPUT_DIR
 
 
     Valid CLI Arguments:
@@ -77,7 +77,7 @@ def helpMsg() {
       --trimmomatic_adapters_file   Adapters index for adapter removal
       --trimmomatic_mininum_length  Minimum length of reads
 	  --withFastQC					Runs a quality control check on fastq files
-      --outdir                      The output directory where the results will be saved
+	  --outdir                      The output directory where the results will be saved
 	  --helpMsg						Displays help message in terminal
 
     """.stripIndent()
@@ -117,11 +117,11 @@ params.notrim = false
 // Output files options
 params.saveTrimmed = false
 // Default trimming options
-params.trimmomatic_adapters_file = "\$TRIMMOMATIC_PATH/adapters/TruSeq3-PE.fa"
+params.trimmomatic_adapters_file = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq3-PE.fa"
 params.trimmomatic_adapters_parameters = "2:30:10"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
-params.trimmomatic_mininum_length = "50"
+params.trimmomatic_mininum_length = "101"
 
 // log files header
 log.info "____________________________________________"
