@@ -161,35 +161,6 @@ if( params.virus_index ){
         .into { virus_index_files; virus_index_files_ivar; virus_index_files_variant_calling }
 }
 
-if (! params.withFastQC ) {
-/*
- * Fastq File Processing
- * 
- * Fastqc
- */
-process FastQC {
-	tag "$prefix"
-	publishDir "${params.outdir}/fastQC", mode: 'copy',
-		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
-
-	input:
-	set val(name), file(reads) from raw_reads
-
-	output:
-	file '*_fastqc.{zip,html}' into fastqc_results
-	file '.command.out' into fastqc_stdout
-
-	script:
-
-	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
-	"""
-	mkdir tmp
-	fastqc -t ${task.cpus} -dir tmp $reads
-	rm -rf tmp
-	"""
-}
-}
-
 /*
  * Processing: Trim fastq sequence reads
  * 
@@ -283,6 +254,34 @@ process Generate_Consensus {
   """
 }
 
+if (! params.withFastQC ) {
+/*
+ * Fastq File Processing
+ * 
+ * Fastqc
+ */
+process FastQC {
+	tag "$prefix"
+	publishDir "${params.outdir}/fastQC", mode: 'copy',
+		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
+
+	input:
+	set val(name), file(reads) from raw_reads
+
+	output:
+	file '*_fastqc.{zip,html}' into fastqc_results
+	file '.command.out' into fastqc_stdout
+
+	script:
+
+	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
+	"""
+	mkdir tmp
+	fastqc -t ${task.cpus} -dir tmp $reads
+	rm -rf tmp
+	"""
+}
+}
 /*
  * Next Steps (aside from fine tuning this thing and getting it running perfectly)
  *
