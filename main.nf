@@ -139,7 +139,8 @@ summary['Pipeline directory path:']          = workflow.projectDir
 if( params.notrim ){
     summary['Trimmomatic Options: '] = 'Skipped trimming step'
 } else {
-    summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file
+    summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
+	summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
     summary['Trimmomatic adapter parameters:'] = params.trimmomatic_adapters_parameters
     summary["Trimmomatic read length (minimum):"] = params.trimmomatic_mininum_length
 }
@@ -160,12 +161,14 @@ if(params.singleEnd == false) {
         .fromFilePairs("${params.reads}*_R{1,2}*.gz")
         .ifEmpty { error "Cannot find any FASTQ pairs in ${params.reads} ending with .gz" }
         .map { it -> [it[0], it[1][0], it[1][1]]}
+		.into { raw_reads; raw_reads_trimming }
 } else {
     // Looks for gzipped files, assumes all separate samples
     input_channel = Channel
         .fromPath("${params.reads}*.gz")
         //.map { it -> [ file(it)]}
         .map { it -> file(it)}
+		.into { raw_reads; raw_reads_trimming }
 }
 
 if(params.virus_index) {
@@ -184,7 +187,7 @@ if(params.virus_index) {
 if (params.singleEnd) {
 process Trim_Reads_SE {
 	tag "$prefix"
-    errorStrategy 'retry'ß
+    errorStrategy 'retry'
     maxRetries 3
 
 	publishDir "${params.outdir}/fastq_processing", mode: 'copy',
@@ -206,7 +209,7 @@ process Trim_Reads_SE {
 	script:
 	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
 	"""
-	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
+	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
 
 	"""
   }
@@ -235,7 +238,7 @@ process Trim_Reads_PE {
 	script:
 	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
 	"""
-	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
+	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
 
 	"""
 }
