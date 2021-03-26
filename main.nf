@@ -44,7 +44,7 @@ Dependencies:
 	CLI Commands
 
 	Run Pipeline --helpMsg
-	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg
+	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 	Run Pipeline on test fastqc:
 	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db --outdir /Users/Kurtisc/Downloads/CURRENT/test_output --singleEnd
@@ -52,7 +52,8 @@ Dependencies:
  ----------------------------------------------------------------------------------------
 */
 
-
+// Pipeline version
+version = '1.0'
 def helpMsg() {
     log.info"""
     ____________________________________________
@@ -81,17 +82,15 @@ def helpMsg() {
 
     """.stripIndent()
 }
-// Pipeline version
-version = '1.0'
 // Initialize parameters
 params.helpMsg = false
-params.withFastQC = false
+
 // Show help msg
 if (params.helpMsg){
-    helpmsg()
+    helpMsg()
     exit 0
 }
-
+params.withFastQC = false
 // Check Nextflow version
 nextflow_req_v = '20.10.0'
 try {
@@ -294,4 +293,3 @@ process Generate_Consensus {
  * To Do Keep testing individual processes in console ( CLI: nextflow console )
  *
  */
-
