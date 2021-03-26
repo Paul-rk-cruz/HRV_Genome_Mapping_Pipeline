@@ -47,7 +47,7 @@ Dependencies:
 	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 	Run Pipeline on test fastqc:
-	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db --outdir /Users/Kurtisc/Downloads/CURRENT/test_output --singleEnd
+	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads /Users/Kurtisc/Downloads/CURRENT/test_fastq --virus_fasta /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/ --outdir /Users/Kurtisc/Downloads/CURRENT/test_output/ --singleEnd singleEnd
 
  ----------------------------------------------------------------------------------------
 */
@@ -117,12 +117,12 @@ params.notrim = false
 // Output files options
 params.saveTrimmed = false
 // Default trimming options
-params.trimmomatic_adapters_file = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq3-PE.fa"
-params.trimmomatic_adapters_parameters = "2:30:10"
+params.trimmomatic_adapters_file_PE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq3-PE.fa"
+params.trimmomatic_adapters_file_SE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq3-SE.fa"
+params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
-params.trimmomatic_mininum_length = "101"
-
+params.trimmomatic_mininum_length = "75"
 // log files header
 log.info "____________________________________________"
 log.info " Virus Genome Mapping Pipeline :  v${version}"
@@ -148,17 +148,32 @@ log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "____________________________________________"
 
 // Channel for input fastq files
-Channel
-    .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
-    .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
-    .into { raw_reads; raw_reads_trimming }
+// Channel
+//     .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
+//     .ifEmpty { exit 1, "> Invalid sequence read type.\n> Please retry with --singleEnd" }
+//     .into { raw_reads; raw_reads_trimming }
 
-if( params.virus_index ){
+// Import reads depending on single end vs. paired end
+if(params.singleEnd == false) {
+    // Check for R1s and R2s in input directory
+    input_channel = Channel
+        .fromFilePairs("${params.reads}*_R{1,2}*.gz")
+        .ifEmpty { error "Cannot find any FASTQ pairs in ${params.reads} ending with .gz" }
+        .map { it -> [it[0], it[1][0], it[1][1]]}
+} else {
+    // Looks for gzipped files, assumes all separate samples
+    input_channel = Channel
+        .fromPath("${params.reads}*.gz")
+        //.map { it -> [ file(it)]}
+        .map { it -> file(it)}
+}
+
+if(params.virus_index) {
 // Channel for virus genome reference indexes
 	Channel
         .fromPath(params.virus_index)
         .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
-        .into { virus_index_files }
+        .set { virus_index_files }
 }
 
 /*
@@ -166,8 +181,12 @@ if( params.virus_index ){
  * 
  * Trimmomatic
  */
-process Trim_Reads {
+if (params.singleEnd) {
+process Trim_Reads_SE {
 	tag "$prefix"
+    errorStrategy 'retry'ß
+    maxRetries 3
+
 	publishDir "${params.outdir}/fastq_processing", mode: 'copy',
 		saveAs: {filename ->
 		 if (filename.indexOf(".log") > 0) "logs/$filename"
@@ -176,7 +195,8 @@ process Trim_Reads {
 	}
 
 	input:
-	set val(name), file(reads) from raw_reads_trimming
+ 	tuple val(prefix), path(reads) from raw_reads_trimming
+
 
 	output:
 	file '*_paired_*.fastq.gz' into trimmed_paired_reads
@@ -188,19 +208,44 @@ process Trim_Reads {
 	"""
 	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
 
-	gzip *.fastq
-	mkdir tmp
-	fastqc -t ${task.cpus} -q *_paired_*.fastq.gz
-	rm -rf tmp
+	"""
+  }
+} else {
+process Trim_Reads_PE {
+	tag "$prefix"
+    errorStrategy 'retry'
+    maxRetries 3
+
+	publishDir "${params.outdir}/fastq_processing", mode: 'copy',
+		saveAs: {filename ->
+		 if (filename.indexOf(".log") > 0) "logs/$filename"
+		 else if (params.filename.indexOf(".fastq.gz")) "trimmed/$filename"
+		 else null
+	}
+
+	input:
+ 	tuple val(prefix), path(reads) from raw_reads_trimming
+
+
+	output:
+	file '*_paired_*.fastq.gz' into trimmed_paired_reads
+	file '*_unpaired_*.fastq.gz' into trimmed_unpaired_reads
+	file '*.log' into trimmomatic_results
+
+	script:
+	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
+	"""
+	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
 
 	"""
 }
-
+}
 /*
  * Map sequence reads to local virus database
  */
 process Align_To_Reference {
 	tag "$prefix"
+
 	// Create new directory
 	publishDir "${params.outdir}/map_virus", mode: 'copy',
 		saveAs: {filename ->
@@ -228,7 +273,6 @@ process Align_To_Reference {
   samtools flagstat $prefix"_sorted.bam" > $prefix"_flagstat.txt"
 	"""
 }
-
 /*
  * Generate Consensus
  */
@@ -257,24 +301,22 @@ process Generate_Consensus {
   sed -i 's/$refname/g' "$refname"_consensus_masked.fasta"
   """
 }
-
-if (! params.withFastQC ) {
 /*
  * Fastq File Processing
  * 
  * Fastqc
  */
-process FastQC {
+if (params.withFastQC) {
+  process FastQC {
 	tag "$prefix"
 	publishDir "${params.outdir}/fastQC", mode: 'copy',
 		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
 	input:
-	set val(name), file(reads) from raw_reads
+	tuple val(name), file(reads) from raw_reads
 
 	output:
 	file '*_fastqc.{zip,html}' into fastqc_results
-	file '.command.out' into fastqc_stdout
 
 	script:
 
@@ -296,3 +338,6 @@ process FastQC {
  * To Do Keep testing individual processes in console ( CLI: nextflow console )
  *
  */
+
+
+
