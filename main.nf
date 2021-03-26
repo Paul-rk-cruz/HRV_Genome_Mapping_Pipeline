@@ -158,7 +158,7 @@ if( params.virus_index ){
 	Channel
         .fromPath(params.virus_index)
         .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
-        .into { virus_index_files; virus_index_files_ivar; virus_index_files_variant_calling }
+        .into { virus_index_files }
 }
 
 /*
@@ -170,10 +170,9 @@ process Trim_Reads {
 	tag "$prefix"
 	publishDir "${params.outdir}/fastq_processing", mode: 'copy',
 		saveAs: {filename ->
-			if (filename.indexOf("_fastqc") > 0) "../qc/$filename"
-			else if (filename.indexOf(".log") > 0) "logs/$filename"
-      else if (params.filename.indexOf(".fastq.gz")) "trimmed/$filename"
-			else null
+		 if (filename.indexOf(".log") > 0) "logs/$filename"
+		 else if (params.filename.indexOf(".fastq.gz")) "trimmed/$filename"
+		 else null
 	}
 
 	input:
@@ -188,6 +187,11 @@ process Trim_Reads {
 	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
 	"""
 	trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
+
+	gzip *.fastq
+	mkdir tmp
+	fastqc -t ${task.cpus} -q *_paired_*.fastq.gz
+	rm -rf tmp
 
 	"""
 }
