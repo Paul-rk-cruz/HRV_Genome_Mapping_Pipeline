@@ -198,31 +198,7 @@ if (params.singleEnd) {
 	script:
 	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
 	"""
-	#!/bin/bash
-
-    trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-    ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
-
-    num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
-    num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
-    num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
-
-    num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
-    num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
-    num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
-
-    num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
-    num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
-    num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
-
-    num_trimmed=\$((num_paired + num_unpaired))
-    
-    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    
-    echo Sample_Name,Raw_Reads,Trimmed_Paired_Reads,Trimmed_Unpaired_Reads,Total_Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Clipped_Mapped_Reads,Mean_Coverage,Spike_Mean_Coverage,Spike_100X_Cov_Percentage,Spike_200X_Cov_Percentage,Lowest_Spike_Cov,Percent_N > ${base}_summary.csv
-    printf "${base},\$num_untrimmed,\$num_paired,\$num_unpaired,\$num_trimmed,\$percent_trimmed" >> ${base}_summary.csv
-
-    cat *paired.fastq.gz > ${base}.trimmed.fastq.gz
+		trimmomatic PE -threads ${task.cpus} -phred33 $reads $prefix"_paired_R1.fastq" $prefix"_unpaired_R1.fastq" $prefix"_paired_R2.fastq" $prefix"_unpaired_R2.fastq" ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${name}.log
 
 	"""
   }
