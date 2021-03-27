@@ -186,8 +186,7 @@ if (params.singleEnd) {
 	}
 
 	input:
-	tuple val(base), file(R1), file(R2) // from input_read_ch
-	// set val(name), file(reads) from input_read_ch
+	set val(name), file(reads) from input_read_ch
 
 	output:
 	file '*_paired_*.fastq.gz' into trimmed_paired_reads,trimmed_paired_reads_bwa,trimmed_paired_reads_bwa_virus
