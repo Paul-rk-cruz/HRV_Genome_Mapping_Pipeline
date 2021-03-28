@@ -95,7 +95,21 @@ ADAPTERS = file("${baseDir}/All_adapters.fa")
 MIN_LEN = 75
 REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_abc_sars2.fasta")
 REFERENCE_FASTA_FAI = file("${baseDir}/virus_ref_db/rhv_abc_sars2.fasta.fai")
-REF_BT2_INDEX = file("${baseDir}/virus_ref_db/virus_DB1")
+// Bowtie2 index name: virus_ref_db01
+
+// ${baseDir}/virus_ref_db/virus_ref_db01.1.bt2 
+// ${baseDir}/virus_ref_db/virus_ref_db01.2.bt2 
+// ${baseDir}/virus_ref_db/virus_ref_db01.3.bt2 
+// ${baseDir}/virus_ref_db/virus_ref_db01.4.bt2 
+// ${baseDir}/virus_ref_db/virus_ref_db01.rev.1.bt2 
+// ${baseDir}/virus_ref_db/virus_ref_db01.rev.2.bt2
+BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/virus_ref_db01")
+REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/virus_ref_db01.1.bt2")
+REF_BT2_INDEX2 = file("${baseDir}/virus_ref_db/virus_ref_db01.2.bt2")
+REF_BT2_INDEX3 = file("${baseDir}/virus_ref_db/virus_ref_db01.3.bt2")
+REF_BT2_INDEX4 = file("${baseDir}/virus_ref_db/virus_ref_db01.4.bt2")
+REF_BT2_INDEX5 = file("${baseDir}/virus_ref_db/virus_ref_db01.rev.1.bt2")
+REF_BT2_INDEX6 = file("${baseDir}/virus_ref_db/virus_ref_db01.rev.2.bt2")
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -197,7 +211,6 @@ if (params.singleEnd) {
     output: 
         tuple env(base),file("*.trimmed.fastq.gz"),file("*summary.csv") into Trim_out_ch_SE
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_SE
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch3_SE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
 
@@ -236,8 +249,8 @@ if (params.singleEnd) {
         tuple val(base), file(R1),file(R2),file("${base}.R1.paired.fastq.gz"), file("${base}.R2.paired.fastq.gz"),file("${base}.R1.unpaired.fastq.gz"), file("${base}.R2.unpaired.fastq.gz") into Trim_out_ch2
         tuple val(base), file("${base}.trimmed.fastq.gz") into Trim_out_ch3
 
-    publishDir "${params.OUTDIR}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
-
+    publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
+    
     script:
     """
     #!/bin/bash
@@ -270,60 +283,153 @@ process Genome_Mapping {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz"),file("${base}_summary.csv") from Trim_out_ch2_SE
+        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch2_SE
         file REFERENCE_FASTA
-		file REF_BT2_INDEX
+		file REF_BT2_INDEX1
+        file REF_BT2_INDEX2
+        file REF_BT2_INDEX3
+        file REF_BT2_INDEX4
+        file REF_BT2_INDEX5
+        file REF_BT2_INDEX6
     output:
-        tuple val(base), file("${base}.bam"),file("${base}_summary2.csv") into Aligned_bam_ch
+        tuple val(base), file("${base}.sam") into Aligned_sam_ch
+        tuple val(base), file("${base}.bam") into Aligned_bam_ch
+        tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch
         tuple val (base), file("*") into Dump_ch
 
-script:
-
-	"""
-	#!/bin/bash
-	
-	cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
-
-	bowtie2 -p ${task.cpus} --local -x $REF_BT2_INDEX -1 ${base}_cat.fastq.gz --very-sensitive-local -S ${base}".sam"
-	
-	samtools sort -o ${base}"_sorted.bam" -O bam -T ${base} ${base}".sam"
-	samtools index ${base}"_sorted.bam"
-	samtools flagstat ${base}"_sorted.bam" > ${base}"_flagstat.txt"
-
-	cp ${base}_summary.csv ${base}_summary2.csv
+    publishDir "${params.outdir}sam files", mode: 'copy', pattern:'*.sam*'
+    publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
+    publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*.sorted.bam*'  
     
-	printf ",\$reads_mapped" >> ${base}_summary2.csv
+    script:
 
-	"""
+    """
+    #!/bin/bash
+
+    bowtie2 -p ${task.cpus} -x $BOWTIE2_DB_PREFIX ${base}.trimmed.fastq.gz --very-sensitive-local -S ${base}.sam
+
+    samtools view -S -b ${base}.sam > ${base}.bam
+    samtools view ${base}.bam | head
+    samtools sort ${base}.bam -o ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    """
 }
 /*
  * Generate Consensus
  */
-// process Generate_Consensus {
-//   tag "$prefix"
-//   publishDir "${params.outdir}/map_consensus", mode: 'copy',
-// 		saveAs: {filename ->
-// 			if (filename.indexOf("_consensus.fasta") > 0) "consensus/$filename"
-// 			else if (filename.indexOf("_consensus_masked.fasta") > 0) "masked/$filename"
-// 	}
+process Generate_Consensus {
+    errorStrategy 'retry'
+    maxRetries 3
 
-//   input:
-//   file refvirus from virus_fasta_file
-//   file sorted_bam from alignment_sorted_bam
+    input:
+        tuple val (base), file(BAMFILE),file(INDEX_FILE),file("${base}_summary3.csv"),val(bamsize) //from Clipped_bam_ch
+        file REFERENCE_FASTA
+        file TRIM_ENDS
+        file FIX_COVERAGE
+        file VCFUTILS
+        file REFERENCE_FASTA_FAI
+        file SPLITCHR
+    output:
+        file("${base}_swift.fasta")
+        file("${base}_bcftools.vcf")
+        file(INDEX_FILE)
+        file("${base}_summary.csv")
+        tuple val(base), val(bamsize), file("${base}_pre_bcftools.vcf") //into Vcf_ch
 
-//   output:
-//   file '*_consensus.fasta' into consensus_fasta
+    publishDir params.OUTDIR, mode: 'copy'
 
-//   script:
-//   refname = refvirus.baseName - ~/(\.2)?(\.fasta)?$/
-//   """
-//   bcftools index "$refname".vcf.gz"
-//   cat $refvirus | bcftools consensus "$refname".vcf.gz" > "$refname"_consensus.fasta"
-//   bedtools genomecov -bga -ibam $sorted_bam -g $refvirus | awk '\$4 < 20' | bedtools merge > "$refname"_bed4mask.bed"
-//   bedtools maskfasta -fi "$refname"_consensus.fasta" -bed "$refname"_bed4mask.bed" -fo "$refname"_consensus_masked.fasta"
-//   sed -i 's/$refname/g' "$refname"_consensus_masked.fasta"
-//   """
-// }
+    shell:
+    '''
+    #!/bin/bash
+    ls -latr
+    R1=!{base}
+    echo "bamsize: !{bamsize}"
+    #if [ -s !{BAMFILE} ]
+    # More reliable way of checking bam size, because of aliases
+    if (( !{bamsize} > 92 ))
+    then
+        # Parallelize pileup based on number of cores
+        splitnum=$(($((29903/!{task.cpus}))+1))
+        perl !{VCFUTILS} splitchr -l $splitnum !{REFERENCE_FASTA_FAI} | \\
+        #cat !{SPLITCHR} | \\
+            xargs -I {} -n 1 -P !{task.cpus} sh -c \\
+                "/usr/local/miniconda/bin/bcftools mpileup \\
+                    -f !{REFERENCE_FASTA} -r {} \\
+                    --count-orphans \\
+                    --no-BAQ \\
+                    --max-depth 50000 \\
+                    --max-idepth 500000 \\
+                    --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
+                !{BAMFILE} | /usr/local/miniconda/bin/bcftools call -A -m -Oz - > tmp.{}.vcf.gz"
+        
+        # Concatenate parallelized vcfs back together
+        gunzip tmp*vcf.gz
+        mv tmp.NC_045512.2\\:1-* \${R1}_catted.vcf
+        for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
+        cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > \${R1}_pre_bcftools.vcf
+        
+        # Make sure variants are majority variants for consensus calling
+        /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}_pre2.vcf
+        /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
+        # Index and generate consensus from vcf with majority variants
+        /usr/local/miniconda/bin/bgzip \${R1}.vcf
+        /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
+        cat !{REFERENCE_FASTA} | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
+        # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
+        # to be masked later
+        /usr/local/miniconda/bin/bedtools genomecov \\
+            -bga \\
+            -ibam !{BAMFILE} \\
+            -g !{REFERENCE_FASTA} \\
+            | awk '\$4 < 6' | /usr/local/miniconda/bin/bedtools merge > \${R1}.mask.bed
+        # Get rid of anything outside of the genome we care about, to prevent some sgrnas from screwing with masking
+        awk '{ if(\$3 > 200 && \$2 < 29742) {print}}' \${R1}.mask.bed > a.tmp && mv a.tmp \${R1}.mask.bed
+        # Mask refseq fasta for low coverage areas based on bed file
+        /usr/local/miniconda/bin/bedtools maskfasta \\
+            -fi !{REFERENCE_FASTA} \\
+            -bed \${R1}.mask.bed \\
+            -fo ref.mask.fasta
+        
+        # Align to Wuhan refseq and unwrap fasta
+        cat ref.mask.fasta \${R1}.consensus.fa > align_input.fasta
+        /usr/local/miniconda/bin/mafft --auto --thread !{task.cpus} align_input.fasta > repositioned.fasta
+        awk '/^>/ { print (NR==1 ? "" : RS) $0; next } { printf "%s", $0 } END { printf RS }' repositioned.fasta > repositioned_unwrap.fasta
+        
+        # Trim ends and aligns masking of refseq to our consensus
+        python3 !{TRIM_ENDS} \${R1}
+        # Find percent ns, doesn't work, fix later in python script
+        num_bases=$(grep -v ">" \${R1}_swift.fasta | wc | awk '{print $3-$1}')
+        num_ns=$(grep -v ">" \${R1}_swift.fasta | awk -F"n" '{print NF-1}')
+        percent_n=$(awk -v num_ns=$num_ns -v num_bases=$num_bases 'BEGIN { print ( num_ns * 100 / num_bases ) }')
+        echo "num_bases=$num_bases"
+        echo "num_ns=$num_ns"
+        echo "percent_n=$percent_n"
+        gunzip \${R1}.vcf.gz
+        mv \${R1}.vcf \${R1}_bcftools.vcf
+        #/usr/local/miniconda/bin/samtools view !{BAMFILE} -@ !{task.cpus} | awk -F: '$12 < 600' > \${R1}'.clipped.cleaned.bam'
+    else
+       echo "Empty bam detected. Generating empty consensus fasta file..."
+       # Generate empty stats for empty bam
+       printf '>!{base}\n' > \${R1}_swift.fasta
+       printf 'n%.0s' {1..29539} >> \${R1}_swift.fasta
+       percent_n=100
+       touch \${R1}_bcftools.vcf
+       touch \${R1}_pre_bcftools.vcf
+    fi
+    
+    cp \${R1}_summary3.csv \${R1}_summary.csv
+    printf ",\$percent_n" >> \${R1}_summary.csv
+    cat \${R1}_summary.csv | tr -d "[:blank:]" > a.tmp
+    mv a.tmp \${R1}_summary.csv
+    # Correctly calculates %ns and cleans up the summary file.
+    if [[ !{bamsize} > 92 ]]
+    then
+        python3 !{FIX_COVERAGE} \${R1}
+        mv \${R1}_summary_fixed.csv \${R1}_summary.csv
+    fi
+    [ -s \${R1}_swift.fasta ] || echo "WARNING: \${R1} produced blank output. Manual review may be needed."
+    '''
+}
 /*
  * Fastq File Processing
  * 
@@ -358,6 +464,7 @@ script:
  *
  * CODE - Vapid-like genbank prep? Specify with --GenBankPrep
  *
- * To Do Keep testing individual processes in console ( CLI: nextflow console )
- *
+ * To Do 
+ * CODE: Add logic for --noTrim 
+ * 
  */
