@@ -33,28 +33,28 @@ Dependencies:
 
 	PATHS FOR EASTLAKE KC iMac - TESTING & DEBUGGING
 	PATH to Virus Reference Fasta:
-	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
+	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
 	
 	PATH to indexed (indexed by bowtie2) Reference Fasta Database Files:
-	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
+	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
 
 	PATH to fastq files from 031221 shotgun run (down-sized to 1m reads) for testing & debugging purposes:
-	/Users/Kurtisc/Downloads/CURRENT/test_fastq  ---> These are single-end reads
+	/Users/kurtiscruz/Downloads/CURRENT/test_fastq  ---> These are single-end reads
 
 	CLI Commands
 
 	Run Pipeline --helpMsg
-	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
+	nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 	Run Pipeline on test fastqc:
 	
     Single end:
 
-    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_se/' --virus_fasta /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/virus_ref_db/virus_DB1' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/' --singleEnd singleEnd
 
     Paired end:
 
-    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_pe' --virus_fasta /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta --virus_index /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/virus_ref_db/virus_DB1' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/'
+    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_pe' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/'
 
  ----------------------------------------------------------------------------------------
 */
@@ -79,6 +79,7 @@ def helpMsg() {
       --virus_fasta                 Path to fasta reference sequences (concatenated)
       --virus_index                 Path to indexed virus reference databases
       --singleEnd                   Specifies that the input fastq files are single end reads
+      --withBlast                   Blasts the resulting consensus sequence and outputs results
       --notrim                      Specifying --notrim will skip the adapter trimming step
       --saveTrimmed                 Save the trimmed Fastq files in the the Results directory
       --trimmomatic_adapters_file   Adapters index for adapter removal
@@ -91,25 +92,21 @@ def helpMsg() {
 }
 // Initialize parameters
 params.helpMsg = false
+params.virus_index = false
+params.virus_fasta = false
+params.withBlast =false
 ADAPTERS = file("${baseDir}/All_adapters.fa")
 MIN_LEN = 75
-REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_abc_sars2.fasta")
-REFERENCE_FASTA_FAI = file("${baseDir}/virus_ref_db/rhv_abc_sars2.fasta.fai")
-// Bowtie2 index name: virus_ref_db01
-
-// ${baseDir}/virus_ref_db/virus_ref_db01.1.bt2 
-// ${baseDir}/virus_ref_db/virus_ref_db01.2.bt2 
-// ${baseDir}/virus_ref_db/virus_ref_db01.3.bt2 
-// ${baseDir}/virus_ref_db/virus_ref_db01.4.bt2 
-// ${baseDir}/virus_ref_db/virus_ref_db01.rev.1.bt2 
-// ${baseDir}/virus_ref_db/virus_ref_db01.rev.2.bt2
-BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/virus_ref_db01")
-REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/virus_ref_db01.1.bt2")
-REF_BT2_INDEX2 = file("${baseDir}/virus_ref_db/virus_ref_db01.2.bt2")
-REF_BT2_INDEX3 = file("${baseDir}/virus_ref_db/virus_ref_db01.3.bt2")
-REF_BT2_INDEX4 = file("${baseDir}/virus_ref_db/virus_ref_db01.4.bt2")
-REF_BT2_INDEX5 = file("${baseDir}/virus_ref_db/virus_ref_db01.rev.1.bt2")
-REF_BT2_INDEX6 = file("${baseDir}/virus_ref_db/virus_ref_db01.rev.2.bt2")
+REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta")
+REFERENCE_FASTA_FNA = file("${baseDir}/virus_ref_db/rhv_ref_db01.fna")
+// Bowtie2 index name: rhv_ref_db01
+BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/rhv_ref_db01")
+REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/rhv_ref_db01.1.bt2")
+REF_BT2_INDEX2 = file("${baseDir}/virus_ref_db/rhv_ref_db01.2.bt2")
+REF_BT2_INDEX3 = file("${baseDir}/virus_ref_db/rhv_ref_db01.3.bt2")
+REF_BT2_INDEX4 = file("${baseDir}/virus_ref_db/rhv_ref_db01.4.bt2")
+REF_BT2_INDEX5 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.1.bt2")
+REF_BT2_INDEX6 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.2.bt2")
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -124,13 +121,6 @@ try {
     }
 } catch (all) {
 	log.error"ERROR: This version of Nextflow is out of date.\nPlease update to the latest version of Nextflow."
-}
-
-// Check for virus genome reference indexes
-params.virus_fasta = false
-if( params.virus_fasta ){
-    virus_fasta_file = file(params.virus_fasta)
-    if( !virus_fasta_file.exists() ) exit 1, "> Virus fasta file not found: ${params.virus_fasta}.\n> Please specify a valid file path!"
 }
 // Check for fastq
 params.reads = false
@@ -274,11 +264,10 @@ if (params.singleEnd) {
     """
 }
 }
-
 /*
  * Map sequence reads to local virus database
  */
-process Genome_Mapping {
+process Mapping_SE {
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -293,62 +282,150 @@ process Genome_Mapping {
         file REF_BT2_INDEX6
     output:
         tuple val(base), file("${base}.sam") into Aligned_sam_ch
-        tuple val(base), file("${base}.bam") into Aligned_bam_ch
-        tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch
+        tuple val(base), file("${base}.bowtie2.log") into Bowtie2_log_ch
         tuple val (base), file("*") into Dump_ch
 
     publishDir "${params.outdir}sam files", mode: 'copy', pattern:'*.sam*'
-    publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
-    publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*.sorted.bam*'  
-    
+    publishDir "${params.outdir}bowtie2 logs", mode: 'copy', pattern:'*.bowtie2.log*'  
+
     script:
 
     """
     #!/bin/bash
 
-    bowtie2 -p ${task.cpus} -x $BOWTIE2_DB_PREFIX ${base}.trimmed.fastq.gz --very-sensitive-local -S ${base}.sam
+    bowtie2 -p ${task.cpus} --local -x $BOWTIE2_DB_PREFIX -U ${base}.trimmed.fastq.gz --very-sensitive-local 2> ${base}.bowtie2.log -S ${base}.sam
 
+    """
+}
+
+    // bowtie2 -p ${task.cpus} -x $BOWTIE2_DB_PREFIX ${base}.trimmed.fastq.gz 2> ${base}.bowtie2.log -S ${base}.sam
+
+/*
+ * STEP 5.2: Convert BAM to coordinate sorted BAM
+ */
+process Sort_Bam_SE {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input: 
+    tuple val(base), file("${base}.sam") from Aligned_sam_ch
+
+    output:
+    tuple val(base), file("${base}.bam") into Aligned_bam_ch
+    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch
+    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_Cons_ch
+    tuple val(base), file("${base}.sorted.bam.bai") into Indexed_bam_ch
+    tuple val(base), file("${base}.sorted.bam.flagstat") into Flagstats_ch
+    tuple val(base), file("${base}.sorted.bam.idxstats") into Idxstats_ch
+    tuple val(base), file("${base}.sorted.bam.stats") into Stats_ch
+
+    publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
+    publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*.sorted.bam*' 
+    publishDir "${params.outdir}indexed bam files", mode: 'copy', pattern:'*.sorted.bam.bai*'  
+    publishDir "${params.outdir}flagstats", mode: 'copy', pattern:'*.sorted.bam.flagstat*' 
+    publishDir "${params.outdir}idxstats", mode: 'copy', pattern:'*.sorted.bam.idxstats*'  
+    publishDir "${params.outdir}stats", mode: 'copy', pattern:'*.sorted.bam.stats*'  
+
+    script:
+    """
     samtools view -S -b ${base}.sam > ${base}.bam
     samtools view ${base}.bam | head
     samtools sort ${base}.bam -o ${base}.sorted.bam
     samtools index ${base}.sorted.bam
+    samtools flagstat ${base}.sorted.bam > ${base}.sorted.bam.flagstat
+    samtools idxstats ${base}.sorted.bam > ${base}.sorted.bam.idxstats
+    samtools stats ${base}.sorted.bam > ${base}.sorted.bam.stats
+
     """
 }
+
+process Variant_Calling {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input: 
+    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
+    file REFERENCE_FASTA_FNA
+
+    output:
+    tuple val(base), file("${base}.calls.vcf.gz") into Vcf_ch
+
+    publishDir "${params.outdir}vcf files", mode: 'copy', pattern:'*.calls.vcf.gz*'  
+
+
+    script:
+    """
+    samtools mpileup -uf $REFERENCE_FASTA_FNA ${base}.sorted.bam | bcftools call -mv -Oz > ${base}.calls.vcf.gz
+
+    """
+}
+
+process Variant_Filtering {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input: 
+    tuple val(base), file("${base}.calls.vcf.gz") from Vcf_ch
+
+    output:
+    tuple val(base), file("${base}.calls.vcf.gz") into Vcf_Filtered_ch
+
+    publishDir "${params.outdir}filtered vcf files", mode: 'copy', pattern:'*.calls.vcf.gz*'  
+
+
+    script:
+    """
+    bcftools filter -i'%QUAL>20' ${base}.calls.vcf.gz | bcftools stats | grep TSTV
+
+    """
+}
+
+process Consensus_Generation {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input: 
+    tuple val(base), file("${base}.calls.vcf.gz") from Vcf_Filtered_ch
+    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_Cons_ch
+    file REFERENCE_FASTA_FNA
+    
+    output:
+    tuple val(base), file("${base}.fasta") into Consensus_Fasta_ch
+
+    publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*.fasta*'  
+
+
+    script:
+    """
+    samtools mpileup -uf $REFERENCE_FASTA_FNA ${base}.sorted.bam | bcftools call -c | vcfutils.pl vcf2fq > ${base}.fasta
+
+    """
+}
+
+if (params.withFastQC) {
 /*
- * Fastq File Processing
- * 
- * Fastqc
+ * STEP 3: FastQC on input reads after concatenating libraries from the same sample
  */
-// if (params.withFastQC) {
-//   process FastQC {
-// 	tag "$prefix"
-// 	publishDir "${params.outdir}/fastQC", mode: 'copy',
-// 		saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
-	
-// 	input:
-// 	set val(name), file(reads) from input_read_ch
+process FASTQC {
+    tag "$sample"
+    label 'process_medium'
+    publishDir "${params.outdir}/preprocess/fastqc", mode: params.publish_dir_mode,
+        saveAs: { filename ->
+                      filename.endsWith(".zip") ? "zips/$filename" : filename
+                }
 
-// 	output:
-// 	file '*_fastqc.{zip,html}' into fastqc_results
+    when:
+    !params.skip_fastqc
 
-// 	script:
+    input:
+    tuple val(sample), val(single_end), path(reads) from ch_cat_fastqc
 
-// 	prefix = name - ~/(_S[0-9]{2})?(_L00[1-9])?(.R1)?(_1)?(_R1)?(_trimmed)?(_val_1)?(_00*)?(\.fq)?(\.fastq)?(\.gz)?$/
-// 	"""
-// 	mkdir tmp
-// 	fastqc -t ${task.cpus} -dir tmp $reads
-// 	rm -rf tmp
-// 	"""
-// }
-// }
-/*
- * Next Steps (aside from fine tuning this thing and getting it running perfectly)
- *
- * CODE - Blast Consensus? Specify with --WithBlastConsensus
- *
- * CODE - Vapid-like genbank prep? Specify with --GenBankPrep
- *
- * To Do 
- * CODE: Add logic for --noTrim 
- * 
- */
+    output:
+    path "*.{zip,html}" into ch_fastqc_raw_reports_mqc
+
+    script:
+    """
+    fastqc --quiet --threads $task.cpus *.fastq.gz
+    """
+}
+}
