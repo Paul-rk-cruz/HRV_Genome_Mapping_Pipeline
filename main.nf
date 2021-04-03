@@ -267,7 +267,7 @@ if (params.singleEnd) {
 /*
  * Map sequence reads to local virus database
  */
-process Mapping_SE {
+process Mapping {
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -303,7 +303,7 @@ process Mapping_SE {
 /*
  * STEP 5.2: Convert BAM to coordinate sorted BAM
  */
-process Sort_Bam_SE {
+process Sort_Bam {
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -322,9 +322,9 @@ process Sort_Bam_SE {
     publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
     publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*.sorted.bam*' 
     publishDir "${params.outdir}indexed bam files", mode: 'copy', pattern:'*.sorted.bam.bai*'  
-    publishDir "${params.outdir}flagstats", mode: 'copy', pattern:'*.sorted.bam.flagstat*' 
-    publishDir "${params.outdir}idxstats", mode: 'copy', pattern:'*.sorted.bam.idxstats*'  
-    publishDir "${params.outdir}stats", mode: 'copy', pattern:'*.sorted.bam.stats*'  
+    publishDir "${params.outdir}sorted bam flagstats", mode: 'copy', pattern:'*.sorted.bam.flagstat*' 
+    publishDir "${params.outdir}sorted bam idxstats", mode: 'copy', pattern:'*.sorted.bam.idxstats*'  
+    publishDir "${params.outdir}sorted bam stats", mode: 'copy', pattern:'*.sorted.bam.stats*'  
 
     script:
     """
@@ -345,7 +345,7 @@ process Variant_Calling {
 
     input: 
     tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
-    file REFERENCE_FASTA_FNA
+    file REFERENCE_FASTA
 
     output:
     tuple val(base), file("${base}.calls.vcf.gz") into Vcf_ch
@@ -355,7 +355,7 @@ process Variant_Calling {
 
     script:
     """
-    samtools mpileup -uf $REFERENCE_FASTA_FNA ${base}.sorted.bam | bcftools call -mv -Oz > ${base}.calls.vcf.gz
+    bcftools mpileup --fasta-ref $REFERENCE_FASTA ${base}.sorted.bam | bcftools call -mv -Oz > ${base}.calls.vcf.gz
 
     """
 }
@@ -380,14 +380,14 @@ process Variant_Filtering {
     """
 }
 
-process Consensus_Generation {
+process Consensus_Fasta {
 	errorStrategy 'retry'
     maxRetries 3
 
     input: 
     tuple val(base), file("${base}.calls.vcf.gz") from Vcf_Filtered_ch
     tuple val(base), file("${base}.sorted.bam") from Sorted_bam_Cons_ch
-    file REFERENCE_FASTA_FNA
+    file REFERENCE_FASTA
     
     output:
     tuple val(base), file("${base}.fasta") into Consensus_Fasta_ch
@@ -397,7 +397,7 @@ process Consensus_Generation {
 
     script:
     """
-    samtools mpileup -uf $REFERENCE_FASTA_FNA ${base}.sorted.bam | bcftools call -c | vcfutils.pl vcf2fq > ${base}.fasta
+    bcftools mpileup --fasta-ref $REFERENCE_FASTA ${base}.sorted.bam | bcftools call -c | vcfutils.pl vcf2fq > ${base}.fasta
 
     """
 }
