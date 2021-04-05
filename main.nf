@@ -33,28 +33,28 @@ Dependencies:
 
 	PATHS FOR EASTLAKE KC iMac - TESTING & DEBUGGING
 	PATH to Virus Reference Fasta:
-	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
+	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
 	
 	PATH to indexed (indexed by bowtie2) Reference Fasta Database Files:
-	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
+	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
 
 	PATH to fastq files from 031221 shotgun run (down-sized to 1m reads) for testing & debugging purposes:
-	/Users/kurtiscruz/Downloads/CURRENT/test_fastq  ---> These are single-end reads
+	/Users/Kurtisc/Downloads/CURRENT/test_fastq  ---> These are single-end reads
 
 	CLI Commands
 
 	Run Pipeline --helpMsg
-	nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
+	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 	Run Pipeline on test fastqc:
 	
     Single end:
 
-    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
 
     Paired end:
 
-    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_pe' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/'
+    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
 
  ----------------------------------------------------------------------------------------
 */
@@ -98,7 +98,7 @@ params.withBlast =false
 ADAPTERS = file("${baseDir}/All_adapters.fa")
 MIN_LEN = 75
 REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta")
-REFERENCE_FASTA_FNA = file("${baseDir}/virus_ref_db/rhv_ref_db01.fna")
+REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
 // Bowtie2 index name: rhv_ref_db01
 BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/rhv_ref_db01")
 REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/rhv_ref_db01.1.bt2")
@@ -132,8 +132,8 @@ params.notrim = false
 // Output files options
 params.saveTrimmed = false
 // Default trimming options
-params.trimmomatic_adapters_file_PE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq2-PE.fa"
-params.trimmomatic_adapters_file_SE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq3-SE.fa"
+params.trimmomatic_adapters_file_PE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-PE.fa"
+params.trimmomatic_adapters_file_SE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-SE.fa"
 params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
@@ -199,7 +199,6 @@ if (params.singleEnd) {
         file ADAPTERS
         val MIN_LEN
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz"),file("*summary.csv") into Trim_out_ch_SE
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_SE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
@@ -209,19 +208,9 @@ if (params.singleEnd) {
     #!/bin/bash
     base=`basename ${R1} ".fastq.gz"`
     echo \$base
-
-	printf "> Now Trimming: " $R1
 	
 	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
 	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
-	
-
-	num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
-    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
-    
-    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo "> \$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
-	echo "> Trimming completed succesfully. See log for details."
 
     """
 } 
@@ -246,20 +235,7 @@ if (params.singleEnd) {
     #!/bin/bash
 
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
-
-    num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
-    num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
-    num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
-    num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
-    num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
-    num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
-    num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
-    num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
-    num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
-    num_trimmed=\$((num_paired + num_unpaired))
-    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    cat *paired.fastq.gz > ${base}.trimmed.fastq.gz
+	ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
 
     """
 }
@@ -313,8 +289,11 @@ process Sort_Bam {
     output:
     tuple val(base), file("${base}.bam") into Aligned_bam_ch
     tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch
-    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_Cons_ch
+    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_variant_ch
+    tuple val(base), file("${base}.sorted.bam") into Sorted_Cons_Bam_ch
     tuple val(base), file("${base}.sorted.bam.bai") into Indexed_bam_ch
+    tuple val(base), file("${base}.sorted.bam.bai") into Indexed_bam_variant_ch
+    tuple val(base), file("${base}.sorted.bam.bai") into Indexed_Cons_Bam_ch
     tuple val(base), file("${base}.sorted.bam.flagstat") into Flagstats_ch
     tuple val(base), file("${base}.sorted.bam.idxstats") into Idxstats_ch
     tuple val(base), file("${base}.sorted.bam.stats") into Stats_ch
@@ -339,66 +318,111 @@ process Sort_Bam {
     """
 }
 
+
+/*
+ * Variant Calling
+ */
 process Variant_Calling {
 	errorStrategy 'retry'
     maxRetries 3
 
-    input: 
-    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
+	input:
+    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_variant_ch
+    tuple val(base), file("${base}.sorted.bam.bai") from Indexed_bam_variant_ch 
     file REFERENCE_FASTA
+    file REFERENCE_FASTA_INDEX
 
-    output:
-    tuple val(base), file("${base}.calls.vcf.gz") into Vcf_ch
-
-    publishDir "${params.outdir}vcf files", mode: 'copy', pattern:'*.calls.vcf.gz*'  
-
-
-    script:
-    """
-    bcftools mpileup --fasta-ref $REFERENCE_FASTA ${base}.sorted.bam | bcftools call -mv -Oz > ${base}.calls.vcf.gz
-
-    """
-}
-
-process Variant_Filtering {
-	errorStrategy 'retry'
-    maxRetries 3
-
-    input: 
-    tuple val(base), file("${base}.calls.vcf.gz") from Vcf_ch
-
-    output:
-    tuple val(base), file("${base}.calls.vcf.gz") into Vcf_Filtered_ch
-
-    publishDir "${params.outdir}filtered vcf files", mode: 'copy', pattern:'*.calls.vcf.gz*'  
-
-
-    script:
-    """
-    bcftools filter -i'%QUAL>20' ${base}.calls.vcf.gz | bcftools stats | grep TSTV
-
-    """
-}
-
-process Consensus_Fasta {
-	errorStrategy 'retry'
-    maxRetries 3
-
-    input: 
-    tuple val(base), file("${base}.calls.vcf.gz") from Vcf_Filtered_ch
-    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_Cons_ch
-    file REFERENCE_FASTA
+	output:
+    tuple val(base), file("${base}.sorted.bam") into Variant_calling_pileup_ch
+    tuple val(base), file("${base}.sorted.bam.bai") into Mariant_calling_pileup_ch, Majority_allele_vcf_annotation, Majority_allele_vcf_consensus
+    tuple val(base), file("${base}.sorted.bam.bai") into Lowfreq_variants_vcf, Lowfreq_variants_vcf_annotation 
     
+    publishDir "${params.outdir}variant calling pileup", mode: 'copy', pattern:'*.pileup*'  
+    publishDir "${params.outdir}majority allele vcf", mode: 'copy', pattern:'*_majority.vcf*'  
+    publishDir "${params.outdir}low freq variants vcf", mode: 'copy', pattern:'*_lowfreq.vcf*'  
+
+	script:
+
+	"""
+    samtools mpileup -A -d 20000 -Q 0 -f $REFERENCE_FASTA ${base}.sorted.bam > ${base}.pileup
+    varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
+    varscan mpileup2cns ${base}.pileup --min-var-freq 0.8 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
+	"""
+}
+
+/*
+ * Variant Calling annotation
+ */
+process Variant_Calling_Annotation {
+	errorStrategy 'retry'
+    maxRetries 3
+
+
+ 	input:
+    tuple val(base), file("${base}_lowfreq.vcf") from Lowfreq_variants_vcf_annotation 
+    tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_annotation
+
+ 	output:
+    tuple val(base), file("${base}_majority.ann.vcf") into Majority_annotated_variants
+    tuple val(base), file("${base}_majority_snpEff_genes.txt") into Majority_snpeff_summary
+    tuple val(base), file("${base}_majority_snpEff_summary.html") into Lowfreq_annotated_variants 
+    tuple val(base), file("${base}_lowfreq.ann.vcf") into Variant_calling_pileup_ch
+    tuple val(base), file("${base}_lowfreq_snpEff_genes.txt") into Lowfreq_snpeff_genes
+    tuple val(base), file("${base}_lowfreq_snpEff_summary.html") into Lowfreq_snpeff_summary 
+    tuple val(base), file("${base}_majority.ann.table.txt") into Snpsift_majority_table
+    tuple val(base), file("${base}_lowfreq.ann.table.txt") into Snpsift_lowfreq_table
+
+    publishDir "${params.outdir}majority variants", mode: 'copy', pattern:'*_majority.ann.vcf*'  
+    publishDir "${params.outdir}majority snpEff genes", mode: 'copy', pattern:'*_majority_snpEff_genes.txt*'  
+    publishDir "${params.outdir}majority snpEff summary", mode: 'copy', pattern:'*_majority_snpEff_summary.html*'  
+    publishDir "${params.outdir}lowfreq ann", mode: 'copy', pattern:'*_lowfreq.ann.vcf*'  
+    publishDir "${params.outdir}lowfreq snpEff genes", mode: 'copy', pattern:'*_lowfreq_snpEff_genes.txt*'  
+    publishDir "${params.outdir}lowfreq snpEff summary", mode: 'copy', pattern:'*_lowfreq_snpEff_summary.html*'  
+    publishDir "${params.outdir}majority ann table.", mode: 'copy', pattern:'*_majority.ann.table.txt*'  
+    publishDir "${params.outdir}lowfreq ann table", mode: 'copy', pattern:'*_lowfreq.ann.table.txt*'  
+
+ 	script:
+
+ 	"""
+    snpEff sars-cov-2 ${base}_majority.vcf > ${base}_majority.ann.vcf"
+    mv snpEff_genes.txt ${base}_majority_snpEff_genes.txt"
+    mv snpEff_summary.html ${base}_majority_snpEff_summary.html"
+    snpEff sars-cov-2 ${base}_lowfreq.vcf > ${base}_lowfreq.ann.vcf"
+    mv snpEff_genes.txt ${base}_lowfreq_snpEff_genes.txt"
+    mv snpEff_summary.html ${base}_lowfreq_snpEff_summary.html"
+    SnpSift extractFields -s "," -e "." ${base}_majority.ann.vcf" CHROM POS REF ALT "ANN[*].GENE" "ANN[*].GENEID" "ANN[*].IMPACT" "ANN[*].EFFECT" "ANN[*].FEATURE" "ANN[*].FEATUREID" "ANN[*].BIOTYPE" "ANN[*].RANK" "ANN[*].HGVS_C" "ANN[*].HGVS_P" "ANN[*].CDNA_POS" "ANN[*].CDNA_LEN" "ANN[*].CDS_POS" "ANN[*].CDS_LEN" "ANN[*].AA_POS" "ANN[*].AA_LEN" "ANN[*].DISTANCE" "EFF[*].EFFECT" "EFF[*].FUNCLASS" "EFF[*].CODON" "EFF[*].AA" "EFF[*].AA_LEN" > ${base}_majority.ann.table.txt
+    SnpSift extractFields -s "," -e "." ${base}_lowfreq.ann.vcf" CHROM POS REF ALT "ANN[*].GENE" "ANN[*].GENEID" "ANN[*].IMPACT" "ANN[*].EFFECT" "ANN[*].FEATURE" "ANN[*].FEATUREID" "ANN[*].BIOTYPE" "ANN[*].RANK" "ANN[*].HGVS_C" "ANN[*].HGVS_P" "ANN[*].CDNA_POS" "ANN[*].CDNA_LEN" "ANN[*].CDS_POS" "ANN[*].CDS_LEN" "ANN[*].AA_POS" "ANN[*].AA_LEN" "ANN[*].DISTANCE" "EFF[*].EFFECT" "EFF[*].FUNCLASS" "EFF[*].CODON" "EFF[*].AA" "EFF[*].AA_LEN" > ${base}_lowfreq.ann.table.txt
+ 	
+     """
+}
+
+process Generate_Consensus {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    tuple val(base), file("${base}_lowfreq.vcf") from Lowfreq_variants_vcf_annotation 
+    tuple val(base), file("${base}.sorted.bam") into Sorted_Cons_Bam_ch
+    tuple val(base), file("${base}.sorted.bam.bai") into Indexed_Cons_Bam_ch
+    file REFERENCE_FASTA
+    file REFERENCE_FASTA_INDEX
+
     output:
-    tuple val(base), file("${base}.fasta") into Consensus_Fasta_ch
+    tuple val(base), file("${base}_consensus.fasta") from Consensus_fasta_ch
+    tuple val(base), file("${base}_consensus_masked.fasta") from Consensus_masked_fasta_ch 
 
-    publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*.fasta*'  
-
+    publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*_consensus.fasta*'  
+    publishDir "${params.outdir}consensus masked fasta", mode: 'copy', pattern:'*_consensus_masked.fasta*' 
 
     script:
-    """
-    bcftools mpileup --fasta-ref $REFERENCE_FASTA ${base}.sorted.bam | bcftools call -c | vcfutils.pl vcf2fq > ${base}.fasta
 
+    """
+    bgzip -c ${base}_lowfreq.vcf
+    bcftools index ${base}_lowfreq.vcf
+    cat $REFERENCE_FASTA | bcftools consensus ${base}_lowfreq.vcf > ${base}_consensus.fasta
+    bedtools genomecov -bga -ibam ${base}.sorted.bam -g $REFERENCE_FASTA | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
+    bedtools maskfasta -fi ${base}_consensus.fasta" -bed ${base}_bed4mask.bed" -fo ${base}_consensus_masked.fasta"
+    sed -i 's/${base}/g' ${base}_consensus_masked.fasta
     """
 }
 
