@@ -33,13 +33,13 @@ Dependencies:
 
 	PATHS FOR EASTLAKE KC iMac - TESTING & DEBUGGING
 	PATH to Virus Reference Fasta:
-	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
+	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
 	
 	PATH to indexed (indexed by bowtie2) Reference Fasta Database Files:
-	/Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
+	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
 
 	PATH to fastq files from 031221 shotgun run (down-sized to 1m reads) for testing & debugging purposes:
-	/Users/Kurtisc/Downloads/CURRENT/test_fastq  ---> These are single-end reads
+	/Users/kurtiscruz/Downloads/CURRENT/test_fastq  ---> These are single-end reads
 
 	CLI Commands
 
@@ -50,11 +50,11 @@ Dependencies:
 	
     Single end:
 
-    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/' --singleEnd singleEnd
 
     Paired end:
 
-    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_pe' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/'
 
  ----------------------------------------------------------------------------------------
 */
@@ -333,9 +333,9 @@ process Variant_Calling {
     file REFERENCE_FASTA_INDEX
 
 	output:
-    tuple val(base), file("${base}.sorted.bam") into Variant_calling_pileup_ch
-    tuple val(base), file("${base}.sorted.bam.bai") into Mariant_calling_pileup_ch, Majority_allele_vcf_annotation, Majority_allele_vcf_consensus
-    tuple val(base), file("${base}.sorted.bam.bai") into Lowfreq_variants_vcf, Lowfreq_variants_vcf_annotation 
+    tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
+    tuple val(base), file("${base}_majority.vcf") into Mariant_calling_pileup_ch, Majority_allele_vcf_annotation, Majority_allele_vcf_consensus
+    tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf, Lowfreq_variants_vcf_annotation, Lowfreq_variants_vcf_annotation2 
     
     publishDir "${params.outdir}variant calling pileup", mode: 'copy', pattern:'*.pileup*'  
     publishDir "${params.outdir}majority allele vcf", mode: 'copy', pattern:'*_majority.vcf*'  
@@ -357,7 +357,6 @@ process Variant_Calling_Annotation {
 	errorStrategy 'retry'
     maxRetries 3
 
-
  	input:
     tuple val(base), file("${base}_lowfreq.vcf") from Lowfreq_variants_vcf_annotation 
     tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_annotation
@@ -366,7 +365,7 @@ process Variant_Calling_Annotation {
     tuple val(base), file("${base}_majority.ann.vcf") into Majority_annotated_variants
     tuple val(base), file("${base}_majority_snpEff_genes.txt") into Majority_snpeff_summary
     tuple val(base), file("${base}_majority_snpEff_summary.html") into Lowfreq_annotated_variants 
-    tuple val(base), file("${base}_lowfreq.ann.vcf") into Variant_calling_pileup_ch
+    tuple val(base), file("${base}_lowfreq.ann.vcf") into Variant_calling_pileup_ch2
     tuple val(base), file("${base}_lowfreq_snpEff_genes.txt") into Lowfreq_snpeff_genes
     tuple val(base), file("${base}_lowfreq_snpEff_summary.html") into Lowfreq_snpeff_summary 
     tuple val(base), file("${base}_majority.ann.table.txt") into Snpsift_majority_table
@@ -396,20 +395,20 @@ process Variant_Calling_Annotation {
      """
 }
 
-process Generate_Consensus {
+process Consensus {
 	errorStrategy 'retry'
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}_lowfreq.vcf") from Lowfreq_variants_vcf_annotation 
-    tuple val(base), file("${base}.sorted.bam") into Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}.sorted.bam.bai") into Indexed_Cons_Bam_ch
+    tuple val(base), file("${base}_lowfreq.vcf") from Lowfreq_variants_vcf_annotation2 
+    tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
+    tuple val(base), file("${base}.sorted.bam.bai") from Indexed_Cons_Bam_ch
     file REFERENCE_FASTA
     file REFERENCE_FASTA_INDEX
 
     output:
-    tuple val(base), file("${base}_consensus.fasta") from Consensus_fasta_ch
-    tuple val(base), file("${base}_consensus_masked.fasta") from Consensus_masked_fasta_ch 
+    tuple val(base), file("${base}_consensus.fasta") into Consensus_fasta_ch
+    tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_masked_fasta_ch 
 
     publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*_consensus.fasta*'  
     publishDir "${params.outdir}consensus masked fasta", mode: 'copy', pattern:'*_consensus_masked.fasta*' 
@@ -417,12 +416,12 @@ process Generate_Consensus {
     script:
 
     """
-    bgzip -c ${base}_lowfreq.vcf
+    bgzip -c $variants > ${base}_lowfreq.vcf
     bcftools index ${base}_lowfreq.vcf
-    cat $REFERENCE_FASTA | bcftools consensus ${base}_lowfreq.vcf > ${base}_consensus.fasta
-    bedtools genomecov -bga -ibam ${base}.sorted.bam -g $REFERENCE_FASTA | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
+    cat $REFERENCE_FASTA | bcftools consensus ${base}_lowfreq.vcf > ${base}_consensus.fasta"
+    bedtools genomecov -bga -ibam ${base}.sorted.bam -g $REFERENCE_FASTA | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed"
     bedtools maskfasta -fi ${base}_consensus.fasta" -bed ${base}_bed4mask.bed" -fo ${base}_consensus_masked.fasta"
-    sed -i 's/${base}/g' ${base}_consensus_masked.fasta
+    sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
     """
 }
 
