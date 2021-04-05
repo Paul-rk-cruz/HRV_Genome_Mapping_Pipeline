@@ -31,16 +31,6 @@ Dependencies:
   bedtools
   Bcftools
 
-	PATHS FOR EASTLAKE KC iMac - TESTING & DEBUGGING
-	PATH to Virus Reference Fasta:
-	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db/rhv_abc_sars2.fasta 
-	
-	PATH to indexed (indexed by bowtie2) Reference Fasta Database Files:
-	/Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/virus_ref_db
-
-	PATH to fastq files from 031221 shotgun run (down-sized to 1m reads) for testing & debugging purposes:
-	/Users/kurtiscruz/Downloads/CURRENT/test_fastq  ---> These are single-end reads
-
 	CLI Commands
 
 	Run Pipeline --helpMsg
@@ -50,12 +40,11 @@ Dependencies:
 	
     Single end:
 
-    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/' --singleEnd singleEnd
-
+    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+    
     Paired end:
 
-    nextflow run /Users/kurtiscruz/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/kurtiscruz/Downloads/CURRENT/test_fastq_pe' --outdir '/Users/kurtiscruz/Downloads/CURRENT/test_output/'
-
+    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
  ----------------------------------------------------------------------------------------
 */
 
@@ -383,10 +372,10 @@ process Variant_Calling_Annotation {
  	script:
 
  	"""
-    snpEff sars-cov-2 ${base}_majority.vcf > ${base}_majority.ann.vcf"
+    snpEff huRhV ${base}_majority.vcf > ${base}_majority.ann.vcf"
     mv snpEff_genes.txt ${base}_majority_snpEff_genes.txt"
     mv snpEff_summary.html ${base}_majority_snpEff_summary.html"
-    snpEff sars-cov-2 ${base}_lowfreq.vcf > ${base}_lowfreq.ann.vcf"
+    snpEff huRhV ${base}_lowfreq.vcf > ${base}_lowfreq.ann.vcf"
     mv snpEff_genes.txt ${base}_lowfreq_snpEff_genes.txt"
     mv snpEff_summary.html ${base}_lowfreq_snpEff_summary.html"
     SnpSift extractFields -s "," -e "." ${base}_majority.ann.vcf" CHROM POS REF ALT "ANN[*].GENE" "ANN[*].GENEID" "ANN[*].IMPACT" "ANN[*].EFFECT" "ANN[*].FEATURE" "ANN[*].FEATUREID" "ANN[*].BIOTYPE" "ANN[*].RANK" "ANN[*].HGVS_C" "ANN[*].HGVS_P" "ANN[*].CDNA_POS" "ANN[*].CDNA_LEN" "ANN[*].CDS_POS" "ANN[*].CDS_LEN" "ANN[*].AA_POS" "ANN[*].AA_LEN" "ANN[*].DISTANCE" "EFF[*].EFFECT" "EFF[*].FUNCLASS" "EFF[*].CODON" "EFF[*].AA" "EFF[*].AA_LEN" > ${base}_majority.ann.table.txt
@@ -416,7 +405,7 @@ process Consensus {
     script:
 
     """
-    bgzip -c $variants > ${base}_lowfreq.vcf
+    bgzip -c ${base}_lowfreq.vcf
     bcftools index ${base}_lowfreq.vcf
     cat $REFERENCE_FASTA | bcftools consensus ${base}_lowfreq.vcf > ${base}_consensus.fasta"
     bedtools genomecov -bga -ibam ${base}.sorted.bam -g $REFERENCE_FASTA | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed"
