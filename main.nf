@@ -308,7 +308,6 @@ process Sort_Bam {
     """
 }
 
-
 /*
  * Variant Calling
  */
@@ -325,95 +324,73 @@ process Variant_Calling {
 	output:
     tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
     tuple val(base), file("${base}_majority.vcf") into Mariant_calling_pileup_ch, Majority_allele_vcf_annotation, Majority_allele_vcf_consensus
-    tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf, Lowfreq_variants_vcf_annotation, Lowfreq_variants_vcf_annotation2 
-    
+    tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf, Lowfreq_variants_vcf_annotation
+    tuple val(base), file("${base}_majority.vcf.gz") into Majority_allele_vcf_consensus_zip
+    tuple val(base), file("${base}.bcftools_stats.txt") into BcfTools_stats_ch   
+
     publishDir "${params.outdir}variant calling pileup", mode: 'copy', pattern:'*.pileup*'  
     publishDir "${params.outdir}majority allele vcf", mode: 'copy', pattern:'*_majority.vcf*'  
+    publishDir "${params.outdir}majority allele vcf-zip", mode: 'copy', pattern:'*_majority.vcf.gz*'  
     publishDir "${params.outdir}low freq variants vcf", mode: 'copy', pattern:'*_lowfreq.vcf*'  
-
+    publishDir "${params.outdir}bcftools stats", mode: 'copy', pattern:'*.bcftools_stats.txt*'  
+    
 	script:
 
 	"""
     samtools mpileup -A -d 20000 -Q 0 -f $REFERENCE_FASTA ${base}.sorted.bam > ${base}.pileup
     varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
-    varscan mpileup2cns ${base}.pileup --min-var-freq 0.8 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
+    varscan mpileup2cns ${base}.pileup --min-var-freq 0.9 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
+    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
+    tabix -p vcf ${base}_majority.vcf.gz
+    bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
 	"""
 }
 
-/*
- * Variant Calling annotation
- */
-process Variant_Calling_Annotation {
-	errorStrategy 'retry'
-    maxRetries 3
-
- 	input:
-    tuple val(base), file("${base}_lowfreq.vcf") from Lowfreq_variants_vcf_annotation 
-    tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_annotation
-
- 	output:
-    tuple val(base), file("${base}_majority.ann.vcf") into Majority_annotated_variants
-    tuple val(base), file("${base}_majority_snpEff_genes.txt") into Majority_snpeff_summary
-    tuple val(base), file("${base}_majority_snpEff_summary.html") into Lowfreq_annotated_variants 
-    tuple val(base), file("${base}_lowfreq.ann.vcf") into Variant_calling_pileup_ch2
-    tuple val(base), file("${base}_lowfreq_snpEff_genes.txt") into Lowfreq_snpeff_genes
-    tuple val(base), file("${base}_lowfreq_snpEff_summary.html") into Lowfreq_snpeff_summary 
-    tuple val(base), file("${base}_majority.ann.table.txt") into Snpsift_majority_table
-    tuple val(base), file("${base}_lowfreq.ann.table.txt") into Snpsift_lowfreq_table
-
-    publishDir "${params.outdir}majority variants", mode: 'copy', pattern:'*_majority.ann.vcf*'  
-    publishDir "${params.outdir}majority snpEff genes", mode: 'copy', pattern:'*_majority_snpEff_genes.txt*'  
-    publishDir "${params.outdir}majority snpEff summary", mode: 'copy', pattern:'*_majority_snpEff_summary.html*'  
-    publishDir "${params.outdir}lowfreq ann", mode: 'copy', pattern:'*_lowfreq.ann.vcf*'  
-    publishDir "${params.outdir}lowfreq snpEff genes", mode: 'copy', pattern:'*_lowfreq_snpEff_genes.txt*'  
-    publishDir "${params.outdir}lowfreq snpEff summary", mode: 'copy', pattern:'*_lowfreq_snpEff_summary.html*'  
-    publishDir "${params.outdir}majority ann table.", mode: 'copy', pattern:'*_majority.ann.table.txt*'  
-    publishDir "${params.outdir}lowfreq ann table", mode: 'copy', pattern:'*_lowfreq.ann.table.txt*'  
-
- 	script:
-
- 	"""
-    snpEff ${base}_majority.vcf > ${base}_majority.ann.vcf"
-    mv snpEff_genes.txt ${base}_majority_snpEff_genes.txt"
-    mv snpEff_summary.html ${base}_majority_snpEff_summary.html"
-    snpEff ${base}_lowfreq.vcf > ${base}_lowfreq.ann.vcf"
-    mv snpEff_genes.txt ${base}_lowfreq_snpEff_genes.txt"
-    mv snpEff_summary.html ${base}_lowfreq_snpEff_summary.html"
-    SnpSift extractFields -s "," -e "." ${base}_majority.ann.vcf" CHROM POS REF ALT "ANN[*].GENE" "ANN[*].GENEID" "ANN[*].IMPACT" "ANN[*].EFFECT" "ANN[*].FEATURE" "ANN[*].FEATUREID" "ANN[*].BIOTYPE" "ANN[*].RANK" "ANN[*].HGVS_C" "ANN[*].HGVS_P" "ANN[*].CDNA_POS" "ANN[*].CDNA_LEN" "ANN[*].CDS_POS" "ANN[*].CDS_LEN" "ANN[*].AA_POS" "ANN[*].AA_LEN" "ANN[*].DISTANCE" "EFF[*].EFFECT" "EFF[*].FUNCLASS" "EFF[*].CODON" "EFF[*].AA" "EFF[*].AA_LEN" > ${base}_majority.ann.table.txt
-    SnpSift extractFields -s "," -e "." ${base}_lowfreq.ann.vcf" CHROM POS REF ALT "ANN[*].GENE" "ANN[*].GENEID" "ANN[*].IMPACT" "ANN[*].EFFECT" "ANN[*].FEATURE" "ANN[*].FEATUREID" "ANN[*].BIOTYPE" "ANN[*].RANK" "ANN[*].HGVS_C" "ANN[*].HGVS_P" "ANN[*].CDNA_POS" "ANN[*].CDNA_LEN" "ANN[*].CDS_POS" "ANN[*].CDS_LEN" "ANN[*].AA_POS" "ANN[*].AA_LEN" "ANN[*].DISTANCE" "EFF[*].EFFECT" "EFF[*].FUNCLASS" "EFF[*].CODON" "EFF[*].AA" "EFF[*].AA_LEN" > ${base}_lowfreq.ann.table.txt
- 	
-     """
-}
-
+    // bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
+    
 process Consensus {
 	errorStrategy 'retry'
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}_lowfreq.vcf") from Lowfreq_variants_vcf_annotation2 
+    tuple val(base), file("${base}_majority.vcf.gz") from Majority_allele_vcf_consensus_zip
     tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
     tuple val(base), file("${base}.sorted.bam.bai") from Indexed_Cons_Bam_ch
     file REFERENCE_FASTA
     file REFERENCE_FASTA_INDEX
 
     output:
-    tuple val(base), file("${base}_consensus.fasta") into Consensus_fasta_ch
-    tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_masked_fasta_ch 
+    tuple val(base), file("${base}.consensus.fasta") into Consensus_fasta_ch
 
-    publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*_consensus.fasta*'  
-    publishDir "${params.outdir}consensus masked fasta", mode: 'copy', pattern:'*_consensus_masked.fasta*' 
+    publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*.consensus.fasta*'  
 
     script:
 
     """
-    bgzip -c ${base}_lowfreq.vcf
-    bcftools index ${base}_lowfreq.vcf.gz
-    cat $REFERENCE_FASTA_INDEX | bcftools consensus ${base}_lowfreq.vcf.gz > ${base}_consensus.fasta
-    bedtools genomecov -bga -ibam ${base}.sorted.bam -g $REFERENCE_FASTA_INDEX | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
-    bedtools maskfasta -fi ${base}_consensus.fasta" -bed ${base}_bed4mask.bed" -fo ${base}_consensus_masked.fasta
-    sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
+    tabix -p vcf ${base}_majority.vcf.gz
+    cat $REFERENCE_FASTA | vcf-consensus ${base}_majority.vcf.gz > ${base}.consensus.fasta
     """
 }
+
+    // bedtools genomecov \\
+    //     -bga \\
+    //     -ibam ${base}.sorted.bam \\
+    //     -g $REFERENCE_FASTA \\
+    //     | awk '\$4 < 75 | bedtools merge > ${base}.mask.bed
+
+    // bedtools maskfasta \\
+    //     -fi ${base}.consensus.fa \\
+    //     -bed ${base}.mask.bed \\
+    //     -fo ${base}.consensus.masked.fa
+    // header=\$(head -n 1 ${base}.consensus.masked.fa | sed 's/>//g')
+    // sed -i "s/\${header}/${base}/g" ${base}.consensus.masked.fa
+
+    // plot_base_density.r --fasta_files ${base}.consensus.masked.fa --prefixes ${base} --output_dir ./
+
+    // bcftools mpileup -vf ${REFERENCE_FASTA} ${base}.sorted.bam | bcftools call -m -O z - > ${base}_lowfreq.vcf.gz
+    // bcftools index ${base}_lowfreq.vcf.gz
+    // bcftools consensus -f ${REFERENCE_FASTA} ${base}_lowfreq.vcf.gz > ${base}.consensus.fasta
+
 
 if (params.withFastQC) {
 /*
