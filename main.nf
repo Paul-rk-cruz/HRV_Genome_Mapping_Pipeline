@@ -86,7 +86,7 @@ params.virus_index = false
 params.virus_fasta = false
 params.withBlast =false
 ADAPTERS = file("${baseDir}/All_adapters.fa")
-MIN_LEN = 75
+MIN_LEN = 100
 REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta")
 REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
 // Bowtie2 index name: rhv_ref_db01
@@ -225,13 +225,13 @@ if (params.singleEnd) {
     #!/bin/bash
 
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-	ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
+	ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
 
     """
 }
 }
 /*
- * Map sequence reads to local virus database
+ * Map sequence reads to local Bowtie2 indexed RhV Virus database
  */
 process Mapping {
 	errorStrategy 'retry'
@@ -263,8 +263,6 @@ process Mapping {
 
     """
 }
-
-    // bowtie2 -p ${task.cpus} -x $BOWTIE2_DB_PREFIX ${base}.trimmed.fastq.gz 2> ${base}.bowtie2.log -S ${base}.sam
 
 /*
  * STEP 5.2: Convert BAM to coordinate sorted BAM
@@ -323,8 +321,8 @@ process Variant_Calling {
 
 	output:
     tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
-    tuple val(base), file("${base}_majority.vcf") into Mariant_calling_pileup_ch, Majority_allele_vcf_annotation, Majority_allele_vcf_consensus
-    tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf, Lowfreq_variants_vcf_annotation
+    tuple val(base), file("${base}_majority.vcf") into Majority_allele_vcf_consensus
+    tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf
     tuple val(base), file("${base}_majority.vcf.gz") into Majority_allele_vcf_consensus_zip
     tuple val(base), file("${base}.bcftools_stats.txt") into BcfTools_stats_ch   
 
@@ -345,15 +343,13 @@ process Variant_Calling {
     bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
 	"""
 }
-
-    // bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
     
 process Consensus {
 	errorStrategy 'retry'
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}_majority.vcf.gz") from Majority_allele_vcf_consensus_zip
+    tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_consensus
     tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
     tuple val(base), file("${base}.sorted.bam.bai") from Indexed_Cons_Bam_ch
     file REFERENCE_FASTA
@@ -367,29 +363,14 @@ process Consensus {
     script:
 
     """
+
+    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
     tabix -p vcf ${base}_majority.vcf.gz
-    cat $REFERENCE_FASTA | vcf-consensus ${base}_majority.vcf.gz > ${base}.consensus.fasta
+    cat ${REFERENCE_FASTA} | vcf-consensus ${base}_majority.vcf.gz > ${base}.consensus.fasta
+
     """
 }
 
-    // bedtools genomecov \\
-    //     -bga \\
-    //     -ibam ${base}.sorted.bam \\
-    //     -g $REFERENCE_FASTA \\
-    //     | awk '\$4 < 75 | bedtools merge > ${base}.mask.bed
-
-    // bedtools maskfasta \\
-    //     -fi ${base}.consensus.fa \\
-    //     -bed ${base}.mask.bed \\
-    //     -fo ${base}.consensus.masked.fa
-    // header=\$(head -n 1 ${base}.consensus.masked.fa | sed 's/>//g')
-    // sed -i "s/\${header}/${base}/g" ${base}.consensus.masked.fa
-
-    // plot_base_density.r --fasta_files ${base}.consensus.masked.fa --prefixes ${base} --output_dir ./
-
-    // bcftools mpileup -vf ${REFERENCE_FASTA} ${base}.sorted.bam | bcftools call -m -O z - > ${base}_lowfreq.vcf.gz
-    // bcftools index ${base}_lowfreq.vcf.gz
-    // bcftools consensus -f ${REFERENCE_FASTA} ${base}_lowfreq.vcf.gz > ${base}.consensus.fasta
 
 
 if (params.withFastQC) {
