@@ -2,7 +2,7 @@
 
 /*
 ========================================================================================
-                  Virus Genome Mapping Pipeline
+                  Rhinovirus Genome Mapping Pipeline v1.0
 ========================================================================================
  Github Repo:
  Greninger Lab
@@ -54,7 +54,7 @@ version = '1.0'
 def helpMsg() {
     log.info"""
 	 __________________________________________________
-     Virus Genome Mapping Pipeline :  Version ${version}
+     Rhinovirus Genome Mapping Pipeline :  Version ${version}
 	__________________________________________________
     
 	Pipeline Usage:
@@ -130,7 +130,7 @@ params.trimmomatic_window_value = "20"
 params.trimmomatic_mininum_length = "75"
 // log files header
 log.info "____________________________________________"
-log.info " Virus Genome Mapping Pipeline :  v${version}"
+log.info " Rhinovirus Genome Mapping Pipeline :  v${version}"
 log.info "____________________________________________"
 def summary = [:]
 summary['Fastq Files:']               = params.reads
