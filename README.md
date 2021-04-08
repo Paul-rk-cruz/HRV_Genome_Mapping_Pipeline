@@ -1,1 +1,1 @@
-# Virus_Genome_Mapping_Pipeline
+# Rhinovirus_Genome_Mapping_Pipeline
