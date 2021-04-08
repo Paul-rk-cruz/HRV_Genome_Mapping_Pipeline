@@ -275,20 +275,25 @@ process Reference_Fasta {
     publishDir "${params.outdir}txt_most_mapped_ref_name", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
     publishDir "${params.outdir}fasta_most_mapped_ref_genome", mode: 'copy', pattern:'*_mapped_ref_genome.txt*'    
 
-    shell:
+    
+
+    script:
+
+
     """
     #!/bin/bash
     
+    \id=$(awk '{print $1}' ${base}_most_mapped_ref.txt)
     """
-    id=$(awk '{print $1}' ${base}_most_mapped_ref.txt)
 
     """
+    #!/bin/bash
 
     samtools view -S -b ${base}.sam > ${base}.bam
 
     bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
 
-    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.txt 
+    samtools faidx ${REFERENCE_FASTA} \id > ${base}_mapped_ref_genome.txt 
 
     """
 }
