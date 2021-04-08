@@ -34,7 +34,7 @@ Dependencies:
 	CLI Commands
 
 	Run Pipeline --helpMsg
-	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
+	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 	Run Pipeline on test fastqc:
 	
@@ -44,7 +44,7 @@ Dependencies:
 
     Paired end:
 
-    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
 
  ----------------------------------------------------------------------------------------
 */
@@ -230,9 +230,9 @@ if (params.singleEnd) {
     """
 }
 }
-/*
- * Map sequence reads usiong BBMap
- */
+// /*
+//  * Map sequence reads usiong BBMap
+//  */
 process Mapping {
 	errorStrategy 'retry'
     maxRetries 3
@@ -242,7 +242,7 @@ process Mapping {
         file REFERENCE_FASTA
 
     output:
-        tuple val(base), file("${base}.sam") into Aligned_sam_ch
+        tuple val(base), file("${base}.sam") into Aligned_sam_ch, Sam_Ref_Fasta_ch
         tuple val (base), file("*") into Dump_ch
 
     publishDir "${params.outdir}sam files", mode: 'copy', pattern:'*.sam*'
@@ -258,53 +258,15 @@ process Mapping {
 
     """
 }
-
-    // publishDir "${params.outdir}bowtie2 logs", mode: 'copy', pattern:'*.bowtie2.log*'  
-
-    // bowtie2 -p ${task.cpus} --local -x $BOWTIE2_DB_PREFIX -U ${base}.trimmed.fastq.gz --very-sensitive-local 2> ${base}.bowtie2.log -S ${base}.sam
-
 /*
- * STEP 5.2: Convert BAM to coordinate sorted BAM
+ * STEP Create Mapped Reference Fasta
  */
-process Sort_Bam {
+process Ref_Fasta {
 	errorStrategy 'retry'
     maxRetries 3
 
     input: 
-    tuple val(base), file("${base}.sam") from Aligned_sam_ch
-
-    output:
-    tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
-    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}.sorted.bam.bai") into Sorted_Cons_Bam_Bai_ch    
-    tuple val(base), file("${base}_coverage.txt") into Flagstats_ch
-
-
-    publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
-    publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}bai files", mode: 'copy', pattern:'*.sorted.bam.bai*'  
-    publishDir "${params.outdir}coverage", mode: 'copy', pattern:'*_coverage.txt*'  
-
-    script:
-    """
-    #!/bin/bash
-    
-    samtools view -S -b ${base}.sam > ${base}.bam
-    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    samtools index ${base}.sorted.bam
-    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
-    """
-}
-
-/*
- * STEP 5.2: Convert BAM to coordinate sorted BAM
- */
-process Reference_Fasta_Generation {
-	errorStrategy 'retry'
-    maxRetries 3
-
-    input: 
-    tuple val(base), file("${base}.bam") from Bam_ch
+    tuple val(base), file("${base}.sam") from Sam_Ref_Fasta_ch
     file REFERENCE_FASTA
     file REFERENCE_FASTA_INDEX
 
@@ -315,98 +277,140 @@ process Reference_Fasta_Generation {
     publishDir "${params.outdir}txt_most_mapped_ref_name", mode: 'copy', pattern:'*.bam*'  
     publishDir "${params.outdir}fasta_most_mapped_ref_genome", mode: 'copy', pattern:'*.sorted.bam*'    
 
-    shell:
+    script:
     """
     #!/bin/bash
-
-    # USE UNSORTED BAM FILE TO READ REF GENOME OF MOST MAPPED READS THEN SAVE INFO TO TEXT FILE
-    bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
     
-    filename='most_mapped.txt'
-    while read -r line
-    do
-    id=$(cut -c-8 <<< "$line")
-    echo $id
+    samtools view -S -b ${base}.sam > ${base}.bam
 
-    # USE SAM TOOLS TO EXTRACT GENOME REFERENCE FROM MULTI-FASTA - SAVE TO NEW FASTA FOR LATER USE
-    samtools faidx ${REFERENCE_FASTA} ${id} > ${base}_mapped_ref_genome.fasta
+    bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
+
+    
+    \$filename='${base}_most_mapped_ref.txt'
+    while /$read -r /$line
+    do
+    \$id=$(cut -c-8 <<< "$line")
+    echo \$id
+
+    
+    
+    samtools faidx ${REFERENCE_FASTA} \${id} > ${base}_mapped_ref_genome.fasta
 
     """
 }
+    // # PARSE FIRST LINE OF TEXT FILE TO FEED INTO SAMTOOLS
+    // id=read -r FIRSTLINE < ${base}_most_mapped_ref.txt
 
+
+    // accession_id="\
+    
+
+    
+    // )"
+
+/*
+ * STEP 5.2: Convert BAM to coordinate sorted BAM
+ */
+// process Bam_Sorting {
+// 	errorStrategy 'retry'
+//     maxRetries 3
+
+//     input: 
+//     tuple val(base), file("${base}.sam") from Aligned_sam_ch
+
+//     output:
+//     tuple val(base), file("${base}.bam") into Aligned_bam_ch
+//     tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
+//     tuple val(base), file("${base}.sorted.bam.bai") into Sorted_Cons_Bam_Bai_ch    
+//     tuple val(base), file("${base}_coverage.txt") into Flagstats_ch
+
+//     publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
+//     publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*.sorted.bam*'  
+//     publishDir "${params.outdir}bai files", mode: 'copy', pattern:'*.sorted.bam.bai*'  
+//     publishDir "${params.outdir}coverage", mode: 'copy', pattern:'*_coverage.txt*'  
+
+//     script:
+//     """
+//     #!/bin/bash
+//     samtools view -S -b ${base}.sam > ${base}.bam
+//     samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+//     samtools index ${base}.sorted.bam
+//     bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+//     """
+// }
 /*
  * Variant Calling
  */
-process Variant_Calling {
-	errorStrategy 'retry'
-    maxRetries 3
+// process Variant_Calling {
+// 	errorStrategy 'retry'
+//     maxRetries 3
 
-	input:
-    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_ch
-    file REFERENCE_FASTA
-    file REFERENCE_FASTA_INDEX
+// 	input:
+//     tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
+//     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_ch
+//     file REFERENCE_FASTA
+//     file REFERENCE_FASTA_INDEX
 
-	output:
-    tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
-    tuple val(base), file("${base}_majority.vcf") into Majority_allele_vcf_consensus
-    tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf
-    tuple val(base), file("${base}_majority.vcf.gz") into Majority_allele_vcf_consensus_zip
-    tuple val(base), file("${base}.bcftools_stats.txt") into BcfTools_stats_ch   
+// 	output:
+//     tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
+//     tuple val(base), file("${base}_majority.vcf") into Majority_allele_vcf_consensus
+//     tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf
+//     tuple val(base), file("${base}_majority.vcf.gz") into Majority_allele_vcf_consensus_zip
+//     tuple val(base), file("${base}.bcftools_stats.txt") into BcfTools_stats_ch   
 
-    publishDir "${params.outdir}variant calling pileup", mode: 'copy', pattern:'*.pileup*'  
-    publishDir "${params.outdir}majority allele vcf", mode: 'copy', pattern:'*_majority.vcf*'  
-    publishDir "${params.outdir}majority allele vcf-zip", mode: 'copy', pattern:'*_majority.vcf.gz*'  
-    publishDir "${params.outdir}low freq variants vcf", mode: 'copy', pattern:'*_lowfreq.vcf*'  
-    publishDir "${params.outdir}bcftools stats", mode: 'copy', pattern:'*.bcftools_stats.txt*'  
+//     publishDir "${params.outdir}variant calling pileup", mode: 'copy', pattern:'*.pileup*'  
+//     publishDir "${params.outdir}majority allele vcf", mode: 'copy', pattern:'*_majority.vcf*'  
+//     publishDir "${params.outdir}majority allele vcf-zip", mode: 'copy', pattern:'*_majority.vcf.gz*'  
+//     publishDir "${params.outdir}low freq variants vcf", mode: 'copy', pattern:'*_lowfreq.vcf*'  
+//     publishDir "${params.outdir}bcftools stats", mode: 'copy', pattern:'*.bcftools_stats.txt*'  
     
-	script:
+// 	script:
 
-	"""
-    #!/bin/bash
+// 	"""
+//     #!/bin/bash
 
-    samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
-    varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
-    varscan mpileup2cns ${base}.pileup --min-var-freq 0.9 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
-    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
-    tabix -p vcf ${base}_majority.vcf.gz
-    bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
-	"""
-}
+//     samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
+//     varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
+//     varscan mpileup2cns ${base}.pileup --min-var-freq 0.9 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
+//     bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
+//     tabix -p vcf ${base}_majority.vcf.gz
+//     bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
+// 	"""
+// }
     
-process Consensus {
-	errorStrategy 'retry'
-    maxRetries 3
+// process Consensus {
+// 	errorStrategy 'retry'
+//     maxRetries 3
 
-    input:
-    tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_consensus
-    tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}.sorted.bam.bai") from Sorted_Cons_Bam_Bai_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
+//     input:
+//     tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_consensus
+//     tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
+//     tuple val(base), file("${base}.sorted.bam.bai") from Sorted_Cons_Bam_Bai_ch
+//     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
 
-    output:
-    tuple val(base), file("${base}.consensus.fasta") into Consensus_fasta_ch
-    tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_fasta_Masked_ch
-    tuple val(base), file("${base}_bed4mask.bed") into Consensus_bed4mask_ch
+//     output:
+//     tuple val(base), file("${base}.consensus.fasta") into Consensus_fasta_ch
+//     tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_fasta_Masked_ch
+//     tuple val(base), file("${base}_bed4mask.bed") into Consensus_bed4mask_ch
 
-    publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*.consensus.fasta*'  
-    publishDir "${params.outdir}consensus masked fasta", mode: 'copy', pattern:'*_consensus_masked.fasta*'  
-    publishDir "${params.outdir}bed4mask", mode: 'copy', pattern:'*_bed4mask.bed*'  
+//     publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*.consensus.fasta*'  
+//     publishDir "${params.outdir}consensus masked fasta", mode: 'copy', pattern:'*_consensus_masked.fasta*'  
+//     publishDir "${params.outdir}bed4mask", mode: 'copy', pattern:'*_bed4mask.bed*'  
 
-    script:
+//     script:
 
-    """
-    #!/bin/bash
+//     """
+//     #!/bin/bash
 
-    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
-    bcftools index ${base}_majority.vcf.gz
-    cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
-    bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
-    bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
-    sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
+//     bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
+//     bcftools index ${base}_majority.vcf.gz
+//     cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
+//     bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
+//     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
+//     sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
 
-    """
-}
+//     """
+// }
 
 
     // bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
