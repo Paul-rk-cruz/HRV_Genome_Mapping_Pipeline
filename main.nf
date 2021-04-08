@@ -40,7 +40,7 @@ Dependencies:
 	
     Single end:
 
-    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
 
     Paired end:
 
@@ -315,14 +315,18 @@ process Reference_Fasta_Generation {
     publishDir "${params.outdir}txt_most_mapped_ref_name", mode: 'copy', pattern:'*.bam*'  
     publishDir "${params.outdir}fasta_most_mapped_ref_genome", mode: 'copy', pattern:'*.sorted.bam*'    
 
-    script:
+    shell:
     """
     #!/bin/bash
 
     # USE UNSORTED BAM FILE TO READ REF GENOME OF MOST MAPPED READS THEN SAVE INFO TO TEXT FILE
     bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
     
-    id=sed 's/^........//' ${base}_most_mapped_ref.txt
+    filename='most_mapped.txt'
+    while read -r line
+    do
+    id=$(cut -c-8 <<< "$line")
+    echo $id
 
     # USE SAM TOOLS TO EXTRACT GENOME REFERENCE FROM MULTI-FASTA - SAVE TO NEW FASTA FOR LATER USE
     samtools faidx ${REFERENCE_FASTA} ${id} > ${base}_mapped_ref_genome.fasta
