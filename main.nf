@@ -272,22 +272,22 @@ process Reference_Fasta_Generation {
 
     output:
     tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_Cons_ch
+    tuple val(base), file("${base}_mapped_ref_genome.txt") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_Cons_ch
 
     publishDir "${params.outdir}txt_most_mapped_ref_name", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
-    publishDir "${params.outdir}fasta_most_mapped_ref_genome", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
+    publishDir "${params.outdir}fasta_most_mapped_ref_genome", mode: 'copy', pattern:'*_mapped_ref_genome.txt*'    
 
     shell:
     """
     #!/bin/bash
     
-    \$id=$(awk '{print $1}' ${base}_most_mapped_ref.txt)
+    \$id=\$(awk \'{print \$1}' ${base}_most_mapped_ref.txt)
     
     samtools view -S -b ${base}.sam > ${base}.bam
 
     bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
 
-    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta 
+    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.txt 
 
     """
 }
@@ -355,7 +355,7 @@ process Variant_Calling {
 	"""
     #!/bin/bash
 
-    samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
+    samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.txt ${base}.sorted.bam > ${base}.pileup
     varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
     varscan mpileup2cns ${base}.pileup --min-var-freq 0.9 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
     bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
@@ -390,7 +390,7 @@ process Consensus {
 
     bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
     bcftools index ${base}_majority.vcf.gz
-    cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
+    cat ${base}_mapped_ref_genome.txt | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
     bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
     sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
