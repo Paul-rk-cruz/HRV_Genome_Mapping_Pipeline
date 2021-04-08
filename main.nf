@@ -175,9 +175,7 @@ Channel
     .set { virus_index_files }
 }
 /*
- * Processing: Trim fastq sequence reads
- * 
- * Trimmomatic
+ * Processing: Trim adaptors and repetitive bases from sequence reads and remove low quality sequence reads.
  */
 if (params.singleEnd) {
 	process Trim_Reads_SE {
@@ -231,7 +229,7 @@ if (params.singleEnd) {
 }
 }
 /*
- * Map sequence reads usiong BBMap
+ * Map sequence reads to RhV Genomes using BBMap.
  */
 process Mapping {
 	errorStrategy 'retry'
@@ -259,9 +257,9 @@ process Mapping {
     """
 }
 /*
- * STEP 5.2: Convert BAM to coordinate sorted BAM
+ * Generate Reference Fasta from Mapping Result.
  */
-process Reference_Fasta_Generation {
+process Reference_Fasta {
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -281,8 +279,11 @@ process Reference_Fasta_Generation {
     """
     #!/bin/bash
     
-    \$id=\$(awk \'{print \$1}' ${base}_most_mapped_ref.txt)
-    
+    """
+    id=$(awk '{print $1}' ${base}_most_mapped_ref.txt)
+
+    """
+
     samtools view -S -b ${base}.sam > ${base}.bam
 
     bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
@@ -292,7 +293,7 @@ process Reference_Fasta_Generation {
     """
 }
 /*
- * STEP 5.2: Convert BAM to coordinate sorted BAM
+ * Convert BAM to coordinate sorted BAM
  */
 process Sort_Bam {
 	errorStrategy 'retry'
