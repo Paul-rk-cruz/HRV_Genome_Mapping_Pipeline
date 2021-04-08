@@ -282,8 +282,8 @@ process Reference_Fasta {
 
     """
     #!/bin/bash
-    
-    \id=$(awk '{print $1}' ${base}_most_mapped_ref.txt)
+
+    \$id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
     """
 
     """
@@ -293,7 +293,7 @@ process Reference_Fasta {
 
     bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
 
-    samtools faidx ${REFERENCE_FASTA} \id > ${base}_mapped_ref_genome.txt 
+    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.txt 
 
     """
 }
