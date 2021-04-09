@@ -243,7 +243,7 @@ process Mapping {
         tuple val(base), file("${base}.sam") into Aligned_sam_ch, Sam_Ref_Fasta_ch
         tuple val (base), file("*") into Dump_ch
 
-    publishDir "${params.outdir}sam files", mode: 'copy', pattern:'*.sam*'
+    publishDir "${params.outdir}mapping_result_sam_files", mode: 'copy', pattern:'*.sam*'
 
 
     script:
@@ -272,8 +272,8 @@ process Reference_Fasta {
     tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_Cons_ch
 
-    publishDir "${params.outdir}txt_most_mapped_ref_name", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
-    publishDir "${params.outdir}fasta_most_mapped_ref_genome", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
+    publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
+    publishDir "${params.outdir}ref__most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
 
     script:
 
@@ -293,6 +293,9 @@ process Reference_Fasta {
 /*
  * Convert BAM to coordinate sorted BAM
  */
+ // Step 1. Convert Sam to Bam
+ // Step 2. Sort Bam file by coordinates
+ // Step 3. Generate Statistics about Bam file
 process Sort_Bam {
 	errorStrategy 'retry'
     maxRetries 3
@@ -302,77 +305,91 @@ process Sort_Bam {
 
     output:
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
-    tuple val(base), file("${base}_sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_sorted.bam.bai") into Sorted_Cons_Bam_Bai_ch    
-    tuple val(base), file("${base}_coverage.txt") into Flagstats_ch
+    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
+    tuple val(base), file("${base}_flagstats.txt") into Flagstats_ch
 
-
-    publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
-    publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*_sorted.bam*'  
-    publishDir "${params.outdir}bai files", mode: 'copy', pattern:'*_sorted.bam.bai*'  
-    publishDir "${params.outdir}coverage", mode: 'copy', pattern:'*_coverage.txt*'  
+    publishDir "${params.outdir}bam_files", mode: 'copy', pattern:'*.bam*'
+    publishDir "${params.outdir}sorted_bam_files", mode: 'copy', pattern:'*.sorted.bam*'  
+    publishDir "${params.outdir}flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
 
     script:
     """
     #!/bin/bash
     
     samtools view -S -b ${base}.sam > ${base}.bam
-    samtools sort -o ${base}_sorted.bam -O bam -T ${base}.sam
-    samtools index ${base}_sorted.bam
-    samtools flagstat ${base}_sorted.bam > ${base}_flagstat.txt
+    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
 
     """
 }
+    // tuple val(base), file("${base}.sorted.bam.bai") into Sorted_Cons_Bam_Bai_ch    
+    // publishDir "${params.outdir}bai_files", mode: 'copy', pattern:'*.sorted.bam.bai*'  
+    // samtools index ${base}.sorted.bam
 
 /*
  * Variant Calling
  */
+ // Step 1: Calculate the read coverage of positions in the genome
+ // Step 2: Detect the single nucleotide polymorphisms (SNPs)
+ // Step 3: Filter and report the SNP variants in variant calling format (VCF)
 process Variant_Calling {
 	errorStrategy 'retry'
     maxRetries 3
 
 	input:
-    tuple val(base), file("${base}_sorted.bam") from Sorted_bam_ch
+    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_ch
     file REFERENCE_FASTA
     file REFERENCE_FASTA_INDEX
 
 	output:
-    tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
-    tuple val(base), file("${base}_majority.vcf") into Majority_allele_vcf_consensus
-    tuple val(base), file("${base}_lowfreq.vcf") into Lowfreq_variants_vcf
-    tuple val(base), file("${base}_majority.vcf.gz") into Majority_allele_vcf_consensus_zip
-    tuple val(base), file("${base}.bcftools_stats.txt") into BcfTools_stats_ch   
+    tuple val(base), file("${base}_variants.vcf") into Variants_vcf_consensus_ch
+    tuple val(base), file("${base}_raw.bcf") into Raw_bcf_ch
+    tuple val(base), file("${base}_final_variants.vcf") into Final_Variants_ch   
+    tuple val(base), file("${base}_variants.txt") into Final_Variants_stats_ch   
 
-    publishDir "${params.outdir}variant calling pileup", mode: 'copy', pattern:'*.pileup*'  
-    publishDir "${params.outdir}majority allele vcf", mode: 'copy', pattern:'*_majority.vcf*'  
-    publishDir "${params.outdir}majority allele vcf-zip", mode: 'copy', pattern:'*_majority.vcf.gz*'  
-    publishDir "${params.outdir}low freq variants vcf", mode: 'copy', pattern:'*_lowfreq.vcf*'  
-    publishDir "${params.outdir}bcftools stats", mode: 'copy', pattern:'*.bcftools_stats.txt*'  
-    
+    publishDir "${params.outdir}vcf_variants", mode: 'copy', pattern:'*_variants.vcf*'  
+    publishDir "${params.outdir}bcf_raw", mode: 'copy', pattern:'*_raw.bcf*'  
+    publishDir "${params.outdir}vcf_final_variants", mode: 'copy', pattern:'*_final_variants.vcf*'  
+    publishDir "${params.outdir}variants_stats", mode: 'copy', pattern:'*${base}_variants.txt*'  
+
 	script:
 
 	"""
     #!/bin/bash
-    samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}_sorted.bam > ${base}.pileup
-    varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
-    varscan mpileup2cns ${base}.pileup --min-var-freq 0.9 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
-   
-   
-    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
-    tabix -p vcf ${base}_majority.vcf.gz
-    bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
+
+    bcftools mpileup -O b -o ${base}_raw.bcf \
+    -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam  
+    bcftools call --ploidy 1 -m -v -o ${base}_variants.vcf ${base}_raw.bcf 
+    vcfutils.pl varFilter ${base}_variants.vcf  > ${base}_final_variants.vcf
+    less -S ${base}_final_variants.vcf > ${base}_variants.txt
 	"""
 }
-    
+
+	// output:
+    // tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
+    // tuple val(base), file("${base}.majority.vcf") into Majority_allele_vcf_consensus
+    // tuple val(base), file("${base}.lowfreq.vcf") into Lowfreq_variants_vcf
+    // tuple val(base), file("${base}.bcftools_stats.txt") into BcfTools_stats_ch   
+
+    // publishDir "${params.outdir}variant_calling_pileup", mode: 'copy', pattern:'*.pileup*'  
+    // publishDir "${params.outdir}majority_allele_vcf", mode: 'copy', pattern:'*.majority.vcf*'  
+    // publishDir "${params.outdir}low_freq_variants_vcf", mode: 'copy', pattern:'*.lowfreq.vcf*'  
+    // publishDir "${params.outdir}samtools_stats", mode: 'copy', pattern:'*.samtools_stats.txt*'  
+
+    // samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
+    // varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}.lowfreq.vcf
+    // varscan mpileup2cns ${base}.pileup --min-var-freq 0.2 --p-value 0.05 --variants --output-vcf 1 > ${base}.majority.vcf
+    // samtools flagstat ${base}.sorted.bam > ${base}.samtools_stats.txt
+
+
 process Consensus {
 	errorStrategy 'retry'
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_consensus
-    tuple val(base), file("${base}_sorted.bam") from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_sorted.bam.bai") from Sorted_Cons_Bam_Bai_ch
+    tuple val(base), file("${base}_final_variants.vcf") from Final_Variants_ch  
+    tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
 
     output:
@@ -380,19 +397,19 @@ process Consensus {
     tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_fasta_Masked_ch
     tuple val(base), file("${base}_bed4mask.bed") into Consensus_bed4mask_ch
 
-    publishDir "${params.outdir}consensus fasta", mode: 'copy', pattern:'*.consensus.fasta*'  
-    publishDir "${params.outdir}consensus masked fasta", mode: 'copy', pattern:'*_consensus_masked.fasta*'  
-    publishDir "${params.outdir}bed4mask", mode: 'copy', pattern:'*_bed4mask.bed*'  
+    publishDir "${params.outdir}consensus_fasta_files", mode: 'copy', pattern:'*.consensus.fasta*'  
+    publishDir "${params.outdir}consensus_masked_fasta_files", mode: 'copy', pattern:'*_consensus_masked.fasta*'  
+    publishDir "${params.outdir}bed4mask_bed_files", mode: 'copy', pattern:'*_bed4mask.bed*'  
 
     script:
 
     """
     #!/bin/bash
 
-    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
-    bcftools index ${base}_majority.vcf.gz
-    cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
-    bedtools genomecov -bga -ibam ${base}_sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
+    bgzip -c ${base}_final_variants.vcf > ${base}_final_variants.vcf.gz
+    bcftools index ${base}_final_variants.vcf.gz
+    cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_final_variants.vcf.gz > ${base}_consensus.fasta
+    bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
     sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
 
@@ -428,6 +445,8 @@ process FastQC {
 
     script:
     """
+    #!/bin/bash
+
     fastqc --quiet --threads $task.cpus *.fastq.gz
     """
 }
