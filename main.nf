@@ -332,6 +332,7 @@ process Sort_Bam {
  // Step 1: Calculate the read coverage of positions in the genome
  // Step 2: Detect the single nucleotide polymorphisms (SNPs)
  // Step 3: Filter and report the SNP variants in variant calling format (VCF)
+ // VIEW RESULTS:   less -S ${base}_final_variants.vcf
 process Variant_Calling {
 	errorStrategy 'retry'
     maxRetries 3
@@ -345,13 +346,11 @@ process Variant_Calling {
 	output:
     tuple val(base), file("${base}_variants.vcf") into Variants_vcf_consensus_ch
     tuple val(base), file("${base}_raw.bcf") into Raw_bcf_ch
-    tuple val(base), file("${base}_final_variants.vcf") into Final_Variants_ch   
-    tuple val(base), file("${base}_variants.txt") into Final_Variants_stats_ch   
+    tuple val(base), file("${base}_final_variants.vcf") into Final_Variants_ch      
 
     publishDir "${params.outdir}vcf_variants", mode: 'copy', pattern:'*_variants.vcf*'  
     publishDir "${params.outdir}bcf_raw", mode: 'copy', pattern:'*_raw.bcf*'  
     publishDir "${params.outdir}vcf_final_variants", mode: 'copy', pattern:'*_final_variants.vcf*'  
-    publishDir "${params.outdir}variants_stats", mode: 'copy', pattern:'*${base}_variants.txt*'  
 
 	script:
 
@@ -362,10 +361,9 @@ process Variant_Calling {
     -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam  
     bcftools call --ploidy 1 -m -v -o ${base}_variants.vcf ${base}_raw.bcf 
     vcfutils.pl varFilter ${base}_variants.vcf  > ${base}_final_variants.vcf
-    less -S ${base}_final_variants.vcf > ${base}_variants.txt
+
 	"""
 }
-
 	// output:
     // tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
     // tuple val(base), file("${base}.majority.vcf") into Majority_allele_vcf_consensus
@@ -393,11 +391,11 @@ process Consensus {
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
 
     output:
-    tuple val(base), file("${base}.consensus.fasta") into Consensus_fasta_ch
+    tuple val(base), file("${base}_consensus.fasta") into Consensus_fasta_ch
     tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_fasta_Masked_ch
     tuple val(base), file("${base}_bed4mask.bed") into Consensus_bed4mask_ch
 
-    publishDir "${params.outdir}consensus_fasta_files", mode: 'copy', pattern:'*.consensus.fasta*'  
+    publishDir "${params.outdir}consensus_fasta_files", mode: 'copy', pattern:'*_consensus.fasta*'  
     publishDir "${params.outdir}consensus_masked_fasta_files", mode: 'copy', pattern:'*_consensus_masked.fasta*'  
     publishDir "${params.outdir}bed4mask_bed_files", mode: 'copy', pattern:'*_bed4mask.bed*'  
 
@@ -411,12 +409,11 @@ process Consensus {
     cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_final_variants.vcf.gz > ${base}_consensus.fasta
     bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
-    sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
 
     """
 }
 
-
+    // sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
     // bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
     // tabix -p vcf ${base}_majority.vcf.gz
     // cat ${REFERENCE_FASTA} | vcf-consensus ${base}_majority.vcf.gz > ${base}.consensus.fasta
