@@ -275,19 +275,13 @@ process Reference_Fasta {
     publishDir "${params.outdir}txt_most_mapped_ref_name", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
     publishDir "${params.outdir}fasta_most_mapped_ref_genome", mode: 'copy', pattern:'*_mapped_ref_genome.txt*'    
 
-    
-
     script:
 
-
     """
     #!/bin/bash
+    
+    \id=\$(awk '{print $1}' ${base}_most_mapped_ref.txt)
 
-    \$id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
-    """
-
-    """
-    #!/bin/bash
 
     samtools view -S -b ${base}.sam > ${base}.bam
 
@@ -297,6 +291,15 @@ process Reference_Fasta {
 
     """
 }
+    // WORKING IMPLEMENTATION:
+    //
+    // id=$(awk '{print $1}' most_mapped.txt)
+
+    // bedtools bamtobed -i V338470961_S2_L002_R1_001.bam | head -1 > most_mapped.txt
+    // samtools faidx rhv_ref_db01.fasta $id > MAPPED-REF-GENOME.txt 
+    // nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+    // https://gitter.im/nextflow-io/nextflow?at=5dd83e629d72cd02b32810ea
+
 /*
  * Convert BAM to coordinate sorted BAM
  */
