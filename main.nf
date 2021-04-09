@@ -302,14 +302,14 @@ process Sort_Bam {
 
     output:
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
-    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}.sorted.bam.bai") into Sorted_Cons_Bam_Bai_ch    
+    tuple val(base), file("${base}_sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
+    tuple val(base), file("${base}_sorted.bam.bai") into Sorted_Cons_Bam_Bai_ch    
     tuple val(base), file("${base}_coverage.txt") into Flagstats_ch
 
 
     publishDir "${params.outdir}bam files", mode: 'copy', pattern:'*.bam*'  
-    publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}bai files", mode: 'copy', pattern:'*.sorted.bam.bai*'  
+    publishDir "${params.outdir}sorted bam files", mode: 'copy', pattern:'*_sorted.bam*'  
+    publishDir "${params.outdir}bai files", mode: 'copy', pattern:'*_sorted.bam.bai*'  
     publishDir "${params.outdir}coverage", mode: 'copy', pattern:'*_coverage.txt*'  
 
     script:
@@ -317,9 +317,10 @@ process Sort_Bam {
     #!/bin/bash
     
     samtools view -S -b ${base}.sam > ${base}.bam
-    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    samtools index ${base}.sorted.bam
-    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    samtools sort -o ${base}_sorted.bam -O bam -T ${base}.sam
+    samtools index ${base}_sorted.bam
+    samtools flagstat ${base}_sorted.bam > ${base}_flagstat.txt
+
     """
 }
 
@@ -331,7 +332,7 @@ process Variant_Calling {
     maxRetries 3
 
 	input:
-    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
+    tuple val(base), file("${base}_sorted.bam") from Sorted_bam_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_ch
     file REFERENCE_FASTA
     file REFERENCE_FASTA_INDEX
@@ -353,10 +354,11 @@ process Variant_Calling {
 
 	"""
     #!/bin/bash
-
-    samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
+    samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}_sorted.bam > ${base}.pileup
     varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
     varscan mpileup2cns ${base}.pileup --min-var-freq 0.9 --p-value 0.05 --variants --output-vcf 1 > ${base}_majority.vcf
+   
+   
     bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
     tabix -p vcf ${base}_majority.vcf.gz
     bcftools stats ${base}_majority.vcf.gz > ${base}.bcftools_stats.txt
@@ -369,8 +371,8 @@ process Consensus {
 
     input:
     tuple val(base), file("${base}_majority.vcf") from Majority_allele_vcf_consensus
-    tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}.sorted.bam.bai") from Sorted_Cons_Bam_Bai_ch
+    tuple val(base), file("${base}_sorted.bam") from Sorted_Cons_Bam_ch
+    tuple val(base), file("${base}_sorted.bam.bai") from Sorted_Cons_Bam_Bai_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
 
     output:
@@ -390,7 +392,7 @@ process Consensus {
     bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
     bcftools index ${base}_majority.vcf.gz
     cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
-    bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
+    bedtools genomecov -bga -ibam ${base}_sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
     sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
 
@@ -407,7 +409,7 @@ if (params.withFastQC) {
 /*
  * STEP 3: FastQC on input reads after concatenating libraries from the same sample
  */
-process FASTQC {
+process FastQC {
     tag "$sample"
     label 'process_medium'
     publishDir "${params.outdir}/preprocess/fastqc", mode: params.publish_dir_mode,
