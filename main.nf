@@ -410,6 +410,10 @@ process Consensus {
     bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
 
+    for \f in *.fasta; do
+        seqkit replace -p '.+' -r '${base}' \$f > /${base}_consensus.fasta
+    done
+
     """
 }
 
