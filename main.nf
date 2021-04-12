@@ -10,41 +10,68 @@
  Author:
  Paul RK Cruz <kurtisc@uw.edu>
 ----------------------------------------------------------------------------------------
+
+This pipeline was designed to run either single-end or paired end shotgun Next-Generation Sequencing reads to identify Human Rhinovirus.
+
 Pipeline overview:
- - 1. : Fastq File Processing
- 		-Trimmomatic - sequence trimming of adaptors and low quality reads.
+ - 1. : Trim Reads
+ 		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
  - 2. : Genome Mapping
- 		-Bowtie2 - align to reference Virus genome.
+ 		-BBMap - align to MultiFasta Reference Virus Genome.
  		-Samtools - SAM and BAM file processing.
- - 3. : Consensus generation (*.fasta):
-  		-Bcftools - consensus formatting.
+ - 3. : Reference Fasta Generation
+ 		-Generate a fasta reference from the genome mapping results.  
+ - 4. : Sort Bam
+  		-Convert Sam to Bam
+        -Sort Bam file by coordinates
+        -Generate Statistics about Bam file  
+ - 5. : Variant Calling
+        -Calculate the read coverage of positions in the genome
+        -Detect the single nucleotide polymorphisms (SNPs)
+        -Filter and report the SNP variants in variant calling format (VCF)
+        CLI Command to view results:   less -S ${base}_final_variants.vcf
+ - 6. : Consensus
+        -Consensus generation using variants VCF, mapped reference fasta, and
+        sorted bam. 
+ - 7. : Final Consensus
+        -Creates the Final Consensus by editing the fasta header.       
+ - 6. : FastQC
+ 		-Sequence read quality control analysis.
 
-Optional:
-	-withFastQC
-	-Add Blast consensus to NCBI? (or Vapid functionalities?)
+    Dependencies:
+    
+    trimmomatic
+    bgzip
+    samtools
+    bbtools  
+    bcftools
+    seqkit
+    bedtools
+    fastqc
 
-Dependencies:
-  
-  trimmomatic
-  bowtie2
-  samtools
-  bedtools
-  Bcftools
+    File Paths to change to run this pipeline:
 
-	CLI Commands
+    1. REFERENCE_FASTA
+    2. REFERENCE_FASTA_INDEX
+    3. ADAPTORS
+    4. trimmomatic_adapters_file_PE
+    5. trimmomatic_adapters_file_SE
 
-	Run Pipeline --helpMsg
-	nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
-	Run Pipeline on test fastqc:
-	
-    Single end:
+    Example Usage:
 
-    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+        Run Pipeline --helpMsg
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
-    Paired end:
+        Run Pipeline on test fastqc:
+        
+        Single end:
 
-    nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+
+        Paired end:
+
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
 
  ----------------------------------------------------------------------------------------
 */
@@ -61,22 +88,19 @@ def helpMsg() {
 
     To run the pipeline, enter the following in the command line:
 
-        nextflow run Virus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --virus_fasta PATH_TO_VIR_FASTA --virus_index PATH_TO_VIR_INDEX --outdir PATH_TO_OUTPUT_DIR
+        nextflow run FILE_PATH/Rhinovirus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
 
 
     Valid CLI Arguments:
       --reads                       Path to input fastq.gz folder).
+      --outdir                      The output directory where the results will be saved
+	  --helpMsg						Displays help message in terminal
       --virus_fasta                 Path to fasta reference sequences (concatenated)
       --virus_index                 Path to indexed virus reference databases
       --singleEnd                   Specifies that the input fastq files are single end reads
       --withBlast                   Blasts the resulting consensus sequence and outputs results
-      --notrim                      Specifying --notrim will skip the adapter trimming step
-      --saveTrimmed                 Save the trimmed Fastq files in the the Results directory
-      --trimmomatic_adapters_file   Adapters index for adapter removal
-      --trimmomatic_mininum_length  Minimum length of reads
 	  --withFastQC					Runs a quality control check on fastq files
-	  --outdir                      The output directory where the results will be saved
-	  --helpMsg						Displays help message in terminal
+
 
     """.stripIndent()
 }
@@ -89,14 +113,14 @@ ADAPTERS = file("${baseDir}/All_adapters.fa")
 MIN_LEN = 100
 REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta")
 REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
-// Bowtie2 index name: rhv_ref_db01
-BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/rhv_ref_db01")
-REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/rhv_ref_db01.1.bt2")
-REF_BT2_INDEX2 = file("${baseDir}/virus_ref_db/rhv_ref_db01.2.bt2")
-REF_BT2_INDEX3 = file("${baseDir}/virus_ref_db/rhv_ref_db01.3.bt2")
-REF_BT2_INDEX4 = file("${baseDir}/virus_ref_db/rhv_ref_db01.4.bt2")
-REF_BT2_INDEX5 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.1.bt2")
-REF_BT2_INDEX6 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.2.bt2")
+// // Bowtie2 index name: rhv_ref_db01
+// BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/rhv_ref_db01")
+// REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/rhv_ref_db01.1.bt2")
+// REF_BT2_INDEX2 = file("${baseDir}/virus_ref_db/rhv_ref_db01.2.bt2")
+// REF_BT2_INDEX3 = file("${baseDir}/virus_ref_db/rhv_ref_db01.3.bt2")
+// REF_BT2_INDEX4 = file("${baseDir}/virus_ref_db/rhv_ref_db01.4.bt2")
+// REF_BT2_INDEX5 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.1.bt2")
+// REF_BT2_INDEX6 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.2.bt2")
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -117,10 +141,6 @@ params.reads = false
 if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a valid path with --reads"
 // Single-end read option
 params.singleEnd = false
-// Trimming parameters
-params.notrim = false
-// Output files options
-params.saveTrimmed = false
 // Default trimming options
 params.trimmomatic_adapters_file_PE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-PE.fa"
 params.trimmomatic_adapters_file_SE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-SE.fa"
@@ -141,14 +161,10 @@ summary['Current directory path:']        = "$PWD"
 summary['Working directory path:']         = workflow.workDir
 summary['Output directory path:']          = params.outdir
 summary['Pipeline directory path:']          = workflow.projectDir
-if( params.notrim ){
-    summary['Trimmomatic Options: '] = 'Skipped trimming step'
-} else {
-    summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
-	summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
-    summary['Trimmomatic adapter parameters:'] = params.trimmomatic_adapters_parameters
-    summary["Trimmomatic read length (minimum):"] = params.trimmomatic_mininum_length
-}
+summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
+summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
+summary['Trimmomatic adapter parameters:'] = params.trimmomatic_adapters_parameters
+summary["Trimmomatic read length (minimum):"] = params.trimmomatic_mininum_length
 summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "____________________________________________"
@@ -175,6 +191,8 @@ Channel
     .set { virus_index_files }
 }
 /*
+ * Trim Reads
+ * 
  * Processing: Trim adaptors and repetitive bases from sequence reads and remove low quality sequence reads.
  */
 if (params.singleEnd) {
@@ -231,7 +249,7 @@ if (params.singleEnd) {
 /*
  * Map sequence reads to RhV Genomes using BBMap.
  */
-process Mapping {
+process Genome_Mapping {
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -269,7 +287,7 @@ process Reference_Fasta {
     file REFERENCE_FASTA_INDEX
 
     output:
-    tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch
+    tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_Cons_ch
 
     publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
@@ -322,10 +340,6 @@ process Sort_Bam {
 
     """
 }
-    // tuple val(base), file("${base}.sorted.bam.bai") into Sorted_Cons_Bam_Bai_ch    
-    // publishDir "${params.outdir}bai_files", mode: 'copy', pattern:'*.sorted.bam.bai*'  
-    // samtools index ${base}.sorted.bam
-
 /*
  * Variant Calling
  */
@@ -364,23 +378,11 @@ process Variant_Calling {
 
 	"""
 }
-	// output:
-    // tuple val(base), file("${base}.pileup") into Variant_calling_pileup_ch
-    // tuple val(base), file("${base}.majority.vcf") into Majority_allele_vcf_consensus
-    // tuple val(base), file("${base}.lowfreq.vcf") into Lowfreq_variants_vcf
-    // tuple val(base), file("${base}.bcftools_stats.txt") into BcfTools_stats_ch   
-
-    // publishDir "${params.outdir}variant_calling_pileup", mode: 'copy', pattern:'*.pileup*'  
-    // publishDir "${params.outdir}majority_allele_vcf", mode: 'copy', pattern:'*.majority.vcf*'  
-    // publishDir "${params.outdir}low_freq_variants_vcf", mode: 'copy', pattern:'*.lowfreq.vcf*'  
-    // publishDir "${params.outdir}samtools_stats", mode: 'copy', pattern:'*.samtools_stats.txt*'  
-
-    // samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
-    // varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}.lowfreq.vcf
-    // varscan mpileup2cns ${base}.pileup --min-var-freq 0.2 --p-value 0.05 --variants --output-vcf 1 > ${base}.majority.vcf
-    // samtools flagstat ${base}.sorted.bam > ${base}.samtools_stats.txt
-
-
+/*
+ * Consensus
+ *
+ * Consensus generation using sorted Bam, final_variants.vcf, and mapped_ref_genome.
+ */
 process Consensus {
 	errorStrategy 'retry'
     maxRetries 3
@@ -391,7 +393,7 @@ process Consensus {
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
 
     output:
-    tuple val(base), file("${base}_consensus.fasta") into Consensus_fasta_ch
+    tuple val(base), file("${base}_consensus.fasta") into Consensus_Fasta_ch, Consensus_Fasta_Processing_ch
     tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_fasta_Masked_ch
     tuple val(base), file("${base}_bed4mask.bed") into Consensus_bed4mask_ch
 
@@ -411,39 +413,58 @@ process Consensus {
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
     """
 }
-
-    // sed -i 's/${base}/g' ${base}_consensus_masked.fasta"
-    // bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
-    // tabix -p vcf ${base}_majority.vcf.gz
-    // cat ${REFERENCE_FASTA} | vcf-consensus ${base}_majority.vcf.gz > ${base}.consensus.fasta
-
-
-if (params.withFastQC) {
 /*
- * STEP 3: FastQC on input reads after concatenating libraries from the same sample
+ * Final Consensus
+ * 
+ * Creates final consensus by replacing the RhV Genome consensus fasta header with the Sample name.
  */
-process FastQC {
-    tag "$sample"
-    label 'process_medium'
-    publishDir "${params.outdir}/preprocess/fastqc", mode: params.publish_dir_mode,
-        saveAs: { filename ->
-                      filename.endsWith(".zip") ? "zips/$filename" : filename
-                }
-
-    when:
-    !params.skip_fastqc
+process Final_Consensus {
+	errorStrategy 'retry'
+    maxRetries 3
 
     input:
-    tuple val(sample), val(single_end), path(reads) from ch_cat_fastqc
+    tuple val(base), file("${base}_consensus.fasta") from Consensus_Fasta_Processing_ch 
+    tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Final_Cons_Id_ch
 
     output:
-    path "*.{zip,html}" into ch_fastqc_raw_reports_mqc
+    tuple val(base), file("${base}_consensus_final.fasta") into Consensus_fasta_Complete_ch
+
+    publishDir "${params.outdir}consensus_final", mode: 'copy', pattern:'*_consensus_final.fasta*'  
+
+    script:
+
+    """
+    #!/bin/bash
+
+    id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
+    
+    seqkit replace -p "\$id" -r '${base}' ${base}_consensus.fasta > ${base}_consensus_final.fasta
+
+    """
+}
+if (params.withFastQC) {
+ /* FastQC
+ *
+ * Sequence read quality control analysis.
+ */
+process FastQC {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        file R1 from input_read_ch
+
+    output:
+	file '*_fastqc.{zip,html}' into fastqc_results
+
+    publishDir "${params.outdir}fastqc", mode: 'copy', pattern:'*_fastqc.{zip,html}*'  
 
     script:
     """
     #!/bin/bash
 
     fastqc --quiet --threads $task.cpus *.fastq.gz
+
     """
 }
 }
