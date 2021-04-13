@@ -69,7 +69,7 @@ Dependencies:
     bedtools
     fastqc
 
-    PIPELINE SETUP
+PIPELINE SETUP
 
     Setup Multifasta Reference:
     1. REFERENCE_FASTA (must be a multifasta containing concatenated full length RhV genome sequences (6-10K bp) formatted with accession numbers only)
