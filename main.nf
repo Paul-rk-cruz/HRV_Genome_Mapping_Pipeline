@@ -9,11 +9,16 @@
  
  Author:
  Paul RK Cruz <kurtisc@uw.edu>
+ UW Medicine | Virology
+ Department of Laboratory Medicine and Pathology
+ University of Washington
+ Created: April, 2021
+ LICENSE: GNU
 ----------------------------------------------------------------------------------------
 
 This pipeline was designed to run either single-end or paired end shotgun Next-Generation Sequencing reads to identify Human Rhinovirus.
 
-Pipeline overview:
+PIPELINE OVERVIEW:
  - 1. : Trim Reads
  		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
  - 2. : Genome Mapping
@@ -49,28 +54,42 @@ Pipeline overview:
     bedtools
     fastqc
 
-    File Paths to change to run this pipeline:
+    PIPELINE SETUP
 
-    1. REFERENCE_FASTA
+    Setup Multifasta Reference:
+    1. REFERENCE_FASTA (must be a multifasta containing concatenated full length RhV genome sequences (6-10K bp) formatted with accession numbers only)
+        Current file: rhv_ref_db01_accession_only.fasta - 327 Human Rhinovirus Complete Genome Sequences courtesy of NCBI Genbank, 2021.
+            source: https://www.ncbi.nlm.nih.gov/nucleotide/
+
     2. REFERENCE_FASTA_INDEX
-    3. ADAPTORS
-    4. trimmomatic_adapters_file_PE
-    5. trimmomatic_adapters_file_SE
+        run:
+             samtools faidx <reference.fasta>
+        to create a multifasta index file.
 
+    Setup File Paths:
+    1. BBMAP_PATH
+        Path to your installation of BBTools --> bbmap.sh
+    2. trimmomatic_adapters_file_SE
+        Path to your Trimmomatic single-end file
+    3. trimmomatic_adapters_file_PE
+            Path to your Trimmomatic paired-end file
 
-    Example Usage:
+    Setup Trimmomatic Parameters:
+    1. params.trimmomatic_adapters_parameters = "2:30:10:1"
+    2. params.trimmomatic_window_length = "4"
+    3. params.trimmomatic_window_value = "20"
+    4. params.trimmomatic_mininum_length = "75"
+    
 
-        Run Pipeline --helpMsg
+    EXAMPLE USAGE:
+
+        Run Pipeline Help Message:
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
-        Run Pipeline on test fastqc:
-        
-        Single end:
-
+        Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L002_R1_001.fastq))
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
 
-        Paired end:
-
+        Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
 
  ----------------------------------------------------------------------------------------
@@ -92,15 +111,14 @@ def helpMsg() {
 
 
     Valid CLI Arguments:
+    REQUIRED:
       --reads                       Path to input fastq.gz folder).
       --outdir                      The output directory where the results will be saved
+    OPTIONAL:
 	  --helpMsg						Displays help message in terminal
-      --virus_fasta                 Path to fasta reference sequences (concatenated)
-      --virus_index                 Path to indexed virus reference databases
       --singleEnd                   Specifies that the input fastq files are single end reads
       --withBlast                   Blasts the resulting consensus sequence and outputs results
 	  --withFastQC					Runs a quality control check on fastq files
-
 
     """.stripIndent()
 }
@@ -109,10 +127,9 @@ params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
 params.withBlast =false
-ADAPTERS = file("${baseDir}/All_adapters.fa")
-MIN_LEN = 100
-REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta")
+REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01_accession_only.fasta")
 REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
+BBMAP_PATH="/Users/Kurtisc/Downloads/bbmap/"
 // // Bowtie2 index name: rhv_ref_db01
 // BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/rhv_ref_db01")
 // REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/rhv_ref_db01.1.bt2")
@@ -202,7 +219,7 @@ if (params.singleEnd) {
 
     input:
         file R1 from input_read_ch
-        file ADAPTERS
+        file trimmomatic_adapters_file_SE
         val MIN_LEN
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_SE
@@ -212,7 +229,7 @@ if (params.singleEnd) {
     script:
     """
     #!/bin/bash
-
+    
     base=`basename ${R1} ".fastq.gz"`
     echo \$base
 	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
@@ -227,7 +244,7 @@ if (params.singleEnd) {
 
    input:
         tuple val(base), file(R1), file(R2) from input_read_ch
-        file ADAPTERS
+        file trimmomatic_adapters_file_PE
         val MIN_LEN
     output: 
         tuple val(base), file("${base}.trimmed.fastq.gz"),file("${base}_summary.csv") into Trim_out_ch
@@ -241,7 +258,7 @@ if (params.singleEnd) {
     #!/bin/bash
 
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-	ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+	ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${params.trimmomatic_mininum_length}
 
     """
 }
@@ -269,7 +286,7 @@ process Genome_Mapping {
     """
     #!/bin/bash
 
-    /Users/Kurtisc/Downloads/bbmap/bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${REFERENCE_FASTA} local=true -Xmx6g > bbmap_out.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${REFERENCE_FASTA} local=true -Xmx6g > bbmap_out.txt 2>&1
     reads_mapped=\$(cat bbmap_out.txt | grep "mapped:" | cut -d\$'\\t' -f3)
 
     """
@@ -446,6 +463,32 @@ if (params.withFastQC) {
  /* FastQC
  *
  * Sequence read quality control analysis.
+ */
+process FastQC {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        file R1 from input_read_ch
+
+    output:
+	file '*_fastqc.{zip,html}' into fastqc_results
+
+    publishDir "${params.outdir}fastqc_results", mode: 'copy', pattern:'*_fastqc.{zip,html}*'  
+
+    script:
+    """
+    #!/bin/bash
+
+    fastqc --quiet --threads $task.cpus *.fastq.gz
+
+    """
+}
+}
+if (params.withBlast) {
+ /* Blast NCBI Database
+ *
+ * Runs a NCBI blast of the final consensus and outputs results.
  */
 process FastQC {
 	errorStrategy 'retry'
