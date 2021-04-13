@@ -71,6 +71,7 @@ Dependencies:
     bcftools
     seqkit
     bedtools
+    blast
     fastqc
 
 PIPELINE SETUP
