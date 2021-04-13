@@ -1,42 +1,64 @@
 ## Rhinovirus Genome Mapping Pipeline v1.0
-
+#
 Github Repo:
 https://github.com/greninger-lab/RhV_Genome_Mapping_Pipeline
+
 Author:
 Paul RK Cruz <kurtisc@uw.edu>
+
 UW Medicine | Virology
+
 Department of Laboratory Medicine and Pathology
+
 University of Washington
+
 Created: April, 2021
 
-#### License
-MIT
+License: MIT
 
 ### Description:
 Rhinovirus Genome Mapping Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
 
 ### PIPELINE OVERVIEW:
 1. Trim Reads
+
     1.1. Trimmomatic - sequence read trimming of adaptors and low quality reads.
+    
  2. Genome Mapping
+ 
  	2.1. BBMap - align to MultiFasta Reference Virus Genome.
+ 	
  	2.2. Samtools - SAM and BAM file processing.
+ 	
  3. Reference Fasta Generation
+ 
  	3.1. Generate a fasta reference from the genome mapping results.
+ 	
  4. Sort Bam
+ 
     4.1. Convert Sam to Bam
+    
     4.2. Sort Bam file by coordinates
+    
     4.3. Generate Statistics about Bam file
+    
  5. Variant Calling
+ 
     5.1. Calculate the read coverage of positions in the genome
+    
     5.2. Detect the single nucleotide polymorphisms (SNPs)
+    
     5.3. Filter and report the SNP variants in variant calling format (VCF)
+    
     5.4. CLI Command to view results:   less -S ${base}_final_variants.vcf
+    
  6. Consensus
     6.1. Consensus generation using variants VCF, mapped reference fasta, and
     sorted bam.
+   
  7. Final Consensus
     7.1. Creates the Final Consensus by editing the fasta header.
+    
  8. FastQC
  	8.1. Sequence read quality control analysis.
 
