@@ -1,10 +1,9 @@
+Rhinovirus Genome Mapping Pipeline v1.0
 
-                  #Rhinovirus Genome Mapping Pipeline v1.0
-
- ##Github Repo:
- Greninger Lab
+Github Repo:
+Greninger Lab
  
- ##Author:
+Author:
  Paul RK Cruz <kurtisc@uw.edu>
  UW Medicine | Virology
  Department of Laboratory Medicine and Pathology
@@ -15,7 +14,7 @@
 
 This pipeline was designed to run either single-end or paired Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for Genbank submission and analysis.
 
-##PIPELINE OVERVIEW:
+PIPELINE OVERVIEW:
  - 1. : Trim Reads
  		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
  - 2. : Genome Mapping
@@ -40,7 +39,7 @@ This pipeline was designed to run either single-end or paired Next-Generation Se
  - 6. : FastQC
  		-Sequence read quality control analysis.
 
-    ##Dependencies:
+Dependencies:
     
     trimmomatic
     bgzip
@@ -78,7 +77,7 @@ This pipeline was designed to run either single-end or paired Next-Generation Se
     4. params.trimmomatic_mininum_length = "75"
     
 
-    ##EXAMPLE USAGE:
+EXAMPLE USAGE:
 
         Run Pipeline Help Message:
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
