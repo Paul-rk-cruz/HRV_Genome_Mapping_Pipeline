@@ -229,7 +229,7 @@ if (params.singleEnd) {
     script:
     """
     #!/bin/bash
-    
+
     base=`basename ${R1} ".fastq.gz"`
     echo \$base
 	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
@@ -490,23 +490,23 @@ if (params.withBlast) {
  *
  * Runs a NCBI blast of the final consensus and outputs results.
  */
-process FastQC {
+process NCBI_Blast {
 	errorStrategy 'retry'
     maxRetries 3
 
     input:
-        file R1 from input_read_ch
+    tuple val(base), file("${base}_consensus_final.fasta") from Consensus_fasta_Complete_ch
 
     output:
-	file '*_fastqc.{zip,html}' into fastqc_results
+    tuple val(base), file("${base}_ncbi_blast_results.txt") finto NCBI_blast_results_ch
 
-    publishDir "${params.outdir}fastqc", mode: 'copy', pattern:'*_fastqc.{zip,html}*'  
+    publishDir "${params.outdir}ncbi_blast_results", mode: 'copy', pattern:'*_ncbi_blast_results.txt*'  
 
     script:
     """
     #!/bin/bash
 
-    fastqc --quiet --threads $task.cpus *.fastq.gz
+ 
 
     """
 }
