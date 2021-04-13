@@ -52,6 +52,7 @@ PIPELINE OVERVIEW:
     bcftools
     seqkit
     bedtools
+    blast
     fastqc
 
     PIPELINE SETUP
@@ -90,7 +91,7 @@ PIPELINE OVERVIEW:
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
 
         Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
 
  ----------------------------------------------------------------------------------------
 */
@@ -211,6 +212,7 @@ Channel
     .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
     .set { virus_index_files }
 }
+
 /*
  * Trim Reads
  * 
@@ -225,16 +227,15 @@ if (params.singleEnd) {
         file R1 from input_read_ch
         val trimmomatic_mininum_length
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_SE, Trim_out_fastqc_SE
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_SE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
 
     script:
     """
     #!/bin/bash
-
     base=`basename ${R1} ".fastq.gz"`
-    echo \$base
+
 	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
 	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
 
@@ -249,7 +250,7 @@ if (params.singleEnd) {
         tuple val(base), file(R1), file(R2) from input_read_ch
         val trimmomatic_mininum_length
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_PE, Trim_out_fastqc_PE
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_PE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     
@@ -271,7 +272,7 @@ process Genome_Mapping {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch2_SE, Trim_out_ch2_PE
+        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch
         file REFERENCE_FASTA
 
     output:
@@ -511,29 +512,28 @@ process FastQC_PE {
     }
 }
 }
-if (params.withBlast) {
- /* Blast NCBI Database
- *
- * Runs a NCBI blast of the final consensus and outputs results.
- */
-process NCBI_Blast {
-	errorStrategy 'retry'
-    maxRetries 3
+// if (params.withBlast) {
+//  /* Blast NCBI Database
+//  *
+//  * Runs a NCBI blast of the final consensus and outputs results.
+//  */
+// process NCBI_Blast {
+// 	errorStrategy 'retry'
+//     maxRetries 3
 
-    input:
-    tuple val(base), file("${base}_consensus_final.fasta") from Consensus_fasta_Complete_ch
+//     input:
+//     tuple val(base), file("${base}_consensus_final.fasta") from Consensus_fasta_Complete_ch
+//     path db from db_dir 
 
-    output:
-    tuple val(base), file("${base}_ncbi_blast_results.txt") finto NCBI_blast_results_ch
+//     output:
+//     file 'top_hits' into hits_ch
 
-    publishDir "${params.outdir}ncbi_blast_results", mode: 'copy', pattern:'*_ncbi_blast_results.txt*'  
+//     publishDir "${params.outdir}ncbi_blast_results", mode: 'copy', pattern:'*_ncbi_blast_results.txt*'  
 
-    script:
-    """
-    #!/bin/bash
-
- 
-
-    """
-}
-}
+//     script:
+//     """
+//     blastp -db $db/$db_name -query ${base}_consensus_final.fasta -outfmt 6 > blast_result
+//     cat blast_result | head -n 10 | cut -f 2 > top_hits
+//     """
+// }
+// }
