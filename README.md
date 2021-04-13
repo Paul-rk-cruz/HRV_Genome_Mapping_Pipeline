@@ -4,12 +4,19 @@ Github Repo:
 Greninger Lab
  
 Author:
+
  Paul RK Cruz <kurtisc@uw.edu>
+ 
  UW Medicine | Virology
+ 
  Department of Laboratory Medicine and Pathology
+ 
  University of Washington
+ 
  Created: April, 2021
+ 
  LICENSE: GNU
+ 
 ----------------------------------------------------------------------------------------
 
 This pipeline was designed to run either single-end or paired Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for Genbank submission and analysis.
