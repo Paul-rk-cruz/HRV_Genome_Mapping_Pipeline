@@ -1,21 +1,21 @@
 Rhinovirus Genome Mapping Pipeline v1.0
 #
-#
 Github Repo:
 Greninger Lab
- 
-Author:
 
-Paul RK Cruz <kurtisc@uw.edu>
-UW Medicine | Virology
-Department of Laboratory Medicine and Pathology
-University of Washington
-Created: April, 2021
+Author:
+Paul RK Cruz <kurtisc@uw.edu>  | 
+UW Medicine | Virology | 
+Department of Laboratory Medicine and Pathology | 
+University of Washington | 
+Created: April, 2021 | 
 LICENSE: GNU
  
 Description:
 
 Rhinovirus Genome Mapping Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
+
+#
 
 PIPELINE OVERVIEW:
  - 1. : Trim Reads
