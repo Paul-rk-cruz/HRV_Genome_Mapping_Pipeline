@@ -4,11 +4,13 @@ Github Repo:
 Greninger Lab
  
 Author:
-Paul RK Cruz <kurtisc@uw.edu>
+Paul RK Cruz <kurtisc@uw.edu> |
 UW Medicine | Virology
-Department of Laboratory Medicine and Pathology
-University of Washington
+Department of Laboratory Medicine and Pathology |
+University of Washington |
+
 Created: April, 2021
+
 LICENSE: GNU
  
 ----------------------------------------------------------------------------------------
@@ -37,7 +39,7 @@ PIPELINE OVERVIEW:
         sorted bam. 
  - 7. : Final Consensus
         -Creates the Final Consensus by editing the fasta header.       
- - 6. : FastQC
+ - 8. : FastQC
  		-Sequence read quality control analysis.
 
 Dependencies:
