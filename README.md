@@ -34,32 +34,32 @@ PIPELINE OVERVIEW:
 
  4. Sort Bam
 
-        4.1. Convert Sam to Bam
-        4.2. Sort Bam file by coordinates
-        4.3. Generate Statistics about Bam file  
+            4.1. Convert Sam to Bam
+            4.2. Sort Bam file by coordinates
+            4.3. Generate Statistics about Bam file  
  
  5. Variant Calling
 
-        5.1. Calculate the read coverage of positions in the genome
-        5.2. Detect the single nucleotide polymorphisms (SNPs)
-        5.3. Filter and report the SNP variants in variant calling format (VCF)
-        5.4. CLI Command to view results:   less -S ${base}_final_variants.vcf
+            5.1. Calculate the read coverage of positions in the genome
+            5.2. Detect the single nucleotide polymorphisms (SNPs)
+            5.3. Filter and report the SNP variants in variant calling format (VCF)
+            5.4. CLI Command to view results:   less -S ${base}_final_variants.vcf
 
  6. Consensus
 
-        6.1. Consensus generation using variants VCF, mapped reference fasta, and
-        sorted bam. 
+            6.1. Consensus generation using variants VCF, mapped reference fasta, and
+            sorted bam. 
 
  7. Final Consensus
 
-        7.1. Creates the Final Consensus by editing the fasta header. 
+            7.1. Creates the Final Consensus by editing the fasta header. 
  
  8. FastQC
 
  		     8.1. Sequence read quality control analysis.
 
 Dependencies:
-    
+
     trimmomatic
     bgzip
     samtools
