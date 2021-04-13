@@ -3,13 +3,13 @@ Rhinovirus Genome Mapping Pipeline v1.0
 Github Repo:
 Greninger Lab
 
-Author:
-Paul RK Cruz <kurtisc@uw.edu>  | 
-UW Medicine | Virology | 
-Department of Laboratory Medicine and Pathology | 
-University of Washington | 
-Created: April, 2021 | 
-LICENSE: GNU
+##Author:
+##Paul RK Cruz <kurtisc@uw.edu> 
+##UW Medicine | Virology
+##Department of Laboratory Medicine and Pathology
+##University of Washington
+##Created: April, 2021
+##LICENSE: GNU
  
 Description:
 
