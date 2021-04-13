@@ -16,7 +16,7 @@
  LICENSE: GNU
 ----------------------------------------------------------------------------------------
 
-This pipeline was designed to run either single-end or paired end shotgun Next-Generation Sequencing reads to identify Human Rhinovirus.
+This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
 
 PIPELINE OVERVIEW:
  - 1. : Trim Reads
@@ -165,6 +165,7 @@ params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
 params.trimmomatic_mininum_length = "75"
+trimmomatic_mininum_length = "75"
 // log files header
 log.info "____________________________________________"
 log.info " Rhinovirus Genome Mapping Pipeline :  v${version}"
@@ -178,8 +179,11 @@ summary['Current directory path:']        = "$PWD"
 summary['Working directory path:']         = workflow.workDir
 summary['Output directory path:']          = params.outdir
 summary['Pipeline directory path:']          = workflow.projectDir
+if (params.singleEnd) {
 summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
+} else {
 summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
+}
 summary['Trimmomatic adapter parameters:'] = params.trimmomatic_adapters_parameters
 summary["Trimmomatic read length (minimum):"] = params.trimmomatic_mininum_length
 summary['Configuration Profile:'] = workflow.profile
@@ -219,10 +223,9 @@ if (params.singleEnd) {
 
     input:
         file R1 from input_read_ch
-        file trimmomatic_adapters_file_SE
-        val MIN_LEN
+        val trimmomatic_mininum_length
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_SE
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_SE, Trim_out_fastqc_SE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
 
@@ -244,12 +247,9 @@ if (params.singleEnd) {
 
    input:
         tuple val(base), file(R1), file(R2) from input_read_ch
-        file trimmomatic_adapters_file_PE
-        val MIN_LEN
+        val trimmomatic_mininum_length
     output: 
-        tuple val(base), file("${base}.trimmed.fastq.gz"),file("${base}_summary.csv") into Trim_out_ch
-        tuple val(base), file(R1),file(R2),file("${base}.R1.paired.fastq.gz"), file("${base}.R2.paired.fastq.gz"),file("${base}.R1.unpaired.fastq.gz"), file("${base}.R2.unpaired.fastq.gz") into Trim_out_ch2
-        tuple val(base), file("${base}.trimmed.fastq.gz") into Trim_out_ch3
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch2_PE, Trim_out_fastqc_PE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     
@@ -271,7 +271,7 @@ process Genome_Mapping {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch2_SE
+        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch2_SE, Trim_out_ch2_PE
         file REFERENCE_FASTA
 
     output:
@@ -285,6 +285,8 @@ process Genome_Mapping {
 
     """
     #!/bin/bash
+
+    cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${REFERENCE_FASTA} local=true -Xmx6g > bbmap_out.txt 2>&1
     reads_mapped=\$(cat bbmap_out.txt | grep "mapped:" | cut -d\$'\\t' -f3)
@@ -460,16 +462,18 @@ process Final_Consensus {
     """
 }
 if (params.withFastQC) {
+
+    if (params.singleEnd) {
  /* FastQC
  *
  * Sequence read quality control analysis.
  */
-process FastQC {
+process FastQC_SE {
 	errorStrategy 'retry'
     maxRetries 3
 
     input:
-        file R1 from input_read_ch
+        file R1 from Trim_out_fastqc_SE
 
     output:
 	file '*_fastqc.{zip,html}' into fastqc_results
@@ -483,6 +487,28 @@ process FastQC {
     fastqc --quiet --threads $task.cpus *.fastq.gz
 
     """
+    }
+} else {
+process FastQC_PE {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        file R1 from Trim_out_fastqc_PE
+
+    output:
+	file '*_fastqc.{zip,html}' into fastqc_results
+
+    publishDir "${params.outdir}fastqc_results", mode: 'copy', pattern:'*_fastqc.{zip,html}*'  
+
+    script:
+    """
+    #!/bin/bash
+
+    fastqc --quiet --threads $task.cpus *.fastq.gz
+
+    """
+    }
 }
 }
 if (params.withBlast) {
