@@ -1,4 +1,4 @@
-#Rhinovirus Genome Mapping Pipeline v1.0
+Rhinovirus Genome Mapping Pipeline v1.0
 
 
 Github Repo:
@@ -18,9 +18,9 @@ Created: April, 2021
 
 LICENSE: GNU
  
-----------------------------------------------------------------------------------------
+Description:
 
-This pipeline was designed to run either single-end or paired Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for Genbank submission and analysis.
+Rhinovirus Genome Mapping Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
 
 PIPELINE OVERVIEW:
  - 1. : Trim Reads
