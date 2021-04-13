@@ -1,4 +1,5 @@
-Rhinovirus Genome Mapping Pipeline v1.0
+#Rhinovirus Genome Mapping Pipeline v1.0
+
 
 Github Repo:
 Greninger Lab
