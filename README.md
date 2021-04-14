@@ -62,7 +62,7 @@ Rhinovirus Genome Mapping Pipeline was designed to run either single-end or pair
  8. FastQC
  	8.1. Sequence read quality control analysis.
 
-Dependencies            Anaconda CLI
+Dependencies:
                         
     trimmomatic         conda install -c bioconda trimmomatic
     bgzip               conda install -c bioconda tabix
