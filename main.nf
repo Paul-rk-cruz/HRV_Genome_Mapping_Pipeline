@@ -46,13 +46,13 @@ PIPELINE OVERVIEW:
     Dependencies:
     
     trimmomatic
-    bgzip
+    picard
     samtools
     bbtools  
     bcftools
     seqkit
+    bgzip
     bedtools
-    blast
     fastqc
 
     PIPELINE SETUP
@@ -118,7 +118,6 @@ def helpMsg() {
     OPTIONAL:
 	  --helpMsg						Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
-      --withBlast                   Blasts the resulting consensus sequence and outputs results
 	  --withFastQC					Runs a quality control check on fastq files
 
     """.stripIndent()
@@ -127,7 +126,6 @@ def helpMsg() {
 params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
-params.withBlast =false
 REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01_accession_only.fasta")
 REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
 BBMAP_PATH="/Users/Kurtisc/Downloads/bbmap/"
@@ -309,7 +307,7 @@ process Reference_Fasta {
     output:
     tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_Cons_ch
-
+   
     publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
     publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
 
@@ -324,7 +322,7 @@ process Reference_Fasta {
 
     id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
 
-    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta 
+    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
 
     """
 }
@@ -345,10 +343,12 @@ process Sort_Bam {
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
     tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
     tuple val(base), file("${base}_flagstats.txt") into Flagstats_ch
+    tuple val(base), file("${base}.stats") into Picardstats_ch
 
     publishDir "${params.outdir}bam_files", mode: 'copy', pattern:'*.bam*'
     publishDir "${params.outdir}sorted_bam_files", mode: 'copy', pattern:'*.sorted.bam*'  
     publishDir "${params.outdir}flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
+    publishDir "${params.outdir}bam_picard_stats", mode: 'copy', pattern:'*.stats*'  
 
     script:
     """
@@ -357,6 +357,8 @@ process Sort_Bam {
     samtools view -S -b ${base}.sam > ${base}.bam
     samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
     samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
+
+    picard CollectWgsMetrics COVERAGE_CAP=1000000 I=${base}.sorted.bam O=${base}.stats R=${base}_mapped_ref_genome.fasta
 
     """
 }
@@ -431,6 +433,7 @@ process Consensus {
     cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_final_variants.vcf.gz > ${base}_consensus.fasta
     bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
+
     """
 }
 /*
@@ -512,28 +515,3 @@ process FastQC_PE {
     }
 }
 }
-// if (params.withBlast) {
-//  /* Blast NCBI Database
-//  *
-//  * Runs a NCBI blast of the final consensus and outputs results.
-//  */
-// process NCBI_Blast {
-// 	errorStrategy 'retry'
-//     maxRetries 3
-
-//     input:
-//     tuple val(base), file("${base}_consensus_final.fasta") from Consensus_fasta_Complete_ch
-//     path db from db_dir 
-
-//     output:
-//     file 'top_hits' into hits_ch
-
-//     publishDir "${params.outdir}ncbi_blast_results", mode: 'copy', pattern:'*_ncbi_blast_results.txt*'  
-
-//     script:
-//     """
-//     blastp -db $db/$db_name -query ${base}_consensus_final.fasta -outfmt 6 > blast_result
-//     cat blast_result | head -n 10 | cut -f 2 > top_hits
-//     """
-// }
-// }
