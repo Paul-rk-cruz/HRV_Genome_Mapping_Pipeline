@@ -62,17 +62,18 @@ Rhinovirus Genome Mapping Pipeline was designed to run either single-end or pair
  8. FastQC
  	8.1. Sequence read quality control analysis.
 
-Dependencies:
-
-    trimmomatic
-    bgzip
-    samtools
-    bbtools  
-    bcftools
-    seqkit
-    bedtools
-    fastqc
-
+Dependencies            Anaconda CLI
+                        
+    trimmomatic         conda install -c bioconda trimmomatic
+    bgzip               conda install -c bioconda tabix
+    samtools            conda install -c bioconda samtools
+    bbtools             conda install -c agbiome bbtools
+    bcftools            conda install -c bioconda bcftools
+    seqkit              conda install -c bioconda seqkit
+    bedtools            conda install -c bioconda bedtools
+    fastqc              conda install -c bioconda fastqc
+    picard              conda install -c bioconda picard
+      
 PIPELINE SETUP
 
 Setup Multifasta Reference:
