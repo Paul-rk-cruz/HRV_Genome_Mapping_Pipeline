@@ -311,7 +311,7 @@ process Reference_Fasta {
     tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_Cons_ch
 
     publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
-    publishDir "${params.outdir}ref__most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
+    publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
 
     script:
 
