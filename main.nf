@@ -226,7 +226,7 @@ if (params.singleEnd) {
 
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_SE
-        tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
+        // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     publishDir "${params.outdir}final_results", mode: 'copy',pattern:'*_results.csv*'
@@ -239,13 +239,16 @@ if (params.singleEnd) {
 	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
 	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
 
-    num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
-    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
-    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
-    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
+
     """
 } 
+
+    // num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
+    // num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
+    // percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    // echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
+    // printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
+
 } else {
 	process Trim_Reads_PE {
     errorStrategy 'retry'
@@ -256,7 +259,7 @@ if (params.singleEnd) {
         val trimmomatic_mininum_length
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_PE
-         tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
+        // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     
@@ -267,22 +270,26 @@ if (params.singleEnd) {
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
 	ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${params.trimmomatic_mininum_length}
 
-    num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
-    num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
-    num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
-    num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
-    num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
-    num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
-    num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
-    num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
-    num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
-    num_trimmed=\$((num_paired + num_unpaired))
-    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
-    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
+
     """
 }
 }
+
+    // num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
+    // num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
+    // num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
+    // num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
+    // num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
+    // num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
+    // num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
+    // num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
+    // num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
+    // num_trimmed=\$((num_paired + num_unpaired))
+    // percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    // echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
+    // printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
+
+
 /*
  * Map sequence reads to RhV Genomes using BBMap.
  */
@@ -292,12 +299,12 @@ process Genome_Mapping {
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch
-        tuple val(base),file("${base}_results.csv") from Results_trimmed_ch
+        // tuple val(base),file("${base}_results.csv") from Results_trimmed_ch
         file REFERENCE_FASTA
 
     output:
         tuple val(base), file("${base}.sam")into Aligned_sam_ch, Sam_Ref_Fasta_ch
-        tuple val(base), file("*_results.csv") into Results_mapped_ch
+        // tuple val(base), file("*_results.csv") into Results_mapped_ch
         tuple val (base), file("*") into Dump_ch
 
     publishDir "${params.outdir}mapping_result_sam_files", mode: 'copy', pattern:'*.sam*'
@@ -311,10 +318,13 @@ process Genome_Mapping {
     cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${REFERENCE_FASTA} local=true -Xmx6g > bbmap_out.txt 2>&1
-    reads_mapped=\$(cat bbmap_out.txt | grep "mapped:" | cut -d\$'\\t' -f3)
-    printf ",\$reads_mapped" >> ${base}_results.csv
+
     """
 }
+
+    // reads_mapped=\$(cat bbmap_out.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+    // printf ",\$reads_mapped" >> ${base}_results.csv
+
 /*
  * Generate Reference Fasta from Mapping Result.
  */
