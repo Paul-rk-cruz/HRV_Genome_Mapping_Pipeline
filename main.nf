@@ -222,12 +222,11 @@ if (params.singleEnd) {
 
     input:
         file R1 from input_read_ch
-        file("${base}_results.csv")
         val trimmomatic_mininum_length
 
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_SE
-        file("${base}_results.csv") into Results_trimmed_ch
+        tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     publishDir "${params.outdir}final_results", mode: 'copy',pattern:'*_results.csv*'
@@ -254,11 +253,10 @@ if (params.singleEnd) {
 
    input:
         tuple val(base), file(R1), file(R2) from input_read_ch
-        file("${base}_results.csv")
         val trimmomatic_mininum_length
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_PE
-        file("${base}_results.csv") into Results_trimmed_ch
+         tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     
@@ -293,8 +291,8 @@ process Genome_Mapping {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz"), file("*_results.csv") from Trim_out_ch
-        tuple val(base), file("*_results.csv") from Results_trimmed_ch
+        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch
+        tuple val(base),file("${base}_results.csv") from Results_trimmed_ch
         file REFERENCE_FASTA
 
     output:
