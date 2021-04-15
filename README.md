@@ -65,11 +65,11 @@ Rhinovirus Genome Mapping Pipeline was designed to run either single-end or pair
 Dependencies:
 
     trimmomatic
-    bgzip
     samtools
     bbtools  
     bcftools
     seqkit
+    bgzip
     bedtools
     fastqc
 

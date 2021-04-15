@@ -46,7 +46,6 @@ PIPELINE OVERVIEW:
     Dependencies:
     
     trimmomatic
-    picard
     samtools
     bbtools  
     bcftools
@@ -172,7 +171,7 @@ log.info "____________________________________________"
 def summary = [:]
 summary['Fastq Files:']               = params.reads
 summary['Read type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
-summary['Virus Reference:']           = params.virus_fasta
+summary['Virus Reference:']           = REFERENCE_FASTA
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Current directory path:']        = "$PWD"
 summary['Working directory path:']         = workflow.workDir
@@ -225,9 +224,10 @@ if (params.singleEnd) {
         file R1 from input_read_ch
         val trimmomatic_mininum_length
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_SE
+        tuple env(base),file("*.trimmed.fastq.gz"), file("*_results.csv") into Trim_out_ch, Trim_out_fastqc_SE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
+    publishDir "${params.outdir}final_results", mode: 'copy',pattern:'*_results.csv*'
 
     script:
     """
@@ -237,6 +237,11 @@ if (params.singleEnd) {
 	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
 	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
 
+    num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
+    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
+    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
+    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
     """
 } 
 } else {
@@ -245,10 +250,10 @@ if (params.singleEnd) {
     maxRetries 3
 
    input:
-        tuple val(base), file(R1), file(R2) from input_read_ch
+        tuple val(base), file(R1), file(R2), file("*results.csv") from input_read_ch
         val trimmomatic_mininum_length
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_PE
+        tuple env(base),file("*.trimmed.fastq.gz"), file("*_results.csv") into Trim_out_ch, Trim_out_fastqc_PE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     
@@ -259,6 +264,19 @@ if (params.singleEnd) {
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
 	ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${params.trimmomatic_mininum_length}
 
+    num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
+    num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
+    num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
+    num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
+    num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
+    num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
+    num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
+    num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
+    num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
+    num_trimmed=\$((num_paired + num_unpaired))
+    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
+    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
     """
 }
 }
@@ -270,11 +288,11 @@ process Genome_Mapping {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch
+        tuple val(base), file("${base}.trimmed.fastq.gz"), file("*_results.csv") from Trim_out_ch
         file REFERENCE_FASTA
 
     output:
-        tuple val(base), file("${base}.sam") into Aligned_sam_ch, Sam_Ref_Fasta_ch
+        tuple val(base), file("${base}.sam"), file("*_results.csv") into Aligned_sam_ch, Sam_Ref_Fasta_ch
         tuple val (base), file("*") into Dump_ch
 
     publishDir "${params.outdir}mapping_result_sam_files", mode: 'copy', pattern:'*.sam*'
@@ -289,7 +307,7 @@ process Genome_Mapping {
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${REFERENCE_FASTA} local=true -Xmx6g > bbmap_out.txt 2>&1
     reads_mapped=\$(cat bbmap_out.txt | grep "mapped:" | cut -d\$'\\t' -f3)
-
+    printf ",\$reads_mapped" >> ${base}_results.csv
     """
 }
 /*
@@ -314,7 +332,6 @@ process Reference_Fasta {
     script:
 
     """
-    #!/bin/bash
     
     samtools view -S -b ${base}.sam > ${base}.bam
 
@@ -323,6 +340,7 @@ process Reference_Fasta {
     id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
 
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
+
 
     """
 }
@@ -343,22 +361,17 @@ process Sort_Bam {
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
     tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
     tuple val(base), file("${base}_flagstats.txt") into Flagstats_ch
-    tuple val(base), file("${base}.stats") into Picardstats_ch
 
     publishDir "${params.outdir}bam_files", mode: 'copy', pattern:'*.bam*'
     publishDir "${params.outdir}sorted_bam_files", mode: 'copy', pattern:'*.sorted.bam*'  
     publishDir "${params.outdir}flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
-    publishDir "${params.outdir}bam_picard_stats", mode: 'copy', pattern:'*.stats*'  
 
     script:
     """
     #!/bin/bash
-    
     samtools view -S -b ${base}.sam > ${base}.bam
     samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
     samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-
-    picard CollectWgsMetrics COVERAGE_CAP=1000000 I=${base}.sorted.bam O=${base}.stats R=${base}_mapped_ref_genome.fasta
 
     """
 }
@@ -488,7 +501,7 @@ process FastQC_SE {
     """
     #!/bin/bash
 
-    fastqc --quiet --threads $task.cpus *.fastq.gz
+    
 
     """
     }
