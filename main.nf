@@ -222,12 +222,12 @@ if (params.singleEnd) {
 
     input:
         file R1 from input_read_ch
-        file("*_results.csv")
+        file("${base}_results.csv")
         val trimmomatic_mininum_length
 
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_SE
-        file("*_results.csv") into Results_trimmed_ch
+        file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     publishDir "${params.outdir}final_results", mode: 'copy',pattern:'*_results.csv*'
@@ -254,11 +254,11 @@ if (params.singleEnd) {
 
    input:
         tuple val(base), file(R1), file(R2) from input_read_ch
-        file("*_results.csv")
+        file("${base}_results.csv")
         val trimmomatic_mininum_length
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_PE
-        file("*_results.csv") into Results_trimmed_ch
+        file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     
