@@ -216,7 +216,7 @@ if (params.singleEnd) {
         val trimmomatic_mininum_length
 
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_SE
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_SE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     publishDir "${params.outdir}final_results", mode: 'copy',pattern:'*_results.csv*'
@@ -240,7 +240,7 @@ if (params.singleEnd) {
         tuple val(base), file(R1), file(R2) from input_read_ch
         val trimmomatic_mininum_length
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_PE
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_PE
         // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
@@ -259,19 +259,19 @@ if (params.singleEnd) {
 /*
  * Map sequence reads to RhV Genomes using BBMap.
  */
-process Genome_Mapping {
+process Mapping {
 	errorStrategy 'retry'
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch
+        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_map1_ch
         file REFERENCE_FASTA
 
     output:
-        tuple val(base), file("${base}.sam")into Aligned_sam_ch, Sam_Ref_Fasta_ch
-        tuple val (base), file("*") into Dump_ch
+        tuple val(base), file("${base}.sam")into Sam_first_mapping_ch
+        tuple val (base), file("*") into Dump_map1_ch
 
-    publishDir "${params.outdir}mapping_result_sam_files", mode: 'copy', pattern:'*.sam*'
+    publishDir "${params.outdir}map1_final_result_sam_files", mode: 'copy', pattern:'*.sam*'
 
 
     script:
@@ -293,13 +293,13 @@ process Reference_Fasta {
     maxRetries 3
 
     input: 
-    tuple val(base), file("${base}.sam") from Sam_Ref_Fasta_ch
+    tuple val(base), file("${base}.sam") from Sam_first_mapping_ch
     file REFERENCE_FASTA
     file REFERENCE_FASTA_INDEX
 
     output:
     tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_Cons_ch
+    tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
    
     publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
     publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
@@ -316,6 +316,36 @@ process Reference_Fasta {
 
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
 
+
+    """
+}
+/*
+ * Map sequence reads to RhV Genomes using BBMap.
+ */
+process Mapping_final {
+	errorStrategy 'retry'
+    maxRetries 3
+
+    input: 
+        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_map2_ch
+        tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_map2_ch
+        file REFERENCE_FASTA
+
+    output:
+        tuple val(base), file("${base}.sam")into Aligned_sam_ch
+        tuple val (base), file("*") into Dump_map2_ch
+
+    publishDir "${params.outdir}map2_final_result_sam_files", mode: 'copy', pattern:'*.sam*'
+
+
+    script:
+
+    """
+    #!/bin/bash
+
+    cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta local=true -Xmx6g > bbmap_out.txt 2>&1
 
     """
 }
