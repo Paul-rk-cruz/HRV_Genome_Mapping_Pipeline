@@ -128,14 +128,6 @@ params.virus_fasta = false
 REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01_accession_only.fasta")
 REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
 BBMAP_PATH="/Users/Kurtisc/Downloads/bbmap/"
-// // Bowtie2 index name: rhv_ref_db01
-// BOWTIE2_DB_PREFIX = file("${baseDir}/virus_ref_db/rhv_ref_db01")
-// REF_BT2_INDEX1 = file("${baseDir}/virus_ref_db/rhv_ref_db01.1.bt2")
-// REF_BT2_INDEX2 = file("${baseDir}/virus_ref_db/rhv_ref_db01.2.bt2")
-// REF_BT2_INDEX3 = file("${baseDir}/virus_ref_db/rhv_ref_db01.3.bt2")
-// REF_BT2_INDEX4 = file("${baseDir}/virus_ref_db/rhv_ref_db01.4.bt2")
-// REF_BT2_INDEX5 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.1.bt2")
-// REF_BT2_INDEX6 = file("${baseDir}/virus_ref_db/rhv_ref_db01.rev.2.bt2")
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -188,7 +180,7 @@ summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "____________________________________________"
 // Create channel for input reads.
-// Import reads depending on single end vs. paired end
+// Import reads depending on single-end or paired-end
 if(params.singleEnd == false) {
     // Check for R1s and R2s in input directory
     input_read_ch = Channel
@@ -196,7 +188,7 @@ if(params.singleEnd == false) {
         .ifEmpty { error "> Cannot located paired-end reads in: ${params.reads}.\n> Please enter a valid file path." }
         .map { it -> [it[0], it[1][0], it[1][1]]}
 } else {
-    // Looks for gzipped files, assumes all separate samples
+    // input: *.gz
     input_read_ch = Channel
         .fromPath("${params.reads}*.gz")
         //.map { it -> [ file(it)]}
@@ -209,7 +201,6 @@ Channel
     .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
     .set { virus_index_files }
 }
-
 /*
  * Trim Reads
  * 
@@ -226,7 +217,6 @@ if (params.singleEnd) {
 
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_ch, Trim_out_fastqc_SE
-        // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
     publishDir "${params.outdir}final_results", mode: 'copy',pattern:'*_results.csv*'
@@ -239,16 +229,8 @@ if (params.singleEnd) {
 	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
 	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
 
-
     """
 } 
-
-    // num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
-    // num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
-    // percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    // echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
-    // printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
-
 } else {
 	process Trim_Reads_PE {
     errorStrategy 'retry'
@@ -274,22 +256,6 @@ if (params.singleEnd) {
     """
 }
 }
-
-    // num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
-    // num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
-    // num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
-    // num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
-    // num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
-    // num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
-    // num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
-    // num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
-    // num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
-    // num_trimmed=\$((num_paired + num_unpaired))
-    // percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    // echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Mean_Coverage > \$base'_results.csv'
-    // printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_results.csv'
-
-
 /*
  * Map sequence reads to RhV Genomes using BBMap.
  */
@@ -299,12 +265,10 @@ process Genome_Mapping {
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_ch
-        // tuple val(base),file("${base}_results.csv") from Results_trimmed_ch
         file REFERENCE_FASTA
 
     output:
         tuple val(base), file("${base}.sam")into Aligned_sam_ch, Sam_Ref_Fasta_ch
-        // tuple val(base), file("*_results.csv") into Results_mapped_ch
         tuple val (base), file("*") into Dump_ch
 
     publishDir "${params.outdir}mapping_result_sam_files", mode: 'copy', pattern:'*.sam*'
@@ -321,10 +285,6 @@ process Genome_Mapping {
 
     """
 }
-
-    // reads_mapped=\$(cat bbmap_out.txt | grep "mapped:" | cut -d\$'\\t' -f3)
-    // printf ",\$reads_mapped" >> ${base}_results.csv
-
 /*
  * Generate Reference Fasta from Mapping Result.
  */
