@@ -127,7 +127,7 @@ params.virus_index = false
 params.virus_fasta = false
 REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01_accession_only.fasta")
 REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
-BBMAP_PATH="/Users/Kurtisc/Downloads/bbmap/"
+BBMAP_PATH="/Users/kurtiscruz/Downloads/CURRENT/bbmap/"
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -149,8 +149,8 @@ if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a v
 // Single-end read option
 params.singleEnd = false
 // Default trimming options
-params.trimmomatic_adapters_file_PE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-PE.fa"
-params.trimmomatic_adapters_file_SE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-SE.fa"
+params.trimmomatic_adapters_file_PE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq2-PE.fa"
+params.trimmomatic_adapters_file_SE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq2-SE.fa"
 params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
@@ -219,7 +219,7 @@ if (params.singleEnd) {
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_SE
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
-    publishDir "${params.outdir}final_results", mode: 'copy',pattern:'*_results.csv*'
+
 
     script:
     """
@@ -269,10 +269,17 @@ process Mapping {
 
     output:
         tuple val(base), file("${base}.sam")into Sam_first_mapping_ch
+        tuple val(base), file("${base}_stats.txt") into Bbmap_stats_ch
+        tuple val(base), file("${base}_histogram.txt") into BBmap_stats2_ch
         tuple val (base), file("*") into Dump_map1_ch
+        tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
+        tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
 
-    publishDir "${params.outdir}map1_final_result_sam_files", mode: 'copy', pattern:'*.sam*'
-
+    publishDir "${params.outdir}sam_map1", mode: 'copy', pattern:'*.sam*'
+    publishDir "${params.outdir}txt_bbmap_stats_cov", mode: 'copy', pattern:'*_stats.txt*'
+    publishDir "${params.outdir}txt_bbmap_stats_cov_hist", mode: 'copy', pattern:'*_histogram.txt*'
+    publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
+    publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*' 
 
     script:
 
@@ -281,44 +288,50 @@ process Mapping {
 
     cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${REFERENCE_FASTA} local=true -Xmx6g > bbmap_out.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${REFERENCE_FASTA} covstats=${base}_stats.txt covhist=${base}_histogram.txt local=true -Xmx6g > bbmap_out.txt 2>&1
 
-    """
-}
-/*
- * Generate Reference Fasta from Mapping Result.
- */
-process Reference_Fasta {
-	errorStrategy 'retry'
-    maxRetries 3
+    head -100000 ${base}.sam | awk 'BEGIN {FS="\t"} {print \$3"\t"\$4}' | sort | uniq -c | sort -n -r | head > ${base}_most_mapped_ref.txt
 
-    input: 
-    tuple val(base), file("${base}.sam") from Sam_first_mapping_ch
-    file REFERENCE_FASTA
-    file REFERENCE_FASTA_INDEX
-
-    output:
-    tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
-   
-    publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
-    publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
-
-    script:
-
-    """
-    
-    samtools view -S -b ${base}.sam > ${base}.bam
-
-    bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
-
-    id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
+    id=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
 
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
 
-
     """
 }
+// /*
+//  * Generate Reference Fasta from Mapping Result.
+//  */
+// process Reference_Fasta {
+// 	errorStrategy 'retry'
+//     maxRetries 3
+
+//     input: 
+//     tuple val(base), file("${base}.sam") from Sam_first_mapping_ch
+//     file REFERENCE_FASTA
+//     file REFERENCE_FASTA_INDEX
+
+//     output:
+//     tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
+//     tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
+   
+//     publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
+//     publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
+
+//     script:
+
+//     """
+    
+//     samtools view -S -b ${base}.sam > ${base}.bam
+
+//     bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
+
+//     id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
+
+//     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
+
+
+//     """
+// }
 /*
  * Map sequence reads to RhV Genomes using BBMap.
  */
@@ -333,22 +346,26 @@ process Mapping_final {
 
     output:
         tuple val(base), file("${base}.sam")into Aligned_sam_ch
+        tuple val(base), file("${base}_bbmap_out.txt")into Map2_bbmap_txt_ch
         tuple val (base), file("*") into Dump_map2_ch
 
-    publishDir "${params.outdir}map2_final_result_sam_files", mode: 'copy', pattern:'*.sam*'
-
+    publishDir "${params.outdir}sam_map2", mode: 'copy', pattern:'*.sam*'
+    publishDir "${params.outdir}txt_bbmap_map2", mode: 'copy', pattern:'*_bbmap_out.txt*'
 
     script:
 
     """
     #!/bin/bash
 
-    cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
-
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta local=true -Xmx6g > bbmap_out.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta local=true -Xmx6g > ${base}_bbmap_out.txt 2>&1
 
     """
 }
+// BBMAP: Trying out second mapping option
+    // ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta local=true -Xmx6g > bbmap_out.txt 2>&1
+    // http://manpages.ubuntu.com/manpages/focal/man1/bbmap.sh.1.html
+
+
 /*
  * Convert BAM to coordinate sorted BAM
  */
@@ -367,9 +384,9 @@ process Sort_Bam {
     tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
     tuple val(base), file("${base}_flagstats.txt") into Flagstats_ch
 
-    publishDir "${params.outdir}bam_files", mode: 'copy', pattern:'*.bam*'
-    publishDir "${params.outdir}sorted_bam_files", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
+    publishDir "${params.outdir}bam", mode: 'copy', pattern:'*.bam*'
+    publishDir "${params.outdir}bam_sorted", mode: 'copy', pattern:'*.sorted.bam*'  
+    publishDir "${params.outdir}bam_flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
 
     script:
     """
