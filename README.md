@@ -67,12 +67,12 @@ Dependencies:
     trimmomatic         conda install -c bioconda trimmomatic
     bgzip               conda install -c bioconda tabix
     samtools            conda install -c bioconda samtools
-    bbtools             conda install -c agbiome bbtools
+    bbtools             conda install -c bioconda bbmap
+    vcftools            conda install -c bioconda vcftools
     bcftools            conda install -c bioconda bcftools
     seqkit              conda install -c bioconda seqkit
     bedtools            conda install -c bioconda bedtools
     fastqc              conda install -c bioconda fastqc
-    picard              conda install -c bioconda picard
       
 PIPELINE SETUP
 
@@ -114,4 +114,5 @@ Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, (
 Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
         
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+        
         
