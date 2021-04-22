@@ -84,7 +84,7 @@ PIPELINE OVERVIEW:
     EXAMPLE USAGE:
 
         Run Pipeline Help Message:
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 /Users/uwvirongs/Documents/KC/input
 
