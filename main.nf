@@ -84,7 +84,7 @@ PIPELINE OVERVIEW:
     EXAMPLE USAGE:
 
         Run Pipeline Help Message:
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 /Users/uwvirongs/Documents/KC/input
 
@@ -102,14 +102,14 @@ version = '1.0'
 def helpMsg() {
     log.info"""
 	 __________________________________________________
-     Human Rhinovirus Genome Mapping Pipeline :  Version ${version}
+     HRV Genome Mapping Pipeline :  Version ${version}
 	__________________________________________________
     
 	Pipeline Usage:
 
     To run the pipeline, enter the following in the command line:
 
-        nextflow run FILE_PATH/Rhinovirus_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
+        nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
 
 
     Valid CLI Arguments:
@@ -392,6 +392,7 @@ process Consensus {
     tuple val(base), file("${base}_final_variants.vcf") from Final_Variants_ch  
     tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
+    tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Final_Cons_Id_ch
 
     output:
     tuple val(base), file("${base}_consensus.fasta") into Consensus_Fasta_ch, Consensus_Fasta_Processing_ch
