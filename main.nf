@@ -86,8 +86,10 @@ PIPELINE OVERVIEW:
         Run Pipeline Help Message:
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
+/Users/uwvirongs/Documents/KC/input
+
         Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L002_R1_001.fastq))
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+        nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/uwvirongs/Documents/KC/input/' --outdir '/Users/uwvirongs/Documents/KC/input/' --singleEnd
 
         Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
@@ -100,7 +102,7 @@ version = '1.0'
 def helpMsg() {
     log.info"""
 	 __________________________________________________
-     Rhinovirus Genome Mapping Pipeline :  Version ${version}
+     Human Rhinovirus Genome Mapping Pipeline :  Version ${version}
 	__________________________________________________
     
 	Pipeline Usage:
@@ -125,9 +127,9 @@ def helpMsg() {
 params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
-REFERENCE_FASTA = file("${baseDir}/virus_ref_db/rhv_ref_db01_accession_only.fasta")
-REFERENCE_FASTA_INDEX = file("${baseDir}/virus_ref_db/rhv_ref_db01.fasta.fai")
-BBMAP_PATH="/Users/kurtiscruz/Downloads/CURRENT/bbmap/"
+REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fasta")
+REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fasta.fai")
+BBMAP_PATH="/Users/uwvirongs/Documents/KC/bbmap/"
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -149,8 +151,8 @@ if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a v
 // Single-end read option
 params.singleEnd = false
 // Default trimming options
-params.trimmomatic_adapters_file_PE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq2-PE.fa"
-params.trimmomatic_adapters_file_SE = "/Users/kurtiscruz/opt/anaconda3/pkgs/trimmomatic-0.39-0/share/trimmomatic-0.39-0/adapters/TruSeq2-SE.fa"
+params.trimmomatic_adapters_file_PE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-PE.fa"
+params.trimmomatic_adapters_file_SE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-SE.fa"
 params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
@@ -158,7 +160,7 @@ params.trimmomatic_mininum_length = "75"
 trimmomatic_mininum_length = "75"
 // log files header
 log.info "____________________________________________"
-log.info " Rhinovirus Genome Mapping Pipeline :  v${version}"
+log.info " Human Rhinovirus Genome Mapping Pipeline :  v${version}"
 log.info "____________________________________________"
 def summary = [:]
 summary['Fastq Files:']               = params.reads
@@ -257,7 +259,7 @@ if (params.singleEnd) {
 }
 }
 /*
- * Map sequence reads to RhV Genomes using BBMap.
+ * Map sequence reads to HRV Genomes using BBMap.
  */
 process Mapping {
 	errorStrategy 'retry'
@@ -308,75 +310,6 @@ process Mapping {
 
     """
 }
-// Updated code above - takes most mapped region and extracts accession number
-// /*
-//  * Generate Reference Fasta from Mapping Result.
-//  */
-// process Reference_Fasta {
-// 	errorStrategy 'retry'
-//     maxRetries 3
-
-//     input: 
-//     tuple val(base), file("${base}.sam") from Sam_first_mapping_ch
-//     file REFERENCE_FASTA
-//     file REFERENCE_FASTA_INDEX
-
-//     output:
-//     tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
-//     tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
-   
-//     publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
-//     publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'    
-
-//     script:
-
-//     """
-    
-//     samtools view -S -b ${base}.sam > ${base}.bam
-
-//     bedtools bamtobed -i ${base}.bam | head -1 > ${base}_most_mapped_ref.txt
-
-//     id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
-
-//     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
-
-
-//     """
-// }
-/*
- * Map sequence reads to RhV Genomes using BBMap.
- */
-// process Mapping_final {
-// 	errorStrategy 'retry'
-//     maxRetries 3
-
-//     input: 
-//         tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_map2_ch
-//         tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_map2_ch
-//         file REFERENCE_FASTA
-
-//     output:
-//         tuple val(base), file("${base}.sam")into Aligned_sam_ch
-//         tuple val(base), file("${base}_bbmap_out.txt")into Map2_bbmap_txt_ch
-//         tuple val (base), file("*") into Dump_map2_ch
-
-//     publishDir "${params.outdir}sam_map2", mode: 'copy', pattern:'*.sam*'
-//     publishDir "${params.outdir}txt_bbmap_map2", mode: 'copy', pattern:'*_bbmap_out.txt*'
-
-//     script:
-
-//     """
-//     #!/bin/bash
-
-//     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta interleaved=false slow threads=8 local=true -Xmx6g > ${base}_bbmap_out.txt 2>&1
-
-//     """
-// }
-// BBMAP: Trying out second mapping option
-    // ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta local=true -Xmx6g > bbmap_out.txt 2>&1
-    // http://manpages.ubuntu.com/manpages/focal/man1/bbmap.sh.1.html
-
-
 /*
  * Convert BAM to coordinate sorted BAM
  */
@@ -464,10 +397,12 @@ process Consensus {
     tuple val(base), file("${base}_consensus.fasta") into Consensus_Fasta_ch, Consensus_Fasta_Processing_ch
     tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_fasta_Masked_ch
     tuple val(base), file("${base}_bed4mask.bed") into Consensus_bed4mask_ch
-
+    tuple val(base), file("${base}_consensus_final.fasta") into Consensus_fasta_Complete_ch
+    
     publishDir "${params.outdir}consensus_fasta_files", mode: 'copy', pattern:'*_consensus.fasta*'  
     publishDir "${params.outdir}consensus_masked_fasta_files", mode: 'copy', pattern:'*_consensus_masked.fasta*'  
     publishDir "${params.outdir}bed4mask_bed_files", mode: 'copy', pattern:'*_bed4mask.bed*'  
+    publishDir "${params.outdir}consensus_final", mode: 'copy', pattern:'*_consensus_final.fasta*' 
 
     script:
 
@@ -481,36 +416,9 @@ process Consensus {
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
 
 
-
-
-    """
-}
-/*
- * Final Consensus
- * 
- * Creates final consensus by replacing the RhV Genome consensus fasta header with the Sample name.
- */
-process Final_Consensus {
-	errorStrategy 'retry'
-    maxRetries 3
-
-    input:
-    tuple val(base), file("${base}_consensus.fasta") from Consensus_Fasta_Processing_ch 
-    tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Final_Cons_Id_ch
-
-    output:
-    tuple val(base), file("${base}_consensus_final.fasta") into Consensus_fasta_Complete_ch
-
-    publishDir "${params.outdir}consensus_final", mode: 'copy', pattern:'*_consensus_final.fasta*'  
-
-    script:
-
-    """
-    #!/bin/bash
-
     id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
-    
     seqkit replace -p "\$id" -r '${base}' ${base}_consensus.fasta > ${base}_consensus_final.fasta
+
 
     """
 }
