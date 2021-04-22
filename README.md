@@ -1,7 +1,7 @@
-## Rhinovirus Genome Mapping Pipeline v1.0
-#
+## Human Rhinovirus (HRV) Genome Mapping Pipeline v1.0
+
 Github Repo:
-https://github.com/greninger-lab/RhV_Genome_Mapping_Pipeline
+https://github.com/greninger-lab/HRV_Genome_Mapping_Pipeline
 
 Author:
 Paul RK Cruz <kurtisc@uw.edu>
@@ -105,14 +105,14 @@ EXAMPLE USAGE:
 
 Run Pipeline Help Message:
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
 
 Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L002_R1_001.fastq))
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/RhV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
 
 Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
         
         
