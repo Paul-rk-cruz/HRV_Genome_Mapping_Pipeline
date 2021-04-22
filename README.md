@@ -55,12 +55,9 @@ Rhinovirus Genome Mapping Pipeline was designed to run either single-end or pair
  6. Consensus
     6.1. Consensus generation using variants VCF, mapped reference fasta, and
     sorted bam.
-   
- 7. Final Consensus
-    7.1. Creates the Final Consensus by editing the fasta header.
     
- 8. FastQC
- 	8.1. Sequence read quality control analysis.
+ 7. FastQC (OPTIONAL)
+ 	8.1. Sequence read quality stats for quality control analysis.
 
 Dependencies:
                         
