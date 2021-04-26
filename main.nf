@@ -377,7 +377,7 @@ process Variant_Calling {
 
   samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
   varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
-  varscan mpileup2cns ${base}.pileup --min-var-freq 0.01 --variants --output-vcf 1 > ${base}_majority.vcf
+  varscan mpileup2cns ${base}.pileup --min-var-freq 0.1 --p-value 0.99 --min-reads2 2 --variants --output-vcf 1 > ${base}_majority.vcf
 
 	"""
 }
@@ -417,8 +417,6 @@ process Consensus {
     cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
     bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
-
-
     id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
     seqkit replace -p "\$id" -r '${base}' ${base}_consensus.fasta > ${base}_consensus_final.fasta
 
