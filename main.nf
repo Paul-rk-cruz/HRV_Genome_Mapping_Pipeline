@@ -89,7 +89,10 @@ PIPELINE OVERVIEW:
 /Users/uwvirongs/Documents/KC/input
 
         Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L002_R1_001.fastq))
+        SLU
         nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/uwvirongs/Documents/KC/input/' --outdir '/Users/uwvirongs/Documents/KC/input/' --singleEnd
+        Eastlake
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_input/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd
 
         Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
@@ -129,7 +132,7 @@ params.virus_index = false
 params.virus_fasta = false
 REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fasta")
 REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fasta.fai")
-BBMAP_PATH="/Users/uwvirongs/Documents/KC/bbmap/"
+BBMAP_PATH="/Users/Kurtisc/Downloads/bbmap/"
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -151,8 +154,8 @@ if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a v
 // Single-end read option
 params.singleEnd = false
 // Default trimming options
-params.trimmomatic_adapters_file_PE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-PE.fa"
-params.trimmomatic_adapters_file_SE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-SE.fa"
+params.trimmomatic_adapters_file_PE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-PE.fa"
+params.trimmomatic_adapters_file_SE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-SE.fa"
 params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
@@ -273,6 +276,7 @@ process Mapping {
         tuple val(base), file("${base}_map1.sam")into Sam_first_mapping_ch
         tuple val(base), file("${base}.sam")into Aligned_sam_ch
         tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
+        tuple val(base), file("${base}_idxstats.txt") into Indx_stats_Ch
         tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
         tuple val(base), file("${base}_map1_bbmap_out.txt")into Bbmap_map1_bbmap_txt_ch
         tuple val(base), file("${base}_map2_bbmap_out.txt")into Bbmap_map2_bbmap_txt_ch
@@ -287,7 +291,8 @@ process Mapping {
     publishDir "${params.outdir}txt_bbmap_map1_stats", mode: 'copy', pattern:'*_map1_bbmap_out.txt*'  
     publishDir "${params.outdir}txt_bbmap_map1_hist", mode: 'copy', pattern:'*_map2_histogram.txt*' 
     publishDir "${params.outdir}txt_bbmap_map2_stats", mode: 'copy', pattern:'*_map2_bbmap_out.txt*'  
-    publishDir "${params.outdir}txt_bbmap_map2_hist", mode: 'copy', pattern:'*_map2_histogram.txt*' 
+    publishDir "${params.outdir}txt_bbmap_map2_hist", mode: 'copy', pattern:'*_map2_histogram.txt*'
+    publishDir "${params.outdir}indxstats_mapped_references", mode: 'copy', pattern:'*_idxstats.txt*'   
     publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
     publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*' 
 
@@ -297,15 +302,13 @@ process Mapping {
     #!/bin/bash
 
     cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map1_stats.txt 2>&1
-
-    head -100000 ${base}_map1.sam | awk 'BEGIN {FS="\t"} {print \$3"\t"\$4}' | sort | uniq -c | sort -n -r | head > ${base}_most_mapped_ref.txt
-
-    id=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
-
+    samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
+    samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
+    samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
+    awk 'NR == 1 || \$3 > max {number = \$1; max = \$3} END {if (NR) print number, max}' < ${base}_idxstats.txt > ${base}_most_mapped_ref.txt
+    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
 
     """
@@ -359,23 +362,22 @@ process Variant_Calling {
     file REFERENCE_FASTA_INDEX
 
 	output:
-    tuple val(base), file("${base}_variants.vcf") into Variants_vcf_consensus_ch
-    tuple val(base), file("${base}_raw.bcf") into Raw_bcf_ch
-    tuple val(base), file("${base}_final_variants.vcf") into Final_Variants_ch      
+    tuple val(base), file("${base}.pileup") into Mpileup_ch
+    tuple val(base), file("${base}_lowfreq.vcf") into Low_Freq_ch      
+    tuple val(base), file("${base}_majority.vcf") into Majority_Freq_ch  
 
-    publishDir "${params.outdir}vcf_variants", mode: 'copy', pattern:'*_variants.vcf*'  
-    publishDir "${params.outdir}bcf_raw", mode: 'copy', pattern:'*_raw.bcf*'  
-    publishDir "${params.outdir}vcf_final_variants", mode: 'copy', pattern:'*_final_variants.vcf*'  
+    publishDir "${params.outdir}mpileup", mode: 'copy', pattern:'*_variants.vcf*'  
+    publishDir "${params.outdir}vcf_low_freq", mode: 'copy', pattern:'*_lowfreq.vcf*'  
+    publishDir "${params.outdir}majority_freq", mode: 'copy', pattern:'*_majority.vcf*' 
 
 	script:
 
 	"""
     #!/bin/bash
 
-    bcftools mpileup -O b -o ${base}_raw.bcf \
-    -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam  
-    bcftools call --ploidy 1 -m -v -o ${base}_variants.vcf ${base}_raw.bcf 
-    vcfutils.pl varFilter ${base}_variants.vcf  > ${base}_final_variants.vcf
+  samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
+  varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
+  varscan mpileup2cns ${base}.pileup --min-var-freq 0.01 --variants --output-vcf 1 > ${base}_majority.vcf
 
 	"""
 }
@@ -389,7 +391,7 @@ process Consensus {
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}_final_variants.vcf") from Final_Variants_ch  
+    tuple val(base), file("${base}_majority.vcf") from Majority_Freq_ch  
     tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
     tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Final_Cons_Id_ch
@@ -410,9 +412,9 @@ process Consensus {
     """
     #!/bin/bash
 
-    bgzip -c ${base}_final_variants.vcf > ${base}_final_variants.vcf.gz
-    bcftools index ${base}_final_variants.vcf.gz
-    cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_final_variants.vcf.gz > ${base}_consensus.fasta
+    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
+    bcftools index ${base}_majority.vcf.gz
+    cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
     bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
     bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
 
