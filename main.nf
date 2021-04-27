@@ -1,475 +1,701 @@
-#!/usr/bin/env nextflow
+// Use Trimmomatic to trim files, above Q20, minlen of 75
+// Initialize summary file and input trimming stats into summary file
+process Trimming { 
+    container "quay.io/biocontainers/trimmomatic:0.35--6"
 
-/*
-========================================================================================
-                  Rhinovirus Genome Mapping Pipeline v1.0
-========================================================================================
- Github Repo:
- Greninger Lab
- 
- Author:
- Paul RK Cruz <kurtisc@uw.edu>
- UW Medicine | Virology
- Department of Laboratory Medicine and Pathology
- University of Washington
- Created: April, 2021
- LICENSE: GNU
-----------------------------------------------------------------------------------------
-
-This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
-
-PIPELINE OVERVIEW:
- - 1. : Trim Reads
- 		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
- - 2. : Genome Mapping
- 		-BBMap - align to MultiFasta Reference Virus Genome.
- 		-Samtools - SAM and BAM file processing.
- - 3. : Reference Fasta Generation
- 		-Generate a fasta reference from the genome mapping results.  
- - 4. : Sort Bam
-  		-Convert Sam to Bam
-        -Sort Bam file by coordinates
-        -Generate Statistics about Bam file  
- - 5. : Variant Calling
-        -Calculate the read coverage of positions in the genome
-        -Detect the single nucleotide polymorphisms (SNPs)
-        -Filter and report the SNP variants in variant calling format (VCF)
-        CLI Command to view results:   less -S ${base}_final_variants.vcf
- - 6. : Consensus
-        -Consensus generation using variants VCF, mapped reference fasta, and
-        sorted bam. 
- - 7. : Final Consensus
-        -Creates the Final Consensus by editing the fasta header.       
- - 6. : FastQC
- 		-Sequence read quality control analysis.
-
-    Dependencies:
-    
-    trimmomatic
-    samtools
-    bbtools  
-    bcftools
-    seqkit
-    bgzip
-    bedtools
-    fastqc
-
-    PIPELINE SETUP
-
-    Setup Multifasta Reference:
-    1. REFERENCE_FASTA (must be a multifasta containing concatenated full length RhV genome sequences (6-10K bp) formatted with accession numbers only)
-        Current file: rhv_ref_db01_accession_only.fasta - 327 Human Rhinovirus Complete Genome Sequences courtesy of NCBI Genbank, 2021.
-            source: https://www.ncbi.nlm.nih.gov/nucleotide/
-
-    2. REFERENCE_FASTA_INDEX
-        run:
-             samtools faidx <reference.fasta>
-        to create a multifasta index file.
-
-    Setup File Paths:
-    1. BBMAP_PATH
-        Path to your installation of BBTools --> bbmap.sh
-    2. trimmomatic_adapters_file_SE
-        Path to your Trimmomatic single-end file
-    3. trimmomatic_adapters_file_PE
-            Path to your Trimmomatic paired-end file
-
-    Setup Trimmomatic Parameters:
-    1. params.trimmomatic_adapters_parameters = "2:30:10:1"
-    2. params.trimmomatic_window_length = "4"
-    3. params.trimmomatic_window_value = "20"
-    4. params.trimmomatic_mininum_length = "75"
-    
-
-    EXAMPLE USAGE:
-
-        Run Pipeline Help Message:
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
-
-/Users/uwvirongs/Documents/KC/input
-
-        Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L002_R1_001.fastq))
-        SLU
-        nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/uwvirongs/Documents/KC/input/' --outdir '/Users/uwvirongs/Documents/KC/input/' --singleEnd
-        Eastlake
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_input/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd
-
-        Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
-
- ----------------------------------------------------------------------------------------
-*/
-
-// Pipeline version
-version = '1.0'
-def helpMsg() {
-    log.info"""
-	 __________________________________________________
-     HRV Genome Mapping Pipeline :  Version ${version}
-	__________________________________________________
-    
-	Pipeline Usage:
-
-    To run the pipeline, enter the following in the command line:
-
-        nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
-
-
-    Valid CLI Arguments:
-    REQUIRED:
-      --reads                       Path to input fastq.gz folder).
-      --outdir                      The output directory where the results will be saved
-    OPTIONAL:
-	  --helpMsg						Displays help message in terminal
-      --singleEnd                   Specifies that the input fastq files are single end reads
-	  --withFastQC					Runs a quality control check on fastq files
-
-    """.stripIndent()
-}
-// Initialize parameters
-params.helpMsg = false
-params.virus_index = false
-params.virus_fasta = false
-REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fasta")
-REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fasta.fai")
-BBMAP_PATH="/Users/Kurtisc/Downloads/bbmap/"
-// Show help msg
-if (params.helpMsg){
-    helpMsg()
-    exit 0
-}
-params.withFastQC = false
-// Check Nextflow version
-nextflow_req_v = '20.10.0'
-try {
-    if( ! nextflow.version.matches(">= $nextflow_req_v") ){
-        throw GroovyException("> ERROR: The version of Nextflow running on your machine is out dated.\n>Please update to Version $nextflow_req_v")
-    }
-} catch (all) {
-	log.error"ERROR: This version of Nextflow is out of date.\nPlease update to the latest version of Nextflow."
-}
-// Check for fastq
-params.reads = false
-if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a valid path with --reads"
-// Single-end read option
-params.singleEnd = false
-// Default trimming options
-params.trimmomatic_adapters_file_PE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-PE.fa"
-params.trimmomatic_adapters_file_SE = "/Users/Kurtisc/anaconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq2-SE.fa"
-params.trimmomatic_adapters_parameters = "2:30:10:1"
-params.trimmomatic_window_length = "4"
-params.trimmomatic_window_value = "20"
-params.trimmomatic_mininum_length = "75"
-trimmomatic_mininum_length = "75"
-// log files header
-log.info "____________________________________________"
-log.info " Human Rhinovirus Genome Mapping Pipeline :  v${version}"
-log.info "____________________________________________"
-def summary = [:]
-summary['Fastq Files:']               = params.reads
-summary['Read type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
-summary['Virus Reference:']           = REFERENCE_FASTA
-if(workflow.revision) summary['Pipeline Release'] = workflow.revision
-summary['Current directory path:']        = "$PWD"
-summary['Working directory path:']         = workflow.workDir
-summary['Output directory path:']          = params.outdir
-summary['Pipeline directory path:']          = workflow.projectDir
-if (params.singleEnd) {
-summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
-} else {
-summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
-}
-summary['Trimmomatic adapter parameters:'] = params.trimmomatic_adapters_parameters
-summary["Trimmomatic read length (minimum):"] = params.trimmomatic_mininum_length
-summary['Configuration Profile:'] = workflow.profile
-log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
-log.info "____________________________________________"
-// Create channel for input reads.
-// Import reads depending on single-end or paired-end
-if(params.singleEnd == false) {
-    // Check for R1s and R2s in input directory
-    input_read_ch = Channel
-        .fromFilePairs("${params.reads}*_R{1,2}*.fastq.gz")
-        .ifEmpty { error "> Cannot located paired-end reads in: ${params.reads}.\n> Please enter a valid file path." }
-        .map { it -> [it[0], it[1][0], it[1][1]]}
-} else {
-    // input: *.gz
-    input_read_ch = Channel
-        .fromPath("${params.reads}*.gz")
-        //.map { it -> [ file(it)]}
-        .map { it -> file(it)}
-}
-if(params.virus_index) {
-// Channel for virus genome reference indexes
-Channel
-    .fromPath(params.virus_index)
-    .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
-    .set { virus_index_files }
-}
-/*
- * Trim Reads
- * 
- * Processing: Trim adaptors and repetitive bases from sequence reads and remove low quality sequence reads.
- */
-if (params.singleEnd) {
-	process Trim_Reads_SE {
+    // Retry on fail at most three times 
     errorStrategy 'retry'
     maxRetries 3
 
     input:
-        file R1 from input_read_ch
-        val trimmomatic_mininum_length
-
+        tuple val(base), file(R1), file(R2) // from input_read_ch
+        file ADAPTERS
+        val MINLEN
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_SE
+        tuple val(base), file("${base}.trimmed.fastq.gz"),file("${base}_summary.csv") //into Trim_out_ch
+        tuple val(base), file(R1),file(R2),file("${base}.R1.paired.fastq.gz"), file("${base}.R2.paired.fastq.gz"),file("${base}.R1.unpaired.fastq.gz"), file("${base}.R2.unpaired.fastq.gz") //into Trim_out_ch2
+        tuple val(base), file("${base}.trimmed.fastq.gz") //into Trim_out_ch3
 
-    publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
+    publishDir "${params.OUTDIR}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
 
-
-    script:
-    """
-    #!/bin/bash
-    base=`basename ${R1} ".fastq.gz"`
-
-	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
-	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
-
-    """
-} 
-} else {
-	process Trim_Reads_PE {
-    errorStrategy 'retry'
-    maxRetries 3
-
-   input:
-        tuple val(base), file(R1), file(R2) from input_read_ch
-        val trimmomatic_mininum_length
-    output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_PE
-        // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
-
-    publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
-    
     script:
     """
     #!/bin/bash
 
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-	ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${params.trimmomatic_mininum_length}
+    ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
 
+    num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
+    num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
+    num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
+
+    num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
+    num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
+    num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
+
+    num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
+    num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
+    num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
+
+    num_trimmed=\$((num_paired + num_unpaired))
+    
+    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    
+    echo Sample_Name,Raw_Reads,Trimmed_Paired_Reads,Trimmed_Unpaired_Reads,Total_Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Clipped_Mapped_Reads,Mean_Coverage,Spike_Mean_Coverage,Spike_100X_Cov_Percentage,Spike_200X_Cov_Percentage,Lowest_Spike_Cov,Percent_N > ${base}_summary.csv
+    printf "${base},\$num_untrimmed,\$num_paired,\$num_unpaired,\$num_trimmed,\$percent_trimmed" >> ${base}_summary.csv
+
+    cat *paired.fastq.gz > ${base}.trimmed.fastq.gz
+    
+    """
+}
+
+// Fastqc our fastq files for quick sanity check
+process Fastqc {
+    container "quay.io/biocontainers/fastqc:0.11.9--0"
+
+    // Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    tuple val(base), file(R1),file(R2),file("${base}.R1.paired.fastq.gz"), file("${base}.R2.paired.fastq.gz"),file("${base}.R1.unpaired.fastq.gz"), file("${base}.R2.unpaired.fastq.gz") // from Trim_out_ch2
+    output: 
+    file("*fastqc*") //into Fastqc_ch 
+
+    publishDir "${params.OUTDIR}fastqc", mode: 'copy'
+
+    script:
+    """
+    #!/bin/bash
+
+    /usr/local/bin/fastqc ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R2.paired.fastq.gz
 
     """
 }
+
+
+// Use Trimmomatic to trim files, above Q20, minlen of 75
+// Initialize summary file and input trimming stats into summary file
+process Trimming_SE { 
+    container "quay.io/biocontainers/trimmomatic:0.35--6"
+
+    // Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        file R1 //from input_read_ch
+        file ADAPTERS
+        val MINLEN
+    output: 
+        tuple env(base),file("*.trimmed.fastq.gz"),file("*summary.csv") //into Trim_out_ch_SE
+        tuple env(base),file("*.trimmed.fastq.gz") //into Trim_out_ch2_SE
+        tuple env(base),file("*.trimmed.fastq.gz") //into Trim_out_ch3_SE
+
+    publishDir "${params.OUTDIR}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
+
+    script:
+    """
+    #!/bin/bash
+
+    base=`basename ${R1} ".fastq.gz"`
+
+    echo \$base
+
+    trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
+    ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+
+    num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
+    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
+    
+    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Mapped_Reads,Clipped_Mapped_Reads,Mean_Coverage,Spike_Mean_Coverage,Spike_100X_Cov_Percentage,Spike_200X_Cov_Percentage,Lowest_Spike_Cov,Percent_N > \$base'_summary.csv'
+    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
+    
+    ls -latr
+    """
 }
-/*
- * Map sequence reads to HRV Genomes using BBMap.
- */
-process Mapping {
-	errorStrategy 'retry'
+
+// Fastqc our fastq files for quick sanity check
+process Fastqc_SE {
+    container "quay.io/biocontainers/fastqc:0.11.9--0"
+
+    // Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        tuple val(base),file("${base}.trimmed.fastq.gz") // from Trim_out_ch2_SE
+    output: 
+        file("*fastqc*") //into Fastqc_ch 
+
+    publishDir "${params.OUTDIR}fastqc", mode: 'copy'
+
+    script:
+    """
+    #!/bin/bash
+
+    /usr/local/bin/fastqc ${base}.trimmed.fastq.gz
+    """
+}
+
+// Align fastq files to Wuhan refseq using bbmap
+process Aligning {
+    container "quay.io/biocontainers/bbmap:38.86--h1296035_0"
+    //container "quay.io/biocontainers/bwa:0.7.17--hed695b0_7	"
+
+    // Retry on fail at most three times 
+    errorStrategy 'retry'
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_map1_ch
+        tuple val(base), file("${base}.trimmed.fastq.gz"),file("${base}_summary.csv")
         file REFERENCE_FASTA
-
     output:
-        tuple val(base), file("${base}_map1.sam")into Sam_first_mapping_ch
-        tuple val(base), file("${base}.sam")into Aligned_sam_ch
-        tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Final_Cons_Id_ch
-        tuple val(base), file("${base}_idxstats.txt") into Indx_stats_Ch
-        tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
-        tuple val(base), file("${base}_map1_bbmap_out.txt")into Bbmap_map1_bbmap_txt_ch
-        tuple val(base), file("${base}_map2_bbmap_out.txt")into Bbmap_map2_bbmap_txt_ch
-        tuple val(base), file("${base}_map1_stats.txt") into Bbmap_map1_stats_ch
-        tuple val(base), file("${base}_map2_stats.txt") into Bbmap_map2_stats_ch
-        tuple val(base), file("${base}_map1_histogram.txt") into BBmap_map1_hist_ch
-        tuple val(base), file("${base}_map2_histogram.txt") into BBmap_map2_hist_ch
-        tuple val (base), file("*") into Dump_map1_ch
-
-    publishDir "${params.outdir}sam_map1", mode: 'copy', pattern:'*_map1.sam*'
-    publishDir "${params.outdir}sam_map2", mode: 'copy', pattern:'*.sam*'
-    publishDir "${params.outdir}txt_bbmap_map1_stats", mode: 'copy', pattern:'*_map1_bbmap_out.txt*'  
-    publishDir "${params.outdir}txt_bbmap_map1_hist", mode: 'copy', pattern:'*_map2_histogram.txt*' 
-    publishDir "${params.outdir}txt_bbmap_map2_stats", mode: 'copy', pattern:'*_map2_bbmap_out.txt*'  
-    publishDir "${params.outdir}txt_bbmap_map2_hist", mode: 'copy', pattern:'*_map2_histogram.txt*'
-    publishDir "${params.outdir}indxstats_mapped_references", mode: 'copy', pattern:'*_idxstats.txt*'   
-    publishDir "${params.outdir}ref_most_mapped_text", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
-    publishDir "${params.outdir}ref_most_mapped_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*' 
+        tuple val(base), file("${base}.bam"),file("${base}_summary2.csv") //into Aligned_bam_ch
+        tuple val (base), file("*") //into Dump_ch
 
     script:
-
     """
     #!/bin/bash
 
     cat ${base}*.fastq.gz > ${base}_cat.fastq.gz
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map1_stats.txt 2>&1
-    samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
-    samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
-    samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
-    awk 'NR == 1 || \$3 > max {number = \$1; max = \$3} END {if (NR) print number, max}' < ${base}_idxstats.txt > ${base}_most_mapped_ref.txt
-    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}_mapped_ref_genome.fasta threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
+    /usr/local/bin/bbmap.sh in=${base}_cat.fastq.gz outm=${base}.bam ref=${REFERENCE_FASTA} local=true -Xmx6g > bbmap_out.txt 2>&1
+    reads_mapped=\$(cat bbmap_out.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+
+    cp ${base}_summary.csv ${base}_summary2.csv
+    printf ",\$reads_mapped" >> ${base}_summary2.csv
 
     """
 }
-/*
- * Convert BAM to coordinate sorted BAM
- */
- // Step 1. Convert Sam to Bam
- // Step 2. Sort Bam file by coordinates
- // Step 3. Generate Statistics about Bam file
-process Sort_Bam {
-	errorStrategy 'retry'
+
+// Optional step for counting sgRNAs
+process CountSubgenomicRNAs {
+    container "quay.io/biocontainers/bbmap:38.86--h1296035_0"
+
+    // Retry on fail at most three times
+    errorStrategy 'retry'
     maxRetries 3
 
     input: 
-    tuple val(base), file("${base}.sam") from Aligned_sam_ch
-
+        tuple val(base), file("${base}.trimmed.fastq.gz") //from Trim_out_ch3
+        file SGRNAS 
     output:
-    tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
-    tuple val(base), file("${base}.sorted.bam") into Sorted_bam_ch, Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_flagstats.txt") into Flagstats_ch
-
-    publishDir "${params.outdir}bam", mode: 'copy', pattern:'*.bam*'
-    publishDir "${params.outdir}bam_sorted", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}bam_flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
-
-    script:
-    """
-    #!/bin/bash
-    samtools view -S -b ${base}.sam > ${base}.bam
-    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-
-    """
-}
-/*
- * Variant Calling
- */
- // Step 1: Calculate the read coverage of positions in the genome
- // Step 2: Detect the single nucleotide polymorphisms (SNPs)
- // Step 3: Filter and report the SNP variants in variant calling format (VCF)
- // VIEW RESULTS:   less -S ${base}_final_variants.vcf
-process Variant_Calling {
-	errorStrategy 'retry'
-    maxRetries 3
-
-	input:
-    tuple val(base), file("${base}.sorted.bam") from Sorted_bam_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_ch
-    file REFERENCE_FASTA
-    file REFERENCE_FASTA_INDEX
-
-	output:
-    tuple val(base), file("${base}.pileup") into Mpileup_ch
-    tuple val(base), file("${base}_lowfreq.vcf") into Low_Freq_ch      
-    tuple val(base), file("${base}_majority.vcf") into Majority_Freq_ch  
-
-    publishDir "${params.outdir}mpileup", mode: 'copy', pattern:'*_variants.vcf*'  
-    publishDir "${params.outdir}vcf_low_freq", mode: 'copy', pattern:'*_lowfreq.vcf*'  
-    publishDir "${params.outdir}majority_freq", mode: 'copy', pattern:'*_majority.vcf*' 
-
-	script:
-
-	"""
-    #!/bin/bash
-
-  samtools mpileup -A -d 20000 -Q 0 -f ${base}_mapped_ref_genome.fasta ${base}.sorted.bam > ${base}.pileup
-  varscan mpileup2cns ${base}.pileup --min-var-freq 0.02 --p-value 0.99 --variants --output-vcf 1 > ${base}_lowfreq.vcf
-  varscan mpileup2cns ${base}.pileup --min-var-freq 0.1 --p-value 0.99 --min-reads2 2 --variants --output-vcf 1 > ${base}_majority.vcf
-
-	"""
-}
-/*
- * Consensus
- *
- * Consensus generation using sorted Bam, final_variants.vcf, and mapped_ref_genome.
- */
-process Consensus {
-	errorStrategy 'retry'
-    maxRetries 3
-
-    input:
-    tuple val(base), file("${base}_majority.vcf") from Majority_Freq_ch  
-    tuple val(base), file("${base}.sorted.bam") from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
-    tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Final_Cons_Id_ch
-
-    output:
-    tuple val(base), file("${base}_consensus.fasta") into Consensus_Fasta_ch, Consensus_Fasta_Processing_ch
-    tuple val(base), file("${base}_consensus_masked.fasta") into Consensus_fasta_Masked_ch
-    tuple val(base), file("${base}_bed4mask.bed") into Consensus_bed4mask_ch
-    tuple val(base), file("${base}_consensus_final.fasta") into Consensus_fasta_Complete_ch
+        file("*stats*")
+        tuple val(base),file("*_sgrnas.fastq.gz")
     
-    publishDir "${params.outdir}consensus_fasta_files", mode: 'copy', pattern:'*_consensus.fasta*'  
-    publishDir "${params.outdir}consensus_masked_fasta_files", mode: 'copy', pattern:'*_consensus_masked.fasta*'  
-    publishDir "${params.outdir}bed4mask_bed_files", mode: 'copy', pattern:'*_bed4mask.bed*'  
-    publishDir "${params.outdir}consensus_final", mode: 'copy', pattern:'*_consensus_final.fasta*' 
+    publishDir "${params.OUTDIR}sgRNAs", mode: 'copy'
 
     script:
-
     """
     #!/bin/bash
-
-    bgzip -c ${base}_majority.vcf > ${base}_majority.vcf.gz
-    bcftools index ${base}_majority.vcf.gz
-    cat ${base}_mapped_ref_genome.fasta | bcftools consensus ${base}_majority.vcf.gz > ${base}_consensus.fasta
-    bedtools genomecov -bga -ibam ${base}.sorted.bam -g ${base}_mapped_ref_genome.fasta | awk '\$4 < 20' | bedtools merge > ${base}_bed4mask.bed
-    bedtools maskfasta -fi ${base}_consensus.fasta -bed ${base}_bed4mask.bed -fo ${base}_consensus_masked.fasta
-    id=\$(awk '{print \$1}' ${base}_most_mapped_ref.txt)
-    seqkit replace -p "\$id" -r '${base}' ${base}_consensus.fasta > ${base}_consensus_final.fasta
-
+    /usr/local/bin/bbduk.sh in=${base}.trimmed.fastq.gz outm=${base}_sgrnas.fastq.gz ref=${SGRNAS} stats=${base}_sgrnas_stats.txt refstats=${base}_sgrnas_refstats.txt k=40 qhdist=1 -Xmx6g
 
     """
 }
-if (params.withFastQC) {
 
-    if (params.singleEnd) {
- /* FastQC
- *
- * Sequence read quality control analysis.
- */
-process FastQC_SE {
-	errorStrategy 'retry'
+// Optional step for counting sgRNAs
+process MapSubgenomics {
+    container "quay.io/biocontainers/bbmap:38.86--h1296035_0"
+
+    // Retry on fail at most three times
+    errorStrategy 'retry'
     maxRetries 3
 
-    input:
-        file R1 from Trim_out_fastqc_SE
-
+    input: 
+        tuple val(base), file("${base}_sgrnas.fastq.gz") //from CountSubgenomics
+        file FULL_SGRNAS 
     output:
-	file '*_fastqc.{zip,html}' into fastqc_results
-
-    publishDir "${params.outdir}fastqc_results", mode: 'copy', pattern:'*_fastqc.{zip,html}*'  
-
-    script:
-    """
-    #!/bin/bash
-
+        file("${base}_sgrnas_mapped.bam")
     
-
-    """
-    }
-} else {
-process FastQC_PE {
-	errorStrategy 'retry'
-    maxRetries 3
-
-    input:
-        file R1 from Trim_out_fastqc_PE
-
-    output:
-	file '*_fastqc.{zip,html}' into fastqc_results
-
-    publishDir "${params.outdir}fastqc_results", mode: 'copy', pattern:'*_fastqc.{zip,html}*'  
+    publishDir "${params.OUTDIR}sgRNAs", mode: 'copy', pattern: '*.bam'
 
     script:
     """
     #!/bin/bash
 
-    fastqc --quiet --threads $task.cpus *.fastq.gz
+    /usr/local/bin/bbmap.sh in=${base}_sgrnas.fastq.gz outm=${base}_sgrnas_mapped.bam ref=${FULL_SGRNAS} -Xmx6g 2>&1
 
     """
-    }
 }
+
+
+// Sort sam for input into primerclip
+process NameSorting { 
+    container "quay.io/biocontainers/samtools:1.3--h0592bc0_3"
+
+    // Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        tuple val (base), file("${base}.bam"),file("${base}_summary2.csv") //from Aligned_bam_ch
+    output:
+        tuple val (base), file("${base}.sorted.sam"),file("${base}_summary2.csv") //into Sorted_sam_ch
+
+    publishDir "${params.OUTDIR}inprogress_summary", mode: 'copy', pattern: '*summary.csv'
+
+    script:
+    """
+    #!/bin/bash
+    samtools sort -@ ${task.cpus} -n -O sam ${base}.bam > ${base}.sorted.sam
+
+    """
 }
+
+// Use primerclip to trim Swift primers
+process Clipping { 
+    container "quay.io/greninger-lab/swift-pipeline:latest"
+
+    // Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        tuple val (base), file("${base}.sorted.sam"),file("${base}_summary2.csv") //from Sorted_sam_ch
+        file MASTERFILE
+    output:
+        tuple val (base), file("${base}.clipped.bam"), file("${base}.clipped.bam.bai"),file("${base}_summary3.csv"),env(bamsize) //into Clipped_bam_ch
+        tuple val (base), file("${base}.clipped.bam"), file("${base}.clipped.bam.bai"),env(bamsize) //into Clipped_bam_ch2
+        tuple val (base), file("${base}.clipped.bam"), file("${base}.clipped.bam.bai"),env(bamsize) //into Clipped_bam_ch3
+
+    publishDir params.OUTDIR, mode: 'copy', pattern: '*.clipped.bam'
+    publishDir "${params.OUTDIR}inprogress_summary", mode: 'copy', pattern: '*summary3.csv'
+
+    script:
+        """
+        #!/bin/bash
+        ls -latr
+        /./root/.local/bin/primerclip -s ${MASTERFILE} ${base}.sorted.sam ${base}.clipped.sam
+        #/usr/local/miniconda/bin/samtools sort -@ ${task.cpus} -n -O sam ${base}.clipped.sam > ${base}.clipped.sorted.sam
+        #/usr/local/miniconda/bin/samtools view -@ ${task.cpus} -Sb ${base}.clipped.sorted.sam > ${base}.clipped.unsorted.bam
+        #/usr/local/miniconda/bin/samtools sort -@ ${task.cpus} -o ${base}.clipped.unsorted.bam ${base}.clipped.bam
+        /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.clipped.sam -o ${base}.clipped.bam
+        /usr/local/miniconda/bin/samtools index ${base}.clipped.bam
+        clipped_reads=\$(/usr/local/miniconda/bin/samtools flagstat ${base}.clipped.bam | grep "mapped (" | awk '{print \$1}')
+        echo "clipped reads: \$clipped_reads"
+        /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.clipped.bam > ${base}_coverage.txt
+        meancoverage=\$(cat ${base}_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
+        bamsize=\$((\$(wc -c ${base}.clipped.bam | awk '{print \$1'})+0))
+        echo "bamsize: \$bamsize"
+        if (( \$bamsize > 92 ))
+        then
+            # Spike protein coverage
+            awk '\$2 ~ /21563/,\$2 ~ /25384/' ${base}_coverage.txt > ${base}_spike_coverage.txt
+            avgcoverage=\$(cat ${base}_spike_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
+            proteinlength=\$((25384-21563+1))
+            cov100=\$((100*\$(cat ${base}_spike_coverage.txt | awk '\$3>=100' | wc -l)/3822))
+            cov200=\$((100*\$(cat ${base}_spike_coverage.txt | awk '\$3>=200' | wc -l)/3822))
+            mincov=\$(sort -nk 3 ${base}_spike_coverage.txt | head -n 1 | cut -f3)
+        else
+            avgcoverage=0
+            cov100=0
+            cov200=0
+            mincov=0
+        fi
+        
+        cp ${base}_summary2.csv ${base}_summary3.csv
+        printf ",\$clipped_reads,\$meancoverage,\$avgcoverage,\$cov100,\$cov200,\$mincov" >> ${base}_summary3.csv
+        """
+    } 
+
+// Sort bam
+process BamSorting { 
+    container "quay.io/greninger-lab/swift-pipeline:latest"
+
+	// Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+      tuple val (base), file("${base}.bam"),file("${base}_summary2.csv") //from Aligned_bam_ch
+    output:
+      tuple val (base), file("${base}.sorted.bam"),file("${base}.sorted.bam.bai"),file("${base}_summary3.csv"),env(bamsize) //into Clipped_bam_ch
+    
+    publishDir "${params.OUTDIR}inprogress_summary", mode: 'copy', pattern: '*summary.csv'
+    publishDir params.OUTDIR, mode: 'copy', pattern: '*.sorted.bam'
+
+    script:
+    """
+    #!/bin/bash
+    /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools index ${base}.sorted.bam
+
+    clipped_reads=0
+    /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    meancoverage=\$(cat ${base}_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
+    bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0))
+    echo "bamsize: \$bamsize"
+    if (( \$bamsize > 92 ))
+    then
+        # Spike protein coverage
+        awk '\$2 ~ /21563/,\$2 ~ /25384/' ${base}_coverage.txt > ${base}_spike_coverage.txt
+        avgcoverage=\$(cat ${base}_spike_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
+        proteinlength=\$((25384-21563+1))
+        cov100=\$((100*\$(cat ${base}_spike_coverage.txt | awk '\$3>=100' | wc -l)/3822))
+        cov200=\$((100*\$(cat ${base}_spike_coverage.txt | awk '\$3>=200' | wc -l)/3822))
+        mincov=\$(sort -nk 3 ${base}_spike_coverage.txt | head -n 1 | cut -f3)
+    else
+        avgcoverage=0
+        cov100=0
+        cov200=0
+        mincov=0
+    fi
+
+    cp ${base}_summary2.csv ${base}_summary3.csv
+    printf ",\$clipped_reads,\$meancoverage,\$avgcoverage,\$cov100,\$cov200,\$mincov" >> ${base}_summary3.csv
+
+
+    """
+}
+
+// Generate final consensus from pileup from bam.
+process GenerateConsensus {
+    container "quay.io/greninger-lab/swift-pipeline:latest"
+
+	// Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        tuple val (base), file(BAMFILE),file(INDEX_FILE),file("${base}_summary3.csv"),val(bamsize) //from Clipped_bam_ch
+        file REFERENCE_FASTA
+        file TRIM_ENDS
+        file FIX_COVERAGE
+        file VCFUTILS
+        file REFERENCE_FASTA_FAI
+        file SPLITCHR
+    output:
+        file("${base}_swift.fasta")
+        file("${base}_bcftools.vcf")
+        file(INDEX_FILE)
+        file("${base}_summary.csv")
+        tuple val(base), val(bamsize), file("${base}_pre_bcftools.vcf") //into Vcf_ch
+
+    publishDir params.OUTDIR, mode: 'copy'
+
+    shell:
+    '''
+    #!/bin/bash
+    ls -latr
+
+    R1=!{base}
+
+    echo "bamsize: !{bamsize}"
+
+    #if [ -s !{BAMFILE} ]
+    # More reliable way of checking bam size, because of aliases
+    if (( !{bamsize} > 92 ))
+    then
+        # Parallelize pileup based on number of cores
+        splitnum=$(($((29903/!{task.cpus}))+1))
+        perl !{VCFUTILS} splitchr -l $splitnum !{REFERENCE_FASTA_FAI} | \\
+        #cat !{SPLITCHR} | \\
+            xargs -I {} -n 1 -P !{task.cpus} sh -c \\
+                "/usr/local/miniconda/bin/bcftools mpileup \\
+                    -f !{REFERENCE_FASTA} -r {} \\
+                    --count-orphans \\
+                    --no-BAQ \\
+                    --max-depth 50000 \\
+                    --max-idepth 500000 \\
+                    --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
+                !{BAMFILE} | /usr/local/miniconda/bin/bcftools call -A -m -Oz - > tmp.{}.vcf.gz"
+        
+        # Concatenate parallelized vcfs back together
+        gunzip tmp*vcf.gz
+        mv tmp.NC_045512.2\\:1-* \${R1}_catted.vcf
+        for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
+
+        cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > \${R1}_pre_bcftools.vcf
+        
+        # Make sure variants are majority variants for consensus calling
+        /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}_pre2.vcf
+        /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
+
+        # Index and generate consensus from vcf with majority variants
+        /usr/local/miniconda/bin/bgzip \${R1}.vcf
+        /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
+        cat !{REFERENCE_FASTA} | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
+
+        # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
+        # to be masked later
+        /usr/local/miniconda/bin/bedtools genomecov \\
+            -bga \\
+            -ibam !{BAMFILE} \\
+            -g !{REFERENCE_FASTA} \\
+            | awk '\$4 < 6' | /usr/local/miniconda/bin/bedtools merge > \${R1}.mask.bed
+        # Get rid of anything outside of the genome we care about, to prevent some sgrnas from screwing with masking
+        awk '{ if(\$3 > 200 && \$2 < 29742) {print}}' \${R1}.mask.bed > a.tmp && mv a.tmp \${R1}.mask.bed
+
+        # Mask refseq fasta for low coverage areas based on bed file
+        /usr/local/miniconda/bin/bedtools maskfasta \\
+            -fi !{REFERENCE_FASTA} \\
+            -bed \${R1}.mask.bed \\
+            -fo ref.mask.fasta
+        
+        # Align to Wuhan refseq and unwrap fasta
+        cat ref.mask.fasta \${R1}.consensus.fa > align_input.fasta
+        /usr/local/miniconda/bin/mafft --auto --thread !{task.cpus} align_input.fasta > repositioned.fasta
+        awk '/^>/ { print (NR==1 ? "" : RS) $0; next } { printf "%s", $0 } END { printf RS }' repositioned.fasta > repositioned_unwrap.fasta
+        
+        # Trim ends and aligns masking of refseq to our consensus
+        python3 !{TRIM_ENDS} \${R1}
+
+        # Find percent ns, doesn't work, fix later in python script
+        num_bases=$(grep -v ">" \${R1}_swift.fasta | wc | awk '{print $3-$1}')
+        num_ns=$(grep -v ">" \${R1}_swift.fasta | awk -F"n" '{print NF-1}')
+        percent_n=$(awk -v num_ns=$num_ns -v num_bases=$num_bases 'BEGIN { print ( num_ns * 100 / num_bases ) }')
+        echo "num_bases=$num_bases"
+        echo "num_ns=$num_ns"
+        echo "percent_n=$percent_n"
+        gunzip \${R1}.vcf.gz
+        mv \${R1}.vcf \${R1}_bcftools.vcf
+        #/usr/local/miniconda/bin/samtools view !{BAMFILE} -@ !{task.cpus} | awk -F: '$12 < 600' > \${R1}'.clipped.cleaned.bam'
+    else
+       echo "Empty bam detected. Generating empty consensus fasta file..."
+       # Generate empty stats for empty bam
+       printf '>!{base}\n' > \${R1}_swift.fasta
+       printf 'n%.0s' {1..29539} >> \${R1}_swift.fasta
+       percent_n=100
+       touch \${R1}_bcftools.vcf
+       touch \${R1}_pre_bcftools.vcf
+    fi
+    
+    cp \${R1}_summary3.csv \${R1}_summary.csv
+    printf ",\$percent_n" >> \${R1}_summary.csv
+
+    cat \${R1}_summary.csv | tr -d "[:blank:]" > a.tmp
+    mv a.tmp \${R1}_summary.csv
+
+    # Correctly calculates %ns and cleans up the summary file.
+    if [[ !{bamsize} > 92 ]]
+    then
+        python3 !{FIX_COVERAGE} \${R1}
+        mv \${R1}_summary_fixed.csv \${R1}_summary.csv
+    fi
+
+    [ -s \${R1}_swift.fasta ] || echo "WARNING: \${R1} produced blank output. Manual review may be needed."
+
+    '''
+}
+
+// if(params.VARIANTS != false) { 
+    // process lofreq {
+    //     container "quay.io/biocontainers/lofreq:2.1.5--py38h1bd3507_3"
+
+    //     // Retry on fail at most three times 
+    //     errorStrategy 'retry'
+    //     maxRetries 3
+
+    //     input:
+    //     tuple val (base), file("${base}.clipped.bam"), file("${base}.clipped.bam.bai"),val(bamsize) from Clipped_bam_ch2
+    //     file REFERENCE_FASTA
+    //     output:
+    //     file("${base}_lofreq.vcf")
+    //     tuple val(base),val(bamsize),file("${base}_lofreq.vcf") into Vcf_ch2
+        
+    //     publishDir params.OUTDIR, mode: 'copy'
+
+    //     script:
+    //     """
+    //     #!/bin/bash
+
+    //     echo ${bamsize}
+    //     if (( ${bamsize} > 92))
+    //     then
+    //         lofreq faidx ${REFERENCE_FASTA}
+    //         /usr/local/bin/lofreq call-parallel --pp-threads ${task.cpus} --call-indels -f ${REFERENCE_FASTA} -o ${base}_lofreq.vcf ${base}.clipped.bam
+    //     else
+    //         touch ${base}_lofreq.vcf
+    //     fi
+
+    //     """
+    // }
+
+// Grab variants from vcf and output into standard format
+process AnnotateVariants {
+    errorStrategy 'retry'
+    maxRetries 3
+
+    container "quay.io/vpeddu/lava_image:latest"
+
+    input:
+        tuple val(base),val(bamsize),file("${base}_pre_bcftools.vcf") //from Vcf_ch
+        file MAT_PEPTIDES
+        file MAT_PEPTIDE_ADDITION
+        file RIBOSOMAL_SLIPPAGE
+        file RIBOSOMAL_START
+        file PROTEINS
+        file AT_REFGENE
+        file AT_REFGENE_MRNA
+        file CORRECT_AF_BCFTOOLS
+        
+    output: 
+        file("${base}_bcftools_variants.csv")
+        file("*")
+    
+    publishDir params.OUTDIR, mode: 'copy', pattern:'*_bcftools_variants.csv'
+
+    shell:
+    '''
+    #!/bin/bash
+    ls -latr
+    
+    if (( !{bamsize} > 92))
+    then
+        # Fixes ploidy issues.
+        #awk -F $\'\t\' \'BEGIN {FS=OFS="\t"}{gsub("0/0","0/1",$10)gsub("0/0","1/0",$11)gsub("1/1","0/1",$10)gsub("1/1","1/0",$11)}1\' !{base}_lofreq.vcf > !{base}_p.vcf
+        awk -F $\'\t\' \'BEGIN {FS=OFS="\t"}{gsub("0/0","0/1",$10)gsub("0/0","1/0",$11)gsub("1/1","1/0",$10)gsub("1/1","1/0",$11)}1\' !{base}_pre_bcftools.vcf > !{base}_p.vcf
+
+        # Converts VCF to .avinput for Annovar.
+        file="!{base}""_p.vcf"
+        #convert2annovar.pl -withfreq -format vcf4 -includeinfo !{base}_p.vcf > !{base}.avinput 
+        convert2annovar.pl -withfreq -format vcf4 -includeinfo !{base}_p.vcf > !{base}.avinput 
+        annotate_variation.pl -v -buildver AT -outfile !{base} !{base}.avinput .
+
+        #awk -F":" '($26+0)>=1{print}' !{base}.exonic_variant_function > !{base}.txt
+        cp !{base}.exonic_variant_function variants.txt
+        #grep "SNV" !{base}.txt > a.tmp
+        #grep "stop" !{base}.txt >> a.tmp
+        #mv a.tmp variants.txt
+    
+        awk -v name=!{base} -F'[\t:,]' '{print name","$6" "substr($9,3)","$12","$44+0","substr($9,3)","$6","substr($8,3)","substr($8,3,1)" to "substr($8,length($8))","$2","$41}' variants.txt > !{base}.csv
+
+        grep -v "transcript" !{base}.csv > a.tmp && mv a.tmp !{base}.csv 
+        grep -v "delins" !{base}.csv > final.csv
+        # Sorts by beginning of mat peptide
+        sort -k2 -t, -n mat_peptides.txt > a.tmp && mv a.tmp mat_peptides.txt
+        # Adds mature peptide differences from protein start.
+        python3 !{MAT_PEPTIDE_ADDITION}
+        rm mat_peptides.txt
+        python3 !{CORRECT_AF_BCFTOOLS} -name !{base}
+        # Corrects for ribosomal slippage.
+        python3 !{RIBOSOMAL_SLIPPAGE} filtered_variants.csv proteins.csv
+        awk NF final.csv > a.tmp && mv a.tmp final.csv
+        echo "SAMPLE,gene,AAPOS,AAREF,AASUB,TCOV,VCOV,AAFREQ,NTPOS,snpid,nsp,NSPPOS,NSPREF,NSPSUB" > !{base}_bcftools_variants.csv
+        #sort -h -k2 -t, visualization.csv >> !{base}_bcftools_variants.csv
+        cat visualization.csv >> !{base}_bcftools_variants.csv
+
+    else 
+        echo "Bam is empty, skipping annotation."
+        touch !{base}_bcftools_variants.csv
+    fi
+
+    '''
+}
+
+    // process annotateVariants_Lofreq {
+    //     errorStrategy 'retry'
+    //     maxRetries 3
+
+    //     container "quay.io/vpeddu/lava_image:latest"
+
+    //     input:
+    //         tuple val(base),val(bamsize),file("${base}_lofreq.vcf") from Vcf_ch2
+    //         file MAT_PEPTIDES
+    //         file MAT_PEPTIDE_ADDITION
+    //         file RIBOSOMAL_SLIPPAGE
+    //         file RIBOSOMAL_START
+    //         file PROTEINS
+    //         file AT_REFGENE
+    //         file AT_REFGENE_MRNA
+    //         file CORRECT_AF
+            
+    //     output: 
+    //         file("${base}_lofreq_variants.csv")
+        
+    //     publishDir params.OUTDIR, mode: 'copy'
+
+    //     shell:
+    //     '''
+    //     #!/bin/bash
+    //     ls -latr
+        
+    //     if (( !{bamsize} > 92))
+    //     then
+    //         # Fixes ploidy issues.
+    //         #awk -F $\'\t\' \'BEGIN {FS=OFS="\t"}{gsub("0/0","0/1",$10)gsub("0/0","1/0",$11)gsub("1/1","0/1",$10)gsub("1/1","1/0",$11)}1\' !{base}_lofreq.vcf > !{base}_p.vcf
+    //         #awk -F $\'\t\' \'BEGIN {FS=OFS="\t"}{gsub("0/0","0/1",$10)gsub("0/0","1/0",$11)gsub("1/1","1/0",$10)gsub("1/1","1/0",$11)}1\' !{base}_bcftools.vcf > !{base}_p.vcf
+    //         cp !{base}_lofreq.vcf !{base}_p.vcf
+
+    //         # Converts VCF to .avinput for Annovar.
+    //         file="!{base}""_p.vcf"
+    //         #convert2annovar.pl -withfreq -format vcf4 -includeinfo !{base}_p.vcf > !{base}.avinput 
+    //         convert2annovar.pl -withfreq -format vcf4 -includeinfo !{base}_p.vcf > !{base}.avinput 
+    //         annotate_variation.pl -v -buildver AT -outfile !{base} !{base}.avinput .
+
+    //         #awk -F":" '($26+0)>=1{print}' !{base}.exonic_variant_function > !{base}.txt
+    //         cp !{base}.exonic_variant_function !{base}.txt
+    //         grep "SNV" !{base}.txt > a.tmp
+    //         grep "stop" !{base}.txt >> a.tmp
+    //         mv a.tmp variants.txt
+        
+    //         awk -v name=!{base} -F'[\t:,]' '{print name","$6" "substr($9,3)","$12","$44+0","substr($9,3)","$6","substr($8,3)","substr($8,3,1)" to "substr($8,length($8))","$2","$41}' variants.txt > !{base}.csv
+
+    //         grep -v "transcript" !{base}.csv > a.tmp && mv a.tmp !{base}.csv 
+    //         grep -v "delins" !{base}.csv > final.csv
+    //         # Sorts by beginning of mat peptide
+    //         sort -k2 -t, -n mat_peptides.txt > a.tmp && mv a.tmp mat_peptides.txt
+    //         # Adds mature peptide differences from protein start.
+    //         python3 !{MAT_PEPTIDE_ADDITION}
+    //         rm mat_peptides.txt
+    //         # Corrects for ribosomal slippage.
+    //         python3 !{RIBOSOMAL_SLIPPAGE} final.csv proteins.csv
+    //         awk NF final.csv > a.tmp && mv a.tmp final.csv
+    //         python3 !{CORRECT_AF}
+    //         sort -h -k2 -t, fixed_variants.txt > !{base}_lofreq_variants.csv
+    //     else 
+    //         echo "Bam is empty, skipping annotation."
+    //         touch !{base}_lofreq_variants.csv
+    //     fi
+
+    //     '''
+    // }
+
+//     process varscan2 { 
+//         container "quay.io/vpeddu/lava_image:latest"
+
+//         // Retry on fail at most three times 
+//         errorStrategy 'retry'
+//         maxRetries 3
+
+//         input:
+//             tuple val (base), file(BAMFILE), file(INDEX_FILE),val(bamsize) from Clipped_bam_ch3
+//             file REFERENCE_FASTA
+//             file REFERENCE_FASTA_FAI
+//             file SPLITCHR
+//         output:
+//             tuple val(base),val(bamsize),file("${base}_varscan.vcf") into Varscan_ch
+
+//         publishDir params.OUTDIR, mode: 'copy'
+
+//         shell:
+//         '''
+//         #!/bin/bash
+//         ls -latr
+//         R1=`basename !{BAMFILE} .clipped.bam`
+//         echo "bamsize: !{bamsize}"
+//         #if [ -s !{BAMFILE} ]
+//         # More reliable way of checking bam size, because of aliases
+//         if (( !{bamsize} > 92 ))
+//         then
+//             # Parallelize pileup based on number of cores
+//             splitnum=$(($((29903/!{task.cpus}))+1))
+//             cat !{SPLITCHR} | \\
+//                 xargs -I {} -n 1 -P !{task.cpus} sh -c \\
+//                     "/usr/local/miniconda/bin/samtools mpileup \\
+//                         -f !{REFERENCE_FASTA} -r {} \\
+//                         -B \\
+//                         --max-depth 50000 \\
+//                         --max-idepth 500000 \\
+//                     !{BAMFILE} | 
+//                     java -jar /usr/local/bin/VarScan mpileup2cns --validation 1 --output-vcf 1 --min-coverage 2 --min-var-freq 0.001 --p-value 0.99 --min-reads2 1 > tmp.{}.vcf"
+            
+//             cat *.vcf > \${R1}_varscan.vcf
+//         else
+//         touch \${R1}_varscan.vcf
+//         fi
+//         '''
+// }
+// }
