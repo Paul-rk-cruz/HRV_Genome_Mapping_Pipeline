@@ -288,7 +288,7 @@ process Mapping {
         tuple val(base), file("${base}_most_mapped_ref_size.txt") into Mapped_Ref_Id_Size_ch       
         tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size) into Mapped_Ref_Id_perc_ch           
         tuple val(base), file("${base}_idxstats.txt") into Indx_stats_Ch
-        tuple val(base), file("${base}_mapped_ref_genome.fasta") into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
+        tuple val(base), file("${base}_mapped_ref_genome.fasta"),env(id) into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
         tuple val(base), file("${base}_map1_bbmap_out.txt")into Bbmap_map1_bbmap_txt_ch
         tuple val(base), file("${base}_map2_bbmap_out.txt")into Bbmap_map2_bbmap_txt_ch
         tuple val(base), file("${base}_map1_stats.txt") into Bbmap_map1_stats_ch
@@ -376,7 +376,7 @@ process Sort_Bam {
 
     input:
     tuple val(base), file("${base}.sorted.bam"),val(bamsize) from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta") from Mapped_Ref_Gen_Cons_ch
+    tuple val(base), file("${base}_mapped_ref_genome.fasta"),val(id) from Mapped_Ref_Gen_Cons_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta.fai") from Mapped_Ref_Gen_Index_fai_Cons_ch
     tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Cons_Id_ch
     tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size) from Mapped_Ref_Id_perc_ch    
@@ -424,7 +424,7 @@ process Sort_Bam {
             
             # Concatenate parallelized vcfs back together
             gunzip tmp*vcf.gz
-            mv tmp\\:1-* \${R1}_catted.vcf
+            mv tmp.!{id}\\:1-* \${R1}_catted.vcf
             for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
 
             cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | bcftools norm -m -any > \${R1}_pre_bcftools.vcf
@@ -437,6 +437,7 @@ process Sort_Bam {
             bgzip \${R1}.vcf
             tabix \${R1}.vcf.gz 
             cat !{base}_mapped_ref_genome.fasta | bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
+    fi
     '''
 }
 /*
