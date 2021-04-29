@@ -321,7 +321,7 @@ process Mapping {
     samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
-    id_cons=grep -o '^[^[:space:]]\+' ${base}_most_mapped_ref.txt
+    id_cons=(\$grep -o '^[^[:space:]]\$+' ${base}_most_mapped_ref.txt)
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fasta threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
     samtools faidx ${base}_mapped_ref_genome.fasta
