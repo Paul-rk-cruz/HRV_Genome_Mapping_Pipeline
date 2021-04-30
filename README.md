@@ -5,7 +5,10 @@ https://github.com/greninger-lab/HRV_Genome_Mapping_Pipeline
 
 Author:
 Paul RK Cruz <kurtisc@uw.edu>
+Michelle J Lin <Mjlin@uw.edu>
+Alex L Greninger <agrening@uw.edu>
 
+ 
 UW Medicine | Virology
 
 Department of Laboratory Medicine and Pathology
@@ -55,22 +58,27 @@ Rhinovirus Genome Mapping Pipeline was designed to run either single-end or pair
  6. Consensus
     6.1. Consensus generation using variants VCF, mapped reference fasta, and
     sorted bam.
+   
+ 7. Final Consensus
+    7.1. Creates the Final Consensus by editing the fasta header.
     
- 7. FastQC (OPTIONAL)
- 	8.1. Sequence read quality stats for quality control analysis.
+ 8. FastQC
+ 	8.1. Sequence read quality control analysis.
 
 Dependencies:
                         
     trimmomatic         conda install -c bioconda trimmomatic
+    bbtools             conda install -c bioconda bbmap    
     bgzip               conda install -c bioconda tabix
     samtools            conda install -c bioconda samtools
-    bbtools             conda install -c bioconda bbmap
+    varscan             conda install -c bioconda varscan
     vcftools            conda install -c bioconda vcftools
     bcftools            conda install -c bioconda bcftools
     seqkit              conda install -c bioconda seqkit
     bedtools            conda install -c bioconda bedtools
     fastqc              conda install -c bioconda fastqc
-      
+    picard              conda install -c bioconda picard
+
 PIPELINE SETUP
 
 Setup Multifasta Reference:
