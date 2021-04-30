@@ -288,7 +288,7 @@ process Mapping {
         tuple val(base), file("${base}_most_mapped_ref_size.txt") into Mapped_Ref_Id_Size_ch       
         tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size) into Mapped_Ref_Id_perc_ch           
         tuple val(base), file("${base}_idxstats.txt") into Indx_stats_Ch
-        tuple val(base), file("${base}_mapped_ref_genome.fasta"),env(id_cons) into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
+        tuple val(base), file("${base}_mapped_ref_genome.fasta"),env(id) into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
         tuple val(base), file("${base}_map1_bbmap_out.txt")into Bbmap_map1_bbmap_txt_ch
         tuple val(base), file("${base}_map2_bbmap_out.txt")into Bbmap_map2_bbmap_txt_ch
         tuple val(base), file("${base}_map1_stats.txt") into Bbmap_map1_stats_ch
@@ -321,7 +321,6 @@ process Mapping {
     samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
-    id_cons=(\$grep -o '^[^[:space:]]\$+' ${base}_most_mapped_ref.txt)
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fasta threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
     samtools faidx ${base}_mapped_ref_genome.fasta
@@ -377,7 +376,7 @@ process Sort_Bam {
 
     input:
     tuple val(base), file("${base}.sorted.bam"),val(bamsize) from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta"),val(id_cons) from Mapped_Ref_Gen_Cons_ch
+    tuple val(base), file("${base}_mapped_ref_genome.fasta"),val(id) from Mapped_Ref_Gen_Cons_ch
     tuple val(base), file("${base}_mapped_ref_genome.fasta.fai") from Mapped_Ref_Gen_Index_fai_Cons_ch
     tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Cons_Id_ch
     tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size) from Mapped_Ref_Id_perc_ch    
@@ -403,7 +402,7 @@ process Sort_Bam {
     ls -latr
 
     R1=!{base}
-
+    id_ref=!{id}
     echo "bamsize: !{bamsize}"
 
     #if [ -s !{} ]
@@ -425,7 +424,7 @@ process Sort_Bam {
             
             # Concatenate parallelized vcfs back together
             gunzip tmp*vcf.gz
-            mv tmp.!{id_cons}\\:1-* \${R1}_catted.vcf
+            mv tmp.\${id_ref}\\:1-* \${R1}_catted.vcf
             for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
 
             cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | bcftools norm -m -any > \${R1}_pre_bcftools.vcf
