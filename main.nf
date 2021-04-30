@@ -128,8 +128,8 @@ def helpMsg() {
 params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
-REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fasta")
-REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fasta.fai")
+REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fa")
+REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fa.fai")
 BBMAP_PATH="/Users/uwvirongs/Documents/KC/bbmap/"
 // Show help msg
 if (params.helpMsg){
@@ -288,14 +288,14 @@ process Mapping {
         tuple val(base), file("${base}_most_mapped_ref_size.txt") into Mapped_Ref_Id_Size_ch       
         tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size) into Mapped_Ref_Id_perc_ch           
         tuple val(base), file("${base}_idxstats.txt") into Indx_stats_Ch
-        tuple val(base), file("${base}_mapped_ref_genome.fasta"),env(id) into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
+        tuple val(base), file("${base}_mapped_ref_genome.fa"),env(id) into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
         tuple val(base), file("${base}_map1_bbmap_out.txt")into Bbmap_map1_bbmap_txt_ch
         tuple val(base), file("${base}_map2_bbmap_out.txt")into Bbmap_map2_bbmap_txt_ch
         tuple val(base), file("${base}_map1_stats.txt") into Bbmap_map1_stats_ch
         tuple val(base), file("${base}_map2_stats.txt") into Bbmap_map2_stats_ch
         tuple val(base), file("${base}_map1_histogram.txt") into BBmap_map1_hist_ch
         tuple val(base), file("${base}_map2_histogram.txt") into BBmap_map2_hist_ch
-        tuple val(base), file("${base}_mapped_ref_genome.fasta.fai") into Mapped_Ref_Gen_Index_fai_Cons_ch
+        tuple val(base), file("${base}_mapped_ref_genome.fa.fai") into Mapped_Ref_Gen_Index_fai_Cons_ch
         tuple val (base), file("*") into Dump_map1_ch
 
     publishDir "${params.outdir}sam_map1", mode: 'copy', pattern:'*_map1.sam*'
@@ -306,9 +306,9 @@ process Mapping {
     publishDir "${params.outdir}txt_bbmap_map2_hist", mode: 'copy', pattern:'*_map2_histogram.txt*'
     publishDir "${params.outdir}txt_indxstats_mapped_refs", mode: 'copy', pattern:'*_idxstats.txt*'   
     publishDir "${params.outdir}ref_id", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
-    publishDir "${params.outdir}ref_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fasta*'
+    publishDir "${params.outdir}ref_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fa*'
     publishDir "${params.outdir}ref_size", mode: 'copy', pattern:'*_most_mapped_ref_size.txt*'
-    publishDir "${params.outdir}ref_fai_index", mode: 'copy', pattern:'*_mapped_ref_genome.fasta.fai*'
+    publishDir "${params.outdir}ref_fai_index", mode: 'copy', pattern:'*_mapped_ref_genome.fa.fai*'
     
     script:
 
@@ -321,9 +321,9 @@ process Mapping {
     samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fasta
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fasta threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
-    samtools faidx ${base}_mapped_ref_genome.fasta
+    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fa
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
+    samtools faidx ${base}_mapped_ref_genome.fa
     awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
     id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
     echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
@@ -376,8 +376,8 @@ process Sort_Bam {
 
     input:
     tuple val(base), file("${base}.sorted.bam"),val(bamsize) from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta"),val(id) from Mapped_Ref_Gen_Cons_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fasta.fai") from Mapped_Ref_Gen_Index_fai_Cons_ch
+    tuple val(base), file("${base}_mapped_ref_genome.fa"),val(id) from Mapped_Ref_Gen_Cons_ch
+    tuple val(base), file("${base}_mapped_ref_genome.fa.fai") from Mapped_Ref_Gen_Index_fai_Cons_ch
     tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Cons_Id_ch
     tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size) from Mapped_Ref_Id_perc_ch    
     file TRIM_ENDS
@@ -411,10 +411,10 @@ process Sort_Bam {
     then
         # Parallelize pileup based on number of cores
             splitnum=$(($((!{id_ref_size}/!{task.cpus}))+1))
-            perl !{VCFUTILS} splitchr -l $splitnum !{base}_mapped_ref_genome.fasta.fai | \\
+            perl !{VCFUTILS} splitchr -l $splitnum !{base}_mapped_ref_genome.fa.fai | \\
                 xargs -I {} -n 1 -P !{task.cpus} sh -c \\
                     "bcftools mpileup \\
-                        -f !{base}_mapped_ref_genome.fasta -r {} \\
+                        -f !{base}_mapped_ref_genome.fa -r {} \\
                         --count-orphans \\
                         --no-BAQ \\
                         --max-depth 50000 \\
@@ -436,7 +436,7 @@ process Sort_Bam {
             # Index and generate consensus from vcf with majority variants
             bgzip \${R1}.vcf
             tabix \${R1}.vcf.gz 
-            cat !{base}_mapped_ref_genome.fasta | bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
+            cat !{base}_mapped_ref_genome.fa | bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
     fi
     '''
 }
