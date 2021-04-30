@@ -9,6 +9,9 @@
  
  Author:
  Paul RK Cruz <kurtisc@uw.edu>
+ Michelle J Lin <Mjlin@uw.edu>
+ Alex L Greninger <agrening@uw.edu>
+
  UW Medicine | Virology
  Department of Laboratory Medicine and Pathology
  University of Washington
@@ -282,20 +285,8 @@ process Mapping {
         file REFERENCE_FASTA
 
     output:
-        tuple val(base), file("${base}_map1.sam")into Sam_first_mapping_ch
-        tuple val(base), file("${base}_map2.sam")into Aligned_sam_ch
-        tuple val(base), file("${base}_most_mapped_ref.txt") into Mapped_Ref_Id_ch, Mapped_Ref_Cons_Id_ch
-        tuple val(base), file("${base}_most_mapped_ref_size.txt") into Mapped_Ref_Id_Size_ch       
-        tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size) into Mapped_Ref_Id_perc_ch           
-        tuple val(base), file("${base}_idxstats.txt") into Indx_stats_Ch
-        tuple val(base), file("${base}_mapped_ref_genome.fa"),env(id) into Mapped_Ref_Gen_ch, Mapped_Ref_Gen_map2_ch, Mapped_Ref_Gen_Cons_ch
-        tuple val(base), file("${base}_map1_bbmap_out.txt")into Bbmap_map1_bbmap_txt_ch
-        tuple val(base), file("${base}_map2_bbmap_out.txt")into Bbmap_map2_bbmap_txt_ch
-        tuple val(base), file("${base}_map1_stats.txt") into Bbmap_map1_stats_ch
-        tuple val(base), file("${base}_map2_stats.txt") into Bbmap_map2_stats_ch
-        tuple val(base), file("${base}_map1_histogram.txt") into BBmap_map1_hist_ch
-        tuple val(base), file("${base}_map2_histogram.txt") into BBmap_map2_hist_ch
-        tuple val(base), file("${base}_mapped_ref_genome.fa.fai") into Mapped_Ref_Gen_Index_fai_Cons_ch
+        tuple val(base),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") into Everything_ch
+        tuple val(base), file("${base}_map1_histogram.txt"),file("${base}_map2_histogram.txt") into BBmap_map1_hist_ch
         tuple val (base), file("*") into Dump_map1_ch
 
     publishDir "${params.outdir}sam_map1", mode: 'copy', pattern:'*_map1.sam*'
@@ -323,7 +314,14 @@ process Mapping {
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fa
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
+    
+    head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
+    grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
+    mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
+    
     samtools faidx ${base}_mapped_ref_genome.fa
+
+
     awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
     id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
     echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
@@ -341,18 +339,14 @@ process Sort_Bam {
     maxRetries 3
 
     input: 
-    tuple val(base), file("${base}_map2.sam") from Aligned_sam_ch
-
+        tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") from Everything_ch
     output:
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
-    tuple val(base), file("${base}.sorted.bam"),env(bamsize) into Sorted_bam_ch, Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_flagstats.txt") into Flagstats_ch
-    tuple val(base), file("${base}_bam_size.txt") into Bam_Size_ch
+    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") into Consensus_ch
 
     publishDir "${params.outdir}bam", mode: 'copy', pattern:'*.bam*'
     publishDir "${params.outdir}bam_sorted", mode: 'copy', pattern:'*.sorted.bam*'  
     publishDir "${params.outdir}txt_bam_flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
-    publishDir "${params.outdir}bam_size", mode: 'copy', pattern:'*_bam_size.txt*'  
 
     script:
     """
@@ -364,37 +358,32 @@ process Sort_Bam {
     bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     meancoverage=\$(cat ${base}_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
     bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0)) 
-    echo \$bamsize >> ${base}_bam_size.txt
     """
 }
 /*
  * Call variants & Generate Consensus
   */
  process Generate_Consensus {
-    errorStrategy 'retry'
-    maxRetries 3
+    container "quay.io/greninger-lab/swift-pipeline:latest"
+    // errorStrategy 'retry'
+    // maxRetries 0
 
     input:
-    tuple val(base), file("${base}.sorted.bam"),val(bamsize) from Sorted_Cons_Bam_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fa"),val(id) from Mapped_Ref_Gen_Cons_ch
-    tuple val(base), file("${base}_mapped_ref_genome.fa.fai") from Mapped_Ref_Gen_Index_fai_Cons_ch
-    tuple val(base), file("${base}_most_mapped_ref.txt") from Mapped_Ref_Cons_Id_ch
-    tuple val(base), file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size) from Mapped_Ref_Id_perc_ch    
-    file TRIM_ENDS
-    file FIX_COVERAGE
+    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") from Consensus_ch
     file VCFUTILS
+    file SPLITCHR
+    file TRIM_ENDS
 
     output:
     tuple val(base), file("${base}_consensus.fa") into Consensus_Fasta_ch
-    tuple val(base), file("${base}_bcftools.vcf") into Vcf_ch
-    tuple val(base), val(bamsize), file("${base}_pre_bcftools.vcf") into Vcf_Pre_ch
-    file(INDEX_FILE)
+    // tuple val(base), file("${base}.vcf") into Vcf_ch
+    // tuple val(base), file("${base}_bcftools.vcf") into Vcf_Bcftools_ch
+    tuple val(base), val(bamsize), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Vcf_Bcftools_Pre_ch_1
 
-    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*_consensus.fa*'  
+    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*_consensus.fa*'
+    // publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*.vcf*'   
     publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
-    publishDir "${params.outdir}vcf-pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
-
-	script:
+    publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
 
     shell:
     '''
@@ -402,7 +391,7 @@ process Sort_Bam {
     ls -latr
 
     R1=!{base}
-    id_ref=!{id}
+
     echo "bamsize: !{bamsize}"
 
     #if [ -s !{} ]
@@ -410,36 +399,71 @@ process Sort_Bam {
     if (( !{bamsize} > 92 ))
     then
         # Parallelize pileup based on number of cores
-            splitnum=$(($((!{id_ref_size}/!{task.cpus}))+1))
-            perl !{VCFUTILS} splitchr -l $splitnum !{base}_mapped_ref_genome.fa.fai | \\
-                xargs -I {} -n 1 -P !{task.cpus} sh -c \\
-                    "bcftools mpileup \\
-                        -f !{base}_mapped_ref_genome.fa -r {} \\
-                        --count-orphans \\
-                        --no-BAQ \\
-                        --max-depth 50000 \\
-                        --max-idepth 500000 \\
-                        --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
-                    !{base}.sorted.bam | bcftools call -A -m -Oz - > tmp.{}.vcf.gz"
-            
-            # Concatenate parallelized vcfs back together
-            gunzip tmp*vcf.gz
-            mv tmp.\${id_ref}\\:1-* \${R1}_catted.vcf
-            for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
+        splitnum=$(($((!{id_ref_size}/!{task.cpus}))+1))
+        perl !{VCFUTILS} splitchr -l $splitnum !{base}_mapped_ref_genome.fa.fai | \\
+        #cat !{SPLITCHR} | \\
+            xargs -I {} -n 1 -P !{task.cpus} sh -c \\
+                "/usr/local/miniconda/bin/bcftools mpileup \\
+                    -f !{base}_mapped_ref_genome.fa -r {} \\
+                    --count-orphans \\
+                    --no-BAQ \\
+                    --max-depth 50000 \\
+                    --max-idepth 500000 \\
+                    --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
+                !{base}.sorted.bam | /usr/local/miniconda/bin/bcftools call -A -m -Oz - > tmp.{}.vcf.gz"
+        
+        # Concatenate parallelized vcfs back together
+        gunzip tmp*vcf.gz
+        mv tmp.*:1-* \${R1}_catted.vcf
+        for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
 
-            cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | bcftools norm -m -any > \${R1}_pre_bcftools.vcf
+        cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > \${R1}_pre_bcftools.vcf
+        
+        # Make sure variants are majority variants for consensus calling
+        /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}_pre2.vcf
+        /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
 
-            # Make sure variants are majority variants for consensus calling
-            bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}_pre2.vcf
-            bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
+        # Index and generate consensus from vcf with majority variants
+        /usr/local/miniconda/bin/bgzip \${R1}.vcf
+        /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
+        cat !{base}_mapped_ref_genome.fa | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
 
-            # Index and generate consensus from vcf with majority variants
-            bgzip \${R1}.vcf
-            tabix \${R1}.vcf.gz 
-            cat !{base}_mapped_ref_genome.fa | bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
+        # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
+        # to be masked later
+        /usr/local/miniconda/bin/bedtools genomecov \\
+            -bga \\
+            -ibam !{base}.sorted.bam \\
+            -g !{base}_mapped_ref_genome.fa  \\
+            | awk '\$4 < 6' | /usr/local/miniconda/bin/bedtools merge > \${R1}.mask.bed
+        # Get rid of anything outside of the genome we care about, to prevent some sgrnas from screwing with masking
+        awk '{ if(\$3 > 200 && \$2 < 29742) {print}}' \${R1}.mask.bed > a.tmp && mv a.tmp \${R1}.mask.bed
+
+        # Mask refseq fasta for low coverage areas based on bed file
+        /usr/local/miniconda/bin/bedtools maskfasta \\
+            -fi !{base}_mapped_ref_genome.fa  \\
+            -bed \${R1}.mask.bed \\
+            -fo ref.mask.fasta
+        
+        # Align to refseq and unwrap fasta
+        cat ref.mask.fasta \${R1}.consensus.fa > align_input.fasta
+        /usr/local/miniconda/bin/mafft --auto --thread !{task.cpus} align_input.fasta > repositioned.fasta
+        awk '/^>/ { print (NR==1 ? "" : RS) $0; next } { printf "%s", $0 } END { printf RS }' repositioned.fasta > repositioned_unwrap.fasta
+
+        # Trim ends and aligns masking of refseq to our consensus
+        python3 !{TRIM_ENDS} \${R1}
+
+        gunzip \${R1}.vcf.gz
+        mv \${R1}.vcf \${R1}_bcftools.vcf
+        
+    else
+       echo "Empty bam detected. Generating empty consensus fasta file..."
+       touch \${R1}_bcftools.vcf
+       touch \${R1}_pre_bcftools.vcf
     fi
     '''
 }
+
+
 /*
  * Variant Calling
  */
