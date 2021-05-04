@@ -168,6 +168,7 @@ TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
 SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
 FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
+ADAPTERS = file("${baseDir}/All_adapters.fa")
 // log files header
 log.info "____________________________________________"
 log.info " Human Rhinovirus Genome Mapping Pipeline :  v${version}"
@@ -182,9 +183,9 @@ summary['Working directory path:']         = workflow.workDir
 summary['Output directory path:']          = params.outdir
 summary['Pipeline directory path:']          = workflow.projectDir
 if (params.singleEnd) {
-summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
+// summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
 } else {
-summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
+// summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
 }
 summary['Trimmomatic adapter parameters:'] = params.trimmomatic_adapters_parameters
 summary["Trimmomatic read length (minimum):"] = params.trimmomatic_mininum_length
@@ -238,10 +239,13 @@ if (params.singleEnd) {
     script:
     """
     #!/bin/bash
-    base=`basename ${R1} ".fastq.gz"`
 
-	trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
-	ILLUMINACLIP:${params.trimmomatic_adapters_file_SE}:${params.trimmomatic_adapters_parameters} SLIDINGWINDOW:${params.trimmomatic_window_length}:${params.trimmomatic_window_value} MINLEN:${params.trimmomatic_mininum_length} 2> ${R1}.log
+    base=`basename ${R1} ".fastq.gz"`
+    
+    echo \$base
+
+    trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
+    ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
 
     """
 } 
@@ -265,7 +269,7 @@ if (params.singleEnd) {
     #!/bin/bash
 
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-	ILLUMINACLIP:${params.trimmomatic_adapters_file_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${params.trimmomatic_mininum_length}
+	ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
 
 
     """
