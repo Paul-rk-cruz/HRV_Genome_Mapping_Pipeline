@@ -161,7 +161,8 @@ params.trimmomatic_adapters_file_SE = "/Users/uwvirongs/miniconda3/share/trimmom
 params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
-params.trimmomatic_mininum_length = "75"
+params.MINLEN = "75"
+MINLEN = "75"
 trimmomatic_mininum_length = "75"
 // Script Files
 TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
@@ -228,7 +229,7 @@ if (params.singleEnd) {
 
     input:
         file R1 from input_read_ch
-        val trimmomatic_mininum_length
+        val MINLEN
 
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_SE
@@ -241,7 +242,7 @@ if (params.singleEnd) {
     #!/bin/bash
 
     base=`basename ${R1} ".fastq.gz"`
-    
+
     echo \$base
 
     trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
@@ -257,7 +258,7 @@ if (params.singleEnd) {
 
    input:
         tuple val(base), file(R1), file(R2) from input_read_ch
-        val trimmomatic_mininum_length
+        val MINLEN
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_PE
         // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
