@@ -12,10 +12,8 @@ Local
 nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/uwvirongs/Documents/KC/input/' --outdir '/Users/uwvirongs/Documents/KC/input/' --singleEnd
 
 Work Directories on AWS S3
-s3://covid19-work/d0/4e50e155228a40ff7d18c3e8476add
-
+s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
 
 Notes - 5/3/2021
--Mapper logic updates
--Average depth & coverage
+-Mapper logic updates: Average depth & coverage(done)
 -Tool: NCBIeutils
