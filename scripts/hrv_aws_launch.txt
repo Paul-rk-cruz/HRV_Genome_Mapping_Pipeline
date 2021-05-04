@@ -4,7 +4,13 @@ Notes - 5/3/2021
 -Tool: NCBIeutils
 
 AWS
+SLU
 nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
+Eastlake
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
+Home
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/kurtiscruz/Downloads/CURRENT/hrv_pipeline/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
+
 
 Local
 
