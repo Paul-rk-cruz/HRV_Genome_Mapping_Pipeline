@@ -163,7 +163,7 @@ params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
 params.MINLEN = "75"
 MINLEN = "75"
-trimmomatic_mininum_length = "75"
+params.trimmomatic_mininum_length = "75"
 // Script Files
 TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
