@@ -131,16 +131,32 @@ def helpMsg() {
 params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
+params.withFastQC = false
+params.skipTrim = false
+params.reads = false
+params.singleEnd = false
+// Script Files
+TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
+VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
+SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
+FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
+ADAPTERS = file("${baseDir}/All_adapters.fa")
 REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fa")
 REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fa.fai")
 BBMAP_PATH="/Users/uwvirongs/Documents/KC/bbmap/"
+params.trimmomatic_adapters_file_PE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-PE.fa"
+params.trimmomatic_adapters_file_SE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-SE.fa"
+params.trimmomatic_adapters_parameters = "2:30:10:1"
+params.trimmomatic_window_length = "4"
+params.trimmomatic_window_value = "20"
+params.MINLEN = "75"
+MINLEN = "75"
 // Show help msg
 if (params.helpMsg){
     helpMsg()
     exit 0
 }
-params.withFastQC = false
-params.skipTrim = false
+
 // Check Nextflow version
 nextflow_req_v = '20.10.0'
 try {
@@ -150,26 +166,8 @@ try {
 } catch (all) {
 	log.error"ERROR: This version of Nextflow is out of date.\nPlease update to the latest version of Nextflow."
 }
-// Check for fastq
-params.reads = false
+
 if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a valid path with --reads"
-// Single-end read option
-params.singleEnd = false
-// Default trimming options
-params.trimmomatic_adapters_file_PE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-PE.fa"
-params.trimmomatic_adapters_file_SE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-SE.fa"
-params.trimmomatic_adapters_parameters = "2:30:10:1"
-params.trimmomatic_window_length = "4"
-params.trimmomatic_window_value = "20"
-params.MINLEN = "75"
-MINLEN = "75"
-params.trimmomatic_mininum_length = "75"
-// Script Files
-TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
-VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
-SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
-FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
-ADAPTERS = file("${baseDir}/All_adapters.fa")
 // log files header
 log.info "____________________________________________"
 log.info " Human Rhinovirus Genome Mapping Pipeline :  v${version}"
@@ -229,6 +227,7 @@ if (params.singleEnd) {
 
     input:
         file R1 from input_read_ch
+        file ADAPTERS
         val MINLEN
 
     output: 
