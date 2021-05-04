@@ -206,13 +206,7 @@ if(params.singleEnd == false) {
         //.map { it -> [ file(it)]}
         .map { it -> file(it)}
 }
-if(params.virus_index) {
-// Channel for virus genome reference indexes
-Channel
-    .fromPath(params.virus_index)
-    .ifEmpty { exit 1, "> Error: Virus index not found: ${params.virus_index}.\n> Please specify a valid file path!"}
-    .set { virus_index_files }
-}
+
 /*
  * Trim Reads
  * 
