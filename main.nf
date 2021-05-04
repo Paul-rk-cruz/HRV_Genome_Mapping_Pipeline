@@ -135,6 +135,7 @@ params.withFastQC = false
 params.skipTrim = false
 params.reads = false
 params.singleEnd = false
+params.ADAPTERS = false
 // Script Files
 TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
