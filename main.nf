@@ -284,7 +284,7 @@ if (params.singleEnd) {
  * Map sequence reads to HRV Genomes using BBMap.
  */
 process Mapping {
-    container "quay.io/biocontainers/bbmap:38.86--h1296035_0"
+    container "quay.io/biocontainers/bbmap:38.90--h1296035_0"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -310,7 +310,6 @@ process Mapping {
     publishDir "${params.outdir}ref_fai_index", mode: 'copy', pattern:'*_mapped_ref_genome.fa.fai*'
     
     script:
-
     """
     #!/bin/bash
 
