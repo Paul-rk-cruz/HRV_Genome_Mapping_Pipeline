@@ -186,8 +186,8 @@ if (params.singleEnd) {
 } else {
 // summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
 }
-summary['Trimmomatic adapter parameters:'] = params.trimmomatic_adapters_parameters
-summary["Trimmomatic read length (minimum):"] = params.trimmomatic_mininum_length
+summary['Trimmomatic adapter parameters:'] = params.ADAPTERS
+summary["Trimmomatic read length (minimum):"] = params.MINLEN
 summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "____________________________________________"
