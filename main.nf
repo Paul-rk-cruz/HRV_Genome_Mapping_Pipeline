@@ -221,6 +221,7 @@ Channel
 // if(!params.skipTrimming) {
 if (params.singleEnd) {
 	process Trim_Reads_SE {
+    container "quay.io/biocontainers/trimmomatic:0.35--6"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -246,6 +247,7 @@ if (params.singleEnd) {
 } 
 } else {
 	process Trim_Reads_PE {
+    container "quay.io/biocontainers/trimmomatic:0.35--6"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -277,6 +279,7 @@ if (params.singleEnd) {
  * Map sequence reads to HRV Genomes using BBMap.
  */
 process Mapping {
+    container "quay.io/biocontainers/bbmap:38.86--h1296035_0"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -306,20 +309,20 @@ process Mapping {
     """
     #!/bin/bash
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map1_stats.txt 2>&1
-    samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
-    samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
-    samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
+    /usr/local/bin/bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map1_stats.txt 2>&1
+    /usr/local/miniconda/bin/samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
+    /usr/local/miniconda/bin/samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fa
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
+    /usr/local/miniconda/bin/samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fa
+    /usr/local/bin/bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
     
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
     mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
     
-    samtools faidx ${base}_mapped_ref_genome.fa
+    /usr/local/miniconda/bin/samtools faidx ${base}_mapped_ref_genome.fa
 
 
     awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
@@ -335,6 +338,7 @@ process Mapping {
  // Step 2. Sort Bam file by coordinates
  // Step 3. Generate Statistics about Bam file
 process Sort_Bam {
+    container "quay.io/greninger-lab/swift-pipeline:latest"
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -351,11 +355,12 @@ process Sort_Bam {
     script:
     """
     #!/bin/bash
-    samtools view -S -b ${base}_map2.sam > ${base}.bam
-    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    samtools index ${base}.sorted.bam
-    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+
+    /usr/local/miniconda/bin/samtools view -S -b ${base}_map2.sam > ${base}.bam
+    /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools index ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
+    /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     meancoverage=\$(cat ${base}_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
     bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0)) 
     """
@@ -420,8 +425,8 @@ process Sort_Bam {
         cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > \${R1}_pre_bcftools.vcf
         
         # Make sure variants are majority variants for consensus calling
-        /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}_pre2.vcf
-        /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
+        /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0) | (IMF > 0.5)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}.vcf
+       # /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
 
         # Index and generate consensus from vcf with majority variants
         /usr/local/miniconda/bin/bgzip \${R1}.vcf
@@ -550,6 +555,7 @@ if (params.withFastQC) {
  * Sequence read quality control analysis.
  */
 process FastQC_SE {
+    container "quay.io/biocontainers/fastqc:0.11.9--0"
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -565,12 +571,13 @@ process FastQC_SE {
     """
     #!/bin/bash
 
-    
+    /usr/local/bin/fastqc ${base}.trimmed.fastq.gz
 
     """
     }
 } else {
 process FastQC_PE {
+    container "quay.io/biocontainers/fastqc:0.11.9--0"
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -586,7 +593,7 @@ process FastQC_PE {
     """
     #!/bin/bash
 
-    fastqc --quiet --threads $task.cpus *.fastq.gz
+    /usr/local/bin/fastqc --quiet --threads $task.cpus *.fastq.gz
 
     """
     }
