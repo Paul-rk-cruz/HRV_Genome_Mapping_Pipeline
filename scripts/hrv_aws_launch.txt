@@ -1,6 +1,8 @@
 AWS
 SLU
-nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/scripts/nextflow.config -resume -profile cloud_big
+
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/shotgun/20210503_shotgun_RhV_batch5_2plates/Batch5_plate1_RhV/' --outdir 's3://covid19-analysis-results/shotgun/20210503_shotgun_RhV_batch5_2plates/Batch5_plate1_RhV/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/scripts/nextflow.config -resume -profile cloud_big
 
 Eastlake
 nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
@@ -9,7 +11,7 @@ Home
 nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/kurtiscruz/Downloads/CURRENT/hrv_pipeline/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
 
 Local
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/uwvirongs/Documents/KC/input/' --outdir '/Users/uwvirongs/Documents/KC/input/' --singleEnd
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/Batch5_fastq/' --outdir '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/Batch5_output/' --singleEnd -resume 
 
 Work Directories on AWS S3
 s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
@@ -17,3 +19,8 @@ s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
 Notes - 5/3/2021
 -Mapper logic updates: Average depth & coverage(done)
 -Tool: NCBIeutils
+
+Change fasta header
+-seqkit docker repo: https://quay.io/repository/h3abionet_org/seqkit?tag=latest&tab=tags
+
+find /Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/Batch5_fastq_all -type f -size -1M -delete
