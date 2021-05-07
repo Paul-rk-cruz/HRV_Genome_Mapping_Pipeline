@@ -205,7 +205,7 @@ if (params.singleEnd) {
         val MINLEN
 
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_SE
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_map3_ch, Trim_out_fastqc_SE
 
     publishDir "${params.outdir}fastq_trimmed", mode: 'copy',pattern:'*.trimmed.fastq*'
 
@@ -229,7 +229,7 @@ if (params.singleEnd) {
         tuple val(base), file(R1), file(R2) from input_read_ch
         val MINLEN
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_fastqc_PE
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_map1_ch, Trim_out_map2_ch, Trim_out_map3_ch, Trim_out_fastqc_PE
         // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}fastq_trimmed", mode: 'copy',pattern:'*.trimmed.fastq*'
@@ -339,12 +339,13 @@ process Sort_Bam {
 
     input:
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") from Consensus_ch
+    
     file VCFUTILS
     file SPLITCHR
     file TRIM_ENDS
 
     output:
-    tuple val(base), file("${base}.consensus.fa") into Consensus_Fasta_ch
+    tuple val(base), file("${base}.consensus.fa"),val(bamsize) into Consensus_Fasta_ch
     // tuple val(base), file("${base}.vcf") into Vcf_ch
     // tuple val(base), file("${base}_bcftools.vcf") into Vcf_Bcftools_ch
     tuple val(base), val(bamsize), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Vcf_Bcftools_Pre_ch_1
@@ -421,7 +422,43 @@ process Sort_Bam {
     fi
     '''
 }
+process Map_bwa {
+	errorStrategy 'retry'
+    maxRetries 3
 
+    input:
+    tuple val(base), file("${base}.consensus.fa"), val(bamsize) from Consensus_Fasta_ch
+    tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_map3_ch
+    
+    output:
+    tuple val(base), file("${base}.sam"), file("${base}.bam"), file("${base}.sorted.bam"), file("${base}.sorted.bam.bai"), val(bamsize), file("${base}.mpileup") into Map3_ch
+
+    publishDir "${params.outdir}mpileup-bwa", mode: 'copy', pattern:'*.mpileup*'
+    publishDir "${params.outdir}bam-bwa", mode: 'copy', pattern:'*.sorted.bam*'
+    publishDir "${params.outdir}sam-bwa", mode: 'copy', pattern:'*.sam*'
+
+    script:
+
+    """
+    #!/bin/bash
+
+    bwa index -a is ${base}.consensus.fa
+    bwa mem ${base}.consensus.fa ${base}.trimmed.fastq.gz > ${base}.sam
+    samtools view -S -b ${base}.sam > ${base}.bam
+    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    
+    bcftools mpileup \\
+                    -f ${base}.consensus.fa\\
+                    --count-orphans \\
+                    --no-BAQ \\
+                    --max-depth 50000 \\
+                    --max-idepth 500000 \\
+                    --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
+                ${base}.sorted.bam > ${base}.mpileup
+
+    """  
+}
 if (params.withFastQC) {
 
     if (params.singleEnd) {
