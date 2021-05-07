@@ -422,7 +422,7 @@ process Sort_Bam {
     fi
     '''
 }
-process Map_bwa {
+process Map3_ {
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -442,8 +442,7 @@ process Map_bwa {
     """
     #!/bin/bash
 
-    bwa index -a is ${base}.consensus.fa
-    bwa mem ${base}.consensus.fa ${base}.trimmed.fastq.gz > ${base}.sam
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}.sam ref=${base}.consensus.fa threads=8 covstats=${base}_map3_bbmap_out.txt covhist=${base}_map3_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}.sam > ${base}.bam
     samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
     samtools index ${base}.sorted.bam
