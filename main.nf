@@ -377,7 +377,7 @@ process Sort_Bam {
                     --max-depth 50000 \\
                     --max-idepth 500000 \\
                     --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
-                !{base}.sorted.bam | /usr/local/miniconda/bin/bcftools call -A -m -Oz - > tmp.{}.vcf.gz"
+                !{base}.sorted.bam | /usr/local/miniconda/bin/bcftools call -A -M -Oz - > tmp.{}.vcf.gz"
         
         # Concatenate parallelized vcfs back together
         gunzip tmp*vcf.gz
