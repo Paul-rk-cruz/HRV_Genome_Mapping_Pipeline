@@ -348,7 +348,7 @@ process Sort_Bam {
     tuple val(base), file("${base}.consensus.fa"),val(bamsize), val(id), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Fasta_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
 
-    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
+    // publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
     // publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*.vcf*'   
     publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
     publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
@@ -429,19 +429,20 @@ process Mapping_final {
     tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_SE_MF
     
     output:
-    tuple val(base), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.sorted.bam.bai"), file("${base}.mpileup"), val(bamsize) into Mapping_Final_ch
+    tuple val(base), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}.mpileup"), val(bamsize) into Mapping_Final_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
+    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
 
     script:
 
     """
     #!/bin/bash
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map3_bbmap_out.txt covhist=${base}_map3_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=8 maxindel=10 covstats=${base}_map3_bbmap_out.txt covhist=${base}_map3_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.sorted.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
     
     bcftools mpileup \\
@@ -451,9 +452,14 @@ process Mapping_final {
                 --max-depth 50000 \\
                 --max-idepth 500000 \\
                 --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
-                ${base}.sorted.bam > ${base}.mpileup
+                ${base}.map3.sorted.bam > ${base}.mpileup
+
+
     """  
 }
+
+    // seqkit replace -p "${id}}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa
+
 if (params.withFastQC) {
 
     if (params.singleEnd) {
