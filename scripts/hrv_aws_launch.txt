@@ -12,7 +12,7 @@ Home
 nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/kurtiscruz/Downloads/CURRENT/hrv_pipeline/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
 
 Local
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/Batch5_fastq/' --outdir '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/Batch5_output/' --singleEnd -resume 
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main --reads '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/input/' --outdir '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/output/' --singleEnd -resume 
 
 Work Directories on AWS S3
 s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
@@ -44,3 +44,15 @@ ls -1 | sed -e 's/\..*$//' > sra_filenames_no_ext.txt
 
 with extension
 ls > sra_filenames_with_ext.txt 
+
+Pipeline
+bwa map after consensus
+
+20210503_shotgun_RhV_batch5_2plates
+5` end
+
+
+bwa index -a is V340367548-V340367780-V340368357-V340368089_S30_cat_R1.consensus.fa
+
+bwa mem V340367548-V340367780-V340368357-V340368089_S30_cat_R1.consensus.fa V340367548-V340367780-V340368357-V340368089_S30_cat_R1.trimmed.fastq.gz > test.sam
+
