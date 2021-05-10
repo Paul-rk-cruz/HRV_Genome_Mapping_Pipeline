@@ -205,7 +205,7 @@ if (params.singleEnd) {
         val MINLEN
 
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into  Trim_out_SE, Trim_out_SE_MF, Trim_out_SE_FQC
+        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_SE, Trim_out_SE_MF, Trim_out_SE_FQC
 
     publishDir "${params.outdir}fastq_trimmed", mode: 'copy',pattern:'*.trimmed.fastq*'
 
@@ -348,7 +348,7 @@ process Sort_Bam {
     tuple val(base), file("${base}.consensus.fa"),val(bamsize), val(id), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Fasta_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
 
-    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
+    // publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
     // publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*.vcf*'   
     publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
     publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
@@ -429,7 +429,7 @@ process Mapping_final {
     tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_SE_MF
     
     output:
-    tuple val(base), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}.mpileup"), val(bamsize) into Mapping_Final_ch
+    tuple val(base), file("${base}.consensus.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}.mpileup"), val(bamsize) into Mapping_Final_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
@@ -457,98 +457,30 @@ process Mapping_final {
 
     """  
 }
-// /*
-//  * Call variants & Generate Consensus
-//   */
-//  process Generate_Consensus_Final {
-//     container "quay.io/greninger-lab/swift-pipeline:latest"
-//     errorStrategy 'retry'
-//     maxRetries 3
+process Consensus_Final {
+	// errorStrategy 'retry'
+    // maxRetries 3
 
-//     input:
-//     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") from Consensus_ch
-    
-//     file VCFUTILS
-//     file SPLITCHR
-//     file TRIM_ENDS
+input:
+tuple val(base), file("${base}.consensus.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}.mpileup"), val(bamsize) from Mapping_Final_ch
 
-//     output:
-//     tuple val(base), file("${base}.consensus.fa"),val(bamsize), val(id), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Fasta_ch
-//     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
+output:
+tuple val(base), file("${base}.consensus.fa") into Consensus_final_ch
 
-//     // publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
-//     // publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*.vcf*'   
-//     publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
-//     publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
+publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
 
-//     shell:
-//     '''
-//     #!/bin/bash
-//     ls -latr
-//     R1=!{base}
-//     echo "bamsize: !{bamsize}"
-//     #if [ -s !{} ]
-//     # More reliable way of checking bam size, because of aliases
-//     if (( !{bamsize} > 92 ))
-//     then
-//         # Parallelize pileup based on number of cores
-//         splitnum=$(($((!{id_ref_size}/!{task.cpus}))+1))
-//         perl !{VCFUTILS} splitchr -l $splitnum !{base}_mapped_ref_genome.fa.fai | \\
-//         #cat !{SPLITCHR} | \\
-//             xargs -I {} -n 1 -P !{task.cpus} sh -c \\
-//                 "/usr/local/miniconda/bin/bcftools mpileup \\
-//                     -f !{base}_mapped_ref_genome.fa -r {} \\
-//                     --count-orphans \\
-//                     --no-BAQ \\
-//                     --max-depth 50000 \\
-//                     --max-idepth 500000 \\
-//                     --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
-//                 !{base}.sorted.bam | /usr/local/miniconda/bin/bcftools call -A -m -M -Oz - > tmp.{}.vcf.gz"
-        
-//         # Concatenate parallelized vcfs back together
-//         gunzip tmp*vcf.gz
-//         mv tmp.*:1-* \${R1}_catted.vcf
-//         for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
-//         cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > \${R1}_pre_bcftools.vcf
-        
-//         # Make sure variants are majority variants for consensus calling
-//         /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0) | (IMF > 0.5)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}.vcf
-//        # /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
-//         # Index and generate consensus from vcf with majority variants
-//         /usr/local/miniconda/bin/bgzip \${R1}.vcf
-//         /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
-//         cat !{base}_mapped_ref_genome.fa | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
-//         # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
-//         # to be masked later
-//         /usr/local/miniconda/bin/bedtools genomecov \\
-//             -bga \\
-//             -ibam !{base}.sorted.bam \\
-//             -g !{base}_mapped_ref_genome.fa  \\
-//             | awk '\$4 < 6' | /usr/local/miniconda/bin/bedtools merge > \${R1}.mask.bed
-//         # Get rid of anything outside of the genome we care about, to prevent some sgrnas from screwing with masking
-//         awk '{ if(\$3 > 200 && \$2 < 29742) {print}}' \${R1}.mask.bed > a.tmp && mv a.tmp \${R1}.mask.bed
-//         # Mask refseq fasta for low coverage areas based on bed file
-//         /usr/local/miniconda/bin/bedtools maskfasta \\
-//             -fi !{base}_mapped_ref_genome.fa  \\
-//             -bed \${R1}.mask.bed \\
-//             -fo ref.mask.fasta
-        
-//         # Align to refseq and unwrap fasta
-//         cat ref.mask.fasta \${R1}.consensus.fa > align_input.fasta
-//         /usr/local/miniconda/bin/mafft --auto --thread !{task.cpus} align_input.fasta > repositioned.fasta
-//         awk '/^>/ { print (NR==1 ? "" : RS) $0; next } { printf "%s", $0 } END { printf RS }' repositioned.fasta > repositioned_unwrap.fasta
-//         # Trim ends and aligns masking of refseq to our consensus
-//         python3 !{TRIM_ENDS} \${R1}
-//         gunzip \${R1}.vcf.gz
-//         mv \${R1}.vcf \${R1}_bcftools.vcf
-//     else
-//        echo "Empty bam detected. Generating empty consensus fasta file..."
-//        touch \${R1}_bcftools.vcf
-//        touch \${R1}_pre_bcftools.vcf
-//     fi
-//     '''
-// }
-    // seqkit replace -p "${id}}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa
+script:
+
+    """
+    #!/bin/bash
+
+    cat ${base}.mpileup | ivar consensus -q 20 -t 0.9 -m 10 -n N -p ${base}.consensus.fa
+    header=\$(head -n1 ${base}.consensus.fa | sed 's/>//g')
+    sed -i "s/\${header}/${base}/g" ${base}.consensus.fa
+
+    """ 
+
+}
 
 if (params.withFastQC) {
 
