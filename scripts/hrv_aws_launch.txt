@@ -1,4 +1,4 @@
-Launch Syntax - HRV Pipeline
+bcftools filter -e 'FS>40.0 || SOR>3 || MQ<40 || MQRankSum<-5.0 || MQRankSum>5.0 || QD<2.0 || ReadPosRankSum<-4.0 || INFO/DP>16000' -O z -o cod204.lg05.1.hf.vcf.gz cod204.lg05.1.vcf.gzLaunch Syntax - HRV Pipeline
 
 SLU
 nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/scripts/nextflow.config -resume -profile cloud_big
@@ -12,16 +12,13 @@ Home
 nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/kurtiscruz/Downloads/CURRENT/hrv_pipeline/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
 
 Local
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main --reads '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/input/' --outdir '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/output/' --singleEnd -resume 
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main --reads '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume 
 
 Work Directories on AWS S3
 s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
 
 
-
-
 Notes - 5/3/2021 - 5/7/2021
-
 
 -Mapper logic updates: Average depth & coverage(done)
 -Tool: NCBIeutils
@@ -51,8 +48,137 @@ bwa map after consensus
 20210503_shotgun_RhV_batch5_2plates
 5` end
 
-
 bwa index -a is V340367548-V340367780-V340368357-V340368089_S30_cat_R1.consensus.fa
 
 bwa mem V340367548-V340367780-V340368357-V340368089_S30_cat_R1.consensus.fa V340367548-V340367780-V340368357-V340368089_S30_cat_R1.trimmed.fastq.gz > test.sam
+
+Rhinovirus sample info:
+J:\Clinical Research\NGS\Alex_mNGS\RhV-Rohit-mNGS
+
+weak bases: SYMBOL: W 	  A T
+strong bases: SYMBOL: S   C G 
+PURINE: SYMBOL: Y 	  A G 
+PYRIMIDINE: SYMBOL: R 	  C T
+
+Pipeline Issues
+
+5` End crap sequences need cleanup
+Indel calling
+
+Notes 5/10/2021
+remove accession MW969526 - indeed problems
+
+- Add min depth to consensus caller
+	-When no coverage, calling Reference
+	- Sample 2S56XDXC8FP6_S80 
+		- N where no coverage
+		- Coverage too low to call consensus
+					
+- output bed file
+
+
+
+Indel Calling Cleanup
+
+Vcf file handling
+
+bcftools query -e'FILTER="."' -f'%CHROM %POS %FILTER\n' S30_bcftools.vcf | head -2
+
+
+bcftools query -i'QUAL<65 && DP<20' -f'%CHROM %POS %QUAL %DP\n' S30_bcftools.vcf | head
+
+bcftools query -e'FILTER="."' -f'%CHROM %POS %FILTER\n' S30_bcftools.vcf | head -2
+
+bcftools query -i'FMT/DP>10 & FMT/GQ>20' -f'%POS[\t%SAMPLE:DP=%DP GQ=%GQ]\n' S30_bcftools.vcf
+
+bcftools query -f'[%POS %SAMPLE %DP\n]\n' -i'FMT/DP=19 | FMT/DP="."' S30_bcftools.vcf
+
+#printing all entries having a quality <10
+bcftools view -i 'QUAL<70' S30_bcftools.vcf
+
+How to FLAG low quality SNPs in samtools VCF.
+Bcftools filter to set a Flag in in the FILTER column;
+
+bcftools filter -e 'QUAL<2' -s "LowQual" S30_bcftools.vcf
+
+Number of variant sites in vcf
+bcftools view -H S30_bcftools.vcf | wc -l
+
+Use the BCFtools “query” option to extract the Fisher Strand (FS) values of all variants and save the output in a separate text file
+bcftools query S30_bcftools.vcf.gz -f'%FS\n' > s30_FS.txt
+
+Use the BCFtools “query” option to jointly extract the Fisher Strand (FS), Strand Odds Ratio (SOR), Mapping Quality Rank Sum Test (MQRankSum), Read Position Rank Sum Test (ReadPosRankSum), Quality by depth (QD), RMS Mapping Quality (MQ),and the combined depth across samples (INFO/DP) and save the values separated by the tab character in a separate text file
+bcftools query S30_bcftools.vcf.gz -f '%FS\t%SOR\t%MQRankSum\t%ReadPosRankSum\t%QD\t%MQ\t%DP\n' > S30.txt
+
+
+bcftools filter -e 'FS>40.0 || SOR>3 || MQ<40 || MQRankSum<-5.0 || MQRankSum>5.0 || QD<2.0 || ReadPosRankSum<-4.0 || INFO/DP>16000' -O z -o S30_bcftools.vcf.gz
+
+
+bcftools filter -i 'FS<40.0 && SOR<3 && MQ>40.0 && MQRankSum>-5.0 && MQRankSum<5 && QD>2.0 && ReadPosRankSum>-4.0 && INFO/DP<16000' -O z -o S30_bcftools.vcf.gz
+
+
+
+BBMAP 
+https://jgi.doe.gov/data-and-tools/bbtools/bb-tools-user-guide/bbmap-guide/
+
+
+
+
+
+Bam filtering
+https://gist.github.com/davfre/8596159
+bamfilter_oneliners.md
+
+
+
+Keep uniquely-mapped reads + MAPQ > 20
+
+samtools view -h -F 256 -q 20 S30.sorted.bam > S30.map3.filtered.bam
+
+
+Count number of records (unmapped reads + each aligned location per mapped read) in a bam file:
+samtools view -c S30.sorted.map3.bam
+
+Count number of mapped reads (not mapped locations) for left and right mate in read pairs
+
+samtools view -F 0x40 S30.sorted.map3.bam | cut -f1 | sort | uniq | wc -l
+samtools view -f 0x40 -F 0x4 S30.sorted.map3.bam | cut -f1 | sort | uniq | wc -l #left mate
+samtools view -f 0x80 -F 0x4 S30.sorted.map3.bam | cut -f1 | sort | uniq  | wc -l #right mate
+
+Remove unmapped reads, keep the mapped reads:
+
+samtools view -F 0x04 -b S30.sorted.map3.bam > S30.mappedonly.sorted.map3.bam
+
+Count UNmapped reads:
+
+samtools view -f4 -c S30.sorted.map3.bam
+
+
+To keep only reads that map without any mismatches:
+
+samtools filter -tag XM:0 -in S30.sorted.map3.bam -out S30.noMismatch.map3.bam
+
+Filtering sam/bam by using CIGAR deletion sites
+samtools view file.bam | awk '($6 ~ /D/) && ($5>10)'
+
+View alignment records that represent mapped reads. The -F 0x4 option says to filter records where the 0x4 flag (read unmapped) is 0, resulting it only mapped reads being output.
+
+samtools view -F 0x4 S30.sorted.map3.bam | cut -f 6 | head
+
+Count reads that mappedi with indels
+samtools view -F 0x4 S30.sorted.map3.bam | cut -f 6 | grep -P '[ID]' | wc -l
+
+
+Use samtools view with -F, -f and -q options to create a BAM containing only mapped, properly paired, high-quality (mapQ 20+) reads
+
+samtools view -F 0x04 -f 0x2 -q 5 -b S30.sorted.map3.bam > S30.sorted.map3.filt.bam
+or
+samtools view -F 0x04 -f 0x2 -q 20 -b -o S30.sorted.map3.filt.bam S30.sorted.map3.filtdort.bam
+
+
+    // cat ${base}.mpileup | ivar consensus -q 20 -t 0.9 -m 10 -n N -p ${base}.consensus.fa
+    // header=\$(head -n1 ${base}.consensus.fa | sed 's/>//g')
+    // sed -i "s/\${header}/${base}/g" ${base}.consensus.fa
+
+// seqkit replace -p "${id}}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa
 
