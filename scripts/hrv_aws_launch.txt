@@ -228,7 +228,18 @@ awk '/^>/{print ">" substr(FILENAME,1,length(FILENAME)-6); next} 1' *.fa
 
 fa-rename.py [--ids new_names.txt] FASTA > new.fasta
 
+seqtk comp in.fa | awk '{x+=$9}END{print x}'
+
+cd consensus-ivar
+seqtk comp 2S56XDXC8FP6.consensus-final.fa | awk '{x+=$9}END{print x}' > summary.csv
+
+echo Sample, N(%) > summary.csv
+echo 2S56XDXC8FP6 >> summary.csv
+seqtk comp 2S56XDXC8FP6.consensus-final.fa | awk '{x+=$9}END{print x}' >> summary.csv
+
 
 /Users/uwvirongs/Documents/bbmap/bbmap.sh in=55563.trimmed.fastq.gz outm=test.sam ref=55563.consensus.fa threads=8 local=true interleaved=false -Xmx6g > test_stats.txt 2>&1
-Teamviewer-Remote-in
+Teamviewer
+
+
 KeithJerome123!!!
