@@ -221,13 +221,14 @@ samtools mpileup \\
 
 fasta header replacement
 
+More than 5% N`s logs
+
+
 awk '/^>/{print ">" substr(FILENAME,1,length(FILENAME)-6); next} 1' *.fa
 
 fa-rename.py [--ids new_names.txt] FASTA > new.fasta
 
 
 /Users/uwvirongs/Documents/bbmap/bbmap.sh in=55563.trimmed.fastq.gz outm=test.sam ref=55563.consensus.fa threads=8 local=true interleaved=false -Xmx6g > test_stats.txt 2>&1
-Teamviewer
-
-
+Teamviewer-Remote-in
 KeithJerome123!!!
