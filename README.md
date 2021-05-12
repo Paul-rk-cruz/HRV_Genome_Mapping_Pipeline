@@ -120,4 +120,3 @@ Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, (
 Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
         
         nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
-        
