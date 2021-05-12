@@ -121,7 +121,8 @@ TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
 SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
 FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
-ADAPTERS = file("${baseDir}/All_adapters.fa")
+ADAPTERS_SE = file("${baseDir}/scripts/TruSeq2-SE.fa")
+ADAPTERS_PE = file("${baseDir}/scripts/TruSeq2-PE.fa")
 REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fa")
 REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fa.fai")
 BBMAP_PATH="/Users/uwvirongs/Documents/KC/bbmap/"
@@ -201,13 +202,13 @@ if (params.singleEnd) {
 
     input:
         file R1 from input_read_ch
-        file ADAPTERS
+        file ADAPTERS_SE
         val MINLEN
 
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_SE, Trim_out_SE_MF, Trim_out_SE_FQC
 
-    publishDir "${params.outdir}fastq_trimmed", mode: 'copy',pattern:'*.trimmed.fastq*'
+    publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
 
 
     script:
@@ -216,17 +217,18 @@ if (params.singleEnd) {
     base=`basename ${R1} ".fastq.gz"`
     echo \$base
     trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
-    ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+    ILLUMINACLIP:${ADAPTERS_SE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
     """
 } 
 } else {
 	process Trim_Reads_PE {
-    container "quay.io/biocontainers/trimmomatic:0.35--6"
+    // container "quay.io/biocontainers/trimmomatic:0.35--6"
     errorStrategy 'retry'
     maxRetries 3
 
    input:
         tuple val(base), file(R1), file(R2) from input_read_ch
+        file ADAPTERS_PE
         val MINLEN
     output: 
         tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_PE, Trim_out_PE_FQC
@@ -238,7 +240,7 @@ if (params.singleEnd) {
     """
     #!/bin/bash
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-	ILLUMINACLIP:${ADAPTERS}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+	ILLUMINACLIP:${ADAPTERS_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
     """
 }
 }
@@ -345,10 +347,10 @@ process Sort_Bam {
     file TRIM_ENDS
 
     output:
-    tuple val(base), file("${base}.consensus.fa"),val(bamsize), val(id), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Fasta_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"),val(bamsize), val(id) into Consensus_Fasta_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
 
-    // publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
+    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
     // publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*.vcf*'   
     publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
     publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
@@ -413,6 +415,7 @@ process Sort_Bam {
         python3 !{TRIM_ENDS} \${R1}
         gunzip \${R1}.vcf.gz
         mv \${R1}.vcf \${R1}_bcftools.vcf
+        
     else
        echo "Empty bam detected. Generating empty consensus fasta file..."
        touch \${R1}_bcftools.vcf
@@ -425,63 +428,63 @@ process Mapping_final {
     // maxRetries 3
 
     input:
-    tuple val(base), file("${base}.consensus.fa"),val(bamsize), val(id), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") from Consensus_Fasta_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"),val(bamsize), val(id) from Consensus_Fasta_ch
     tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_SE_MF
     
     output:
-    tuple val(base), file("${base}.consensus.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}.mpileup"), val(bamsize) into Mapping_Final_ch
+    tuple val(base), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), val(bamsize) into Mapping_Final_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
-    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
-
+    publishDir "${params.outdir}consensus-ivar", mode: 'copy', pattern:'*.consensus-final*'
+    publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
+    publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'    
+    // publishDir "${params.outdir}consensus-rn", mode: 'copy', pattern:'*.cons.fa*'
     script:
 
     """
     #!/bin/bash
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=8 maxindel=9 covstats=${base}_map3_bbmap_out.txt covhist=${base}_map3_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map3_stats.txt 2>&1
+    
+    
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false -Xmx6g > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
     
-    bcftools mpileup \\
-                -f ${base}.consensus.fa\\
-                --count-orphans \\
-                --no-BAQ \\
-                --max-depth 50000 \\
-                --max-idepth 500000 \\
-                --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
-                ${base}.map3.sorted.bam > ${base}.mpileup
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.map3.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 30 -t 0.7 -m 5 -n N -p ${base}.consensus-final
 
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.map3.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+
+    bedtools maskfasta \\
+        -fi ${base}.consensus-final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    header=\$(head -n 1 ${base}.consensus.masked.fa | sed 's/>//g')
+    sed -i "s/\${header}/${base}/g" ${base}.consensus.masked.fa
+
+    seqkit replace -p "${id}" -r '${base}' ${base}.consensus-final > ${base}.consensus-final
+
+    
 
     """  
 }
-process Consensus_Final {
-	// errorStrategy 'retry'
-    // maxRetries 3
-
-input:
-tuple val(base), file("${base}.consensus.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}.mpileup"), val(bamsize) from Mapping_Final_ch
-
-output:
-tuple val(base), file("${base}.consensus.fa") into Consensus_final_ch
-
-publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
-
-script:
-
-    """
-    #!/bin/bash
-
-    cat ${base}.mpileup | ivar consensus -q 20 -t 0.9 -m 10 -n N -p ${base}.consensus.fa
-    header=\$(head -n1 ${base}.consensus.fa | sed 's/>//g')
-    sed -i "s/\${header}/${base}/g" ${base}.consensus.fa
-
-    """ 
-
-}
-
+//     cat ${base}.mpileup | ivar consensus -q 20 -t 0.9 -m 10 -n N -p ${base}.consensus.fa
+//     header=\$(head -n1 ${base}.consensus.fa | sed 's/>//g')
+//     sed -i "s/\${header}/${base}/g" ${base}.consensus.fa
+//     seqkit replace -p "${id}}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa            
 if (params.withFastQC) {
 
     if (params.singleEnd) {
