@@ -12,7 +12,13 @@ Home
 nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/kurtiscruz/Downloads/CURRENT/hrv_pipeline/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
 
 Local
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main --reads '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume 
+
+10506_A01152_0055_BH7NL7DRXY batch_4_6_7
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume 
+
+20210503_shotgun_RhV_batch_5
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/input/' --outdir '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/output/' --singleEnd 
+
 
 Work Directories on AWS S3
 s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
@@ -21,7 +27,7 @@ s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
 Notes - 5/3/2021 - 5/7/2021
 
 -Mapper logic updates: Average depth & coverage(done)
--Tool: NCBIeutils
+-Tool: NCBI utils
 
 Change fasta header
 -seqkit docker repo: https://quay.io/repository/h3abionet_org/seqkit?tag=latest&tab=tags
@@ -176,9 +182,52 @@ or
 samtools view -F 0x04 -f 0x2 -q 20 -b -o S30.sorted.map3.filt.bam S30.sorted.map3.filtdort.bam
 
 
+Testing ivar consensus
     // cat ${base}.mpileup | ivar consensus -q 20 -t 0.9 -m 10 -n N -p ${base}.consensus.fa
     // header=\$(head -n1 ${base}.consensus.fa | sed 's/>//g')
     // sed -i "s/\${header}/${base}/g" ${base}.consensus.fa
 
 // seqkit replace -p "${id}}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa
 
+Must have samtools mpileup piped
+    samtools mpileup -d 1000 -A -Q 0 ${base}.map3.sorted.bam | ivar consensus -p ${base} -q 20 -t 0
+
+
+
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+    
+    bcftools mpileup \\
+                -f ${base}.consensus.fa\\
+                --count-orphans \\
+                --no-BAQ \\
+                --max-depth 50000 \\
+                --max-idepth 500000 \\
+                --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
+                ${base}.map3.sorted.bam > ${base}.mpileup
+
+
+
+samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth $params.mpileup_depth \\
+        --fasta-ref $fasta \\
+        --min-BQ $params.min_base_qual \\
+        --output ${prefix}.mpileup \\
+        ${bam[0]}
+
+fasta header replacement
+
+awk '/^>/{print ">" substr(FILENAME,1,length(FILENAME)-6); next} 1' *.fa
+
+fa-rename.py [--ids new_names.txt] FASTA > new.fasta
+
+
+/Users/uwvirongs/Documents/bbmap/bbmap.sh in=55563.trimmed.fastq.gz outm=test.sam ref=55563.consensus.fa threads=8 local=true interleaved=false -Xmx6g > test_stats.txt 2>&1
+Teamviewer
+
+
+KeithJerome123!!!
