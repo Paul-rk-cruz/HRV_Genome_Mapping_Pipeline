@@ -419,6 +419,7 @@ process Sort_Bam {
         /usr/local/miniconda/bin/bgzip \${R1}.vcf
         /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
         cat !{base}_mapped_ref_genome.fa | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
+        sed 's/>.*/>\${id}/' \${R1}.consensus.fa > \${R1}.consensus.fa
         # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
         # to be masked later
         /usr/local/miniconda/bin/bedtools genomecov \\
@@ -442,6 +443,7 @@ process Sort_Bam {
         python3 !{TRIM_ENDS} \${R1}
         gunzip \${R1}.vcf.gz
         mv \${R1}.vcf \${R1}_bcftools.vcf
+        
     else
        echo "Empty bam detected. Generating empty consensus fasta file..."
        touch \${R1}_bcftools.vcf
@@ -503,13 +505,11 @@ process Mapping_final {
         -fo ${base}.consensus.masked.fa
     header=\$(head -n 1 ${base}.consensus.masked.fa | sed 's/>//g')
     sed -i "s/\${header}/${base}/g" ${base}.consensus.masked.fa
-    seqkit replace -p "${id}" -r '${base}' ${base}.consensus-final > ${base}.consensus-final
-    seqkit replace -p "${id}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa
+
     num_bases=\$(grep -v ">" ${base}.consensus-final.fa | wc | awk '{print \$3-\$1}')
     num_ns=\$(grep -v ">" ${base}.consensus-final.fa | awk -F"n" '{print NF-1}')
     percent_n=\$(awk -v num_ns=\$num_ns -v num_bases=\$num_bases 'BEGIN { print ( \$num_ns * 100 / \$num_bases ) }')
     printf ",\$percent_n" >> ${base}_summary.csv
-
 
     """  
 }
