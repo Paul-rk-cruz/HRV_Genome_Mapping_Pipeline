@@ -14,10 +14,10 @@ nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's
 Local
 
 10506_A01152_0055_BH7NL7DRXY batch_4_6_7
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/10506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume 
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume 
 
 20210503_shotgun_RhV_batch_5
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/input/' --outdir '/Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/output/' --singleEnd 
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/input/' --outdir '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/output/' --singleEnd 
 
 
 Work Directories on AWS S3
@@ -240,6 +240,19 @@ seqtk comp 2S56XDXC8FP6.consensus-final.fa | awk '{x+=$9}END{print x}' >> summar
 
 /Users/uwvirongs/Documents/bbmap/bbmap.sh in=55563.trimmed.fastq.gz outm=test.sam ref=55563.consensus.fa threads=8 local=true interleaved=false -Xmx6g > test_stats.txt 2>&1
 Teamviewer
-
-
 KeithJerome123!!!
+
+
+210511_A01152_0059_BH7NCMDRXY       | 206764587 | 20210511_Shotgun_RHV_Novaseq_Batch8and9
+
+
+mv H20-3_S63_L001_R1_001.fastq.gz /home/ssm-user/runs/210511_A01152_0059_BH7NCMDRXY/Sars/
+
+Rename all fasta file headers to filename in current directory
+perl -i -0777 -pe ' $x=$ARGV;$x=~s/\.fa//g; s/\>/>${x}_/ ' *fa
+
+awk '/^>/ {gsub(/.fa(sta)?$/,"",FILENAME);printf(">%s\n",FILENAME);next;} {print}' input.fa
+
+
+aws s3 cp /home/ssm-user/runs/210511_A01152_0059_BH7NCMDRXY/RhV_batch9/fastq-cat s3://covid19-input-data/shotgun/210511_A01152_0059_BH7NCMDRXY-RhV/ --recursive  
+
