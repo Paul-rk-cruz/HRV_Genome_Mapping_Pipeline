@@ -375,12 +375,10 @@ process Sort_Bam {
     file TRIM_ENDS
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), val(bamsize), val(id), file("${base}_summary.csv") into Consensus_Fasta_ch
-    tuple val(base), file("${base}.consensus.fa") into Consensus_fa_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id) into Consensus_Fasta_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
 
-    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
-    // publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*.vcf*'   
+    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*' 
     publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
     publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
 
@@ -456,12 +454,12 @@ process Mapping_final {
     // maxRetries 3
 
     input:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), val(bamsize), val(id), file("${base}_summary.csv") from Consensus_Fasta_ch
-    tuple val(base), file("${base}.consensus.fa") from Consensus_fa_ch
+    tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id) from Consensus_Fasta_ch
+    
     tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_SE_MF
     
     output:
-    tuple val(base), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize) into Mapping_Final_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id) into Mapping_Final_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
@@ -470,7 +468,8 @@ process Mapping_final {
     publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
     publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*.csv*'
-    // publishDir "${params.outdir}consensus-rn", mode: 'copy', pattern:'*.cons.fa*'
+    // publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*' 
+
     script:
 
     """
@@ -505,9 +504,9 @@ process Mapping_final {
     header=\$(head -n 1 ${base}.consensus.masked.fa | sed 's/>//g')
     sed -i "s/\${header}/${base}/g" ${base}.consensus.masked.fa
     seqkit replace -p "${id}" -r '${base}' ${base}.consensus-final > ${base}.consensus-final
-
-    num_bases=\$(grep -v ">" ${base}.consensus-final | wc | awk '{print \$3-\$1}')
-    num_ns=\$(grep -v ">" ${base}.consensus-final | awk -F"n" '{print NF-1}')
+    seqkit replace -p "${id}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa
+    num_bases=\$(grep -v ">" ${base}.consensus-final.fa | wc | awk '{print \$3-\$1}')
+    num_ns=\$(grep -v ">" ${base}.consensus-final.fa | awk -F"n" '{print NF-1}')
     percent_n=\$(awk -v num_ns=\$num_ns -v num_bases=\$num_bases 'BEGIN { print ( \$num_ns * 100 / \$num_bases ) }')
     printf ",\$percent_n" >> ${base}_summary.csv
 
