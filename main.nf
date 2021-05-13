@@ -206,7 +206,7 @@ if (params.singleEnd) {
         val MINLEN
 
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_SE, Trim_out_SE_MF, Trim_out_SE_FQC
+        tuple env(base),file("*.trimmed.fastq.gz"),file("*summary.csv") into Trim_out_SE, Trim_out_SE_MF, Trim_out_SE_FQC
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
 
@@ -218,6 +218,15 @@ if (params.singleEnd) {
     echo \$base
     trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
     ILLUMINACLIP:${ADAPTERS_SE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+
+    num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
+    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
+    
+    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Mean_Coverage,Bam_Size,Percent_N > \$base'_summary.csv'
+    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
+
+    ls -latr
     """
 } 
 } else {
@@ -231,7 +240,7 @@ if (params.singleEnd) {
         file ADAPTERS_PE
         val MINLEN
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz") into Trim_out_PE, Trim_out_PE_FQC
+        tuple env(base),file("*.trimmed.fastq.gz"),file("*summary.csv") into Trim_out_PE, Trim_out_PE_FQC
         // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}fastq_trimmed", mode: 'copy',pattern:'*.trimmed.fastq*'
@@ -241,6 +250,17 @@ if (params.singleEnd) {
     #!/bin/bash
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
 	ILLUMINACLIP:${ADAPTERS_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+
+
+    num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
+    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
+    
+    percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Mean_Coverage,Bam_Size,Percent_N > '\$base_summary.csv'
+    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> '\$base_summary.csv'
+
+    ls -latr
+
     """
 }
 }
@@ -256,11 +276,11 @@ process Mapping {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_SE
+        tuple val(base), file("${base}.trimmed.fastq.gz"),file("${base}_summary.csv") from Trim_out_SE
         file REFERENCE_FASTA
 
     output:
-        tuple val(base),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") into Everything_ch
+        tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") into Everything_ch
         tuple val(base), file("${base}_map1_histogram.txt"),file("${base}_map2_histogram.txt") into BBmap_map1_hist_ch
         tuple val (base), file("*") into Dump_map1_ch
 
@@ -297,6 +317,13 @@ process Mapping {
     awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
     id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
     echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
+    reads_mapped=\$(cat ${base}_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+
+    printf ",\$id" >> ${base}_summary.csv
+    printf ",\$id_ref_size" >> ${base}_summary.csv
+    
+    printf ",\$reads_mapped" >> ${base}_summary.csv
+
     """
 }
 /*
@@ -310,10 +337,10 @@ process Sort_Bam {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") from Everything_ch
+        tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary.csv"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") from Everything_ch
     output:
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
-    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") into Consensus_ch
+    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv") into Consensus_ch
 
     publishDir "${params.outdir}bam", mode: 'copy', pattern:'*.bam*'
     publishDir "${params.outdir}bam_sorted", mode: 'copy', pattern:'*.sorted.bam*'  
@@ -328,7 +355,8 @@ process Sort_Bam {
     samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
     bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     meancoverage=\$(cat ${base}_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
-    bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0)) 
+    bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0))
+    printf ",\$meancoverage, \$bamsize" >> ${base}_summary.csv
     """
 }
 /*
@@ -340,14 +368,15 @@ process Sort_Bam {
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai") from Consensus_ch
+    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv") from Consensus_ch
     
     file VCFUTILS
     file SPLITCHR
     file TRIM_ENDS
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"),val(bamsize), val(id) into Consensus_Fasta_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), val(bamsize), val(id), file("${base}_summary.csv") into Consensus_Fasta_ch
+    tuple val(base), file("${base}.consensus.fa") into Consensus_fa_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
 
     publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*'
@@ -415,7 +444,6 @@ process Sort_Bam {
         python3 !{TRIM_ENDS} \${R1}
         gunzip \${R1}.vcf.gz
         mv \${R1}.vcf \${R1}_bcftools.vcf
-        
     else
        echo "Empty bam detected. Generating empty consensus fasta file..."
        touch \${R1}_bcftools.vcf
@@ -428,18 +456,20 @@ process Mapping_final {
     // maxRetries 3
 
     input:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"),val(bamsize), val(id) from Consensus_Fasta_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), val(bamsize), val(id), file("${base}_summary.csv") from Consensus_Fasta_ch
+    tuple val(base), file("${base}.consensus.fa") from Consensus_fa_ch
     tuple val(base), file("${base}.trimmed.fastq.gz") from Trim_out_SE_MF
     
     output:
-    tuple val(base), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), val(bamsize) into Mapping_Final_ch
+    tuple val(base), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize) into Mapping_Final_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
     publishDir "${params.outdir}consensus-ivar", mode: 'copy', pattern:'*.consensus-final*'
     publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
-    publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'    
+    publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'
+    publishDir "${params.outdir}summary", mode: 'copy', pattern:'*.csv*'
     // publishDir "${params.outdir}consensus-rn", mode: 'copy', pattern:'*.cons.fa*'
     script:
 
@@ -447,7 +477,7 @@ process Mapping_final {
     #!/bin/bash
     
     
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=8 local=true interleaved=false > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
@@ -467,20 +497,27 @@ process Mapping_final {
         -ibam ${base}.map3.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
-
+    
     bedtools maskfasta \\
         -fi ${base}.consensus-final.fa \\
         -bed ${base}.mask.bed \\
         -fo ${base}.consensus.masked.fa
     header=\$(head -n 1 ${base}.consensus.masked.fa | sed 's/>//g')
     sed -i "s/\${header}/${base}/g" ${base}.consensus.masked.fa
-
     seqkit replace -p "${id}" -r '${base}' ${base}.consensus-final > ${base}.consensus-final
 
-    
+    num_bases=\$(grep -v ">" ${base}.consensus-final | wc | awk '{print \$3-\$1}')
+    num_ns=\$(grep -v ">" ${base}.consensus-final | awk -F"n" '{print NF-1}')
+    percent_n=\$(awk -v num_ns=\$num_ns -v num_bases=\$num_bases 'BEGIN { print ( \$num_ns * 100 / \$num_bases ) }')
+    printf ",\$percent_n" >> ${base}_summary.csv
+
 
     """  
 }
+//     num_bases=\$(grep -v ">" ${base}.consensus-final | wc | awk '{print \$3-\$1}')
+//     num_ns=\$(grep -v ">" ${base}.consensus-final | awk -F"n" '{print NF-1}')
+//     percent_n=$(awk -v num_ns=\$num_ns -v num_bases=\$num_bases 'BEGIN { print ( num_ns * 100 / num_bases ) }')
+//     printf ",\$percent_n" >> ${base}_summary.csv
 //     cat ${base}.mpileup | ivar consensus -q 20 -t 0.9 -m 10 -n N -p ${base}.consensus.fa
 //     header=\$(head -n1 ${base}.consensus.fa | sed 's/>//g')
 //     sed -i "s/\${header}/${base}/g" ${base}.consensus.fa
