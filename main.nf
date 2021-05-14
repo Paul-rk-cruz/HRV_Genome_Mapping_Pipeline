@@ -121,8 +121,8 @@ TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
 SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
 FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
-ADAPTERS_SE = file("${baseDir}/scripts/TruSeq2-SE.fa")
-ADAPTERS_PE = file("${baseDir}/scripts/TruSeq2-PE.fa")
+ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
+ADAPTERS_PE = file("${baseDir}/adapters/TruSeq2-PE.fa")
 REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fa")
 REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fa.fai")
 BBMAP_PATH="/Users/uwvirongs/Documents/KC/bbmap/"
@@ -498,12 +498,14 @@ process Mapping_final {
 
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus-final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-    grep -v "^>" V340273658_S1_cat_R1.consensus-final.fa | tr -cd N | wc -c > N.txt
+
+    grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
     printf ",\$num_bases" >> ${base}_summary.csv
     printf ",\$percent_n" >> ${base}_summary.csv
+
     cp ${base}_summary.csv ${base}_final_summary.csv
     
     """  
