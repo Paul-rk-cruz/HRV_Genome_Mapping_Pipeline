@@ -1,0 +1,305 @@
+Notes
+
+Nextflow flag options
+
+-with-report -with-trace -with-timeline -resume
+
+SLU
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/scripts/nextflow.config -resume -profile cloud_big
+
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/shotgun/20210503_shotgun_RhV_batch5_2plates/Batch5_plate1_RhV/' --outdir 's3://covid19-analysis-results/shotgun/20210503_shotgun_RhV_batch5_2plates/Batch5_plate1_RhV/' --singleEnd -with-docker ubuntu:18.04 -c /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/scripts/nextflow.config -resume -profile cloud_big
+
+Eastlake
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
+
+Home
+nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's3://covid19-input-data/KC/input/' --outdir 's3://covid19-analysis-results/KC/output/' --singleEnd -with-docker ubuntu:18.04 -c /Users/kurtiscruz/Downloads/CURRENT/hrv_pipeline/HRV_Genome_Mapping_Pipeline/scripts/nextflow.config -resume -profile cloud_big
+
+Local
+
+10506_A01152_0055_BH7NL7DRXY batch_4_6_7
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume
+
+20210503_shotgun_RhV_batch_5
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/input/' --outdir '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/output/' --singleEnd -resume
+
+HRV_Batch_4-9
+nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/HRV_batch_4-9/batch4-9_fastq/' --outdir '/Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/' --singleEnd -with-report -with-trace -with-timeline -resume
+
+Work Directories on AWS S3
+s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
+
+
+Notes - 5/3/2021 - 5/7/2021
+
+-Mapper logic updates: Average depth & coverage(done)
+-Tool: NCBI utils
+
+Change fasta header
+-seqkit docker repo: https://quay.io/repository/h3abionet_org/seqkit?tag=latest&tab=tags
+
+find /Volumes/HD2/20210503_shotgun_RhV_batch5_2plates/Batch5_fastq_all -type f -size -1M -delete
+
+loop through folder with fasta files and change headers to filenames
+perl -i -0777 -pe ' $x=$ARGV;$x=~s/\.fa//g; s/\>/>${x}_/ ' *fa
+
+SRA shortcuts
+
+Current directory get and save file names to text
+ls -lh > sra_filenames_allinfo.txt
+
+no extension
+ls -1 | sed -e 's/\..*$//' > sra_filenames_no_ext.txt
+
+with extension
+ls > sra_filenames_with_ext.txt 
+
+Pipeline
+bwa map after consensus
+
+20210503_shotgun_RhV_batch5_2plates
+5` end
+
+bwa index -a is V340367548-V340367780-V340368357-V340368089_S30_cat_R1.consensus.fa
+
+bwa mem V340367548-V340367780-V340368357-V340368089_S30_cat_R1.consensus.fa V340367548-V340367780-V340368357-V340368089_S30_cat_R1.trimmed.fastq.gz > test.sam
+
+Rhinovirus sample info:
+J:\Clinical Research\NGS\Alex_mNGS\RhV-Rohit-mNGS
+
+weak bases: SYMBOL: W 	  A T
+strong bases: SYMBOL: S   C G 
+PURINE: SYMBOL: Y 	  A G 
+PYRIMIDINE: SYMBOL: R 	  C T
+
+Pipeline Issues
+
+5` End crap sequences need cleanup
+Indel calling
+
+Notes 5/10/2021
+remove accession MW969526 - indeed problems
+
+- Add min depth to consensus caller
+	-When no coverage, calling Reference
+	- Sample 2S56XDXC8FP6_S80 
+		- N where no coverage
+		- Coverage too low to call consensus
+					
+- output bed file
+
+
+
+Indel Calling Cleanup
+
+Vcf file handling
+
+bcftools query -e'FILTER="."' -f'%CHROM %POS %FILTER\n' S30_bcftools.vcf | head -2
+
+
+bcftools query -i'QUAL<65 && DP<20' -f'%CHROM %POS %QUAL %DP\n' S30_bcftools.vcf | head
+
+bcftools query -e'FILTER="."' -f'%CHROM %POS %FILTER\n' S30_bcftools.vcf | head -2
+
+bcftools query -i'FMT/DP>10 & FMT/GQ>20' -f'%POS[\t%SAMPLE:DP=%DP GQ=%GQ]\n' S30_bcftools.vcf
+
+bcftools query -f'[%POS %SAMPLE %DP\n]\n' -i'FMT/DP=19 | FMT/DP="."' S30_bcftools.vcf
+
+#printing all entries having a quality <10
+bcftools view -i 'QUAL<70' S30_bcftools.vcf
+
+How to FLAG low quality SNPs in samtools VCF.
+Bcftools filter to set a Flag in in the FILTER column;
+
+bcftools filter -e 'QUAL<2' -s "LowQual" S30_bcftools.vcf
+
+Number of variant sites in vcf
+bcftools view -H S30_bcftools.vcf | wc -l
+
+Use the BCFtools “query” option to extract the Fisher Strand (FS) values of all variants and save the output in a separate text file
+bcftools query S30_bcftools.vcf.gz -f'%FS\n' > s30_FS.txt
+
+Use the BCFtools “query” option to jointly extract the Fisher Strand (FS), Strand Odds Ratio (SOR), Mapping Quality Rank Sum Test (MQRankSum), Read Position Rank Sum Test (ReadPosRankSum), Quality by depth (QD), RMS Mapping Quality (MQ),and the combined depth across samples (INFO/DP) and save the values separated by the tab character in a separate text file
+bcftools query S30_bcftools.vcf.gz -f '%FS\t%SOR\t%MQRankSum\t%ReadPosRankSum\t%QD\t%MQ\t%DP\n' > S30.txt
+
+
+bcftools filter -e 'FS>40.0 || SOR>3 || MQ<40 || MQRankSum<-5.0 || MQRankSum>5.0 || QD<2.0 || ReadPosRankSum<-4.0 || INFO/DP>16000' -O z -o S30_bcftools.vcf.gz
+
+
+bcftools filter -i 'FS<40.0 && SOR<3 && MQ>40.0 && MQRankSum>-5.0 && MQRankSum<5 && QD>2.0 && ReadPosRankSum>-4.0 && INFO/DP<16000' -O z -o S30_bcftools.vcf.gz
+
+
+
+BBMAP 
+https://jgi.doe.gov/data-and-tools/bbtools/bb-tools-user-guide/bbmap-guide/
+
+
+
+
+
+Bam filtering
+https://gist.github.com/davfre/8596159
+bamfilter_oneliners.md
+
+
+
+Keep uniquely-mapped reads + MAPQ > 20
+
+samtools view -h -F 256 -q 20 S30.sorted.bam > S30.map3.filtered.bam
+
+
+Count number of records (unmapped reads + each aligned location per mapped read) in a bam file:
+samtools view -c S30.sorted.map3.bam
+
+Count number of mapped reads (not mapped locations) for left and right mate in read pairs
+
+samtools view -F 0x40 S30.sorted.map3.bam | cut -f1 | sort | uniq | wc -l
+samtools view -f 0x40 -F 0x4 S30.sorted.map3.bam | cut -f1 | sort | uniq | wc -l #left mate
+samtools view -f 0x80 -F 0x4 S30.sorted.map3.bam | cut -f1 | sort | uniq  | wc -l #right mate
+
+Remove unmapped reads, keep the mapped reads:
+
+samtools view -F 0x04 -b S30.sorted.map3.bam > S30.mappedonly.sorted.map3.bam
+
+Count UNmapped reads:
+
+samtools view -f4 -c S30.sorted.map3.bam
+
+
+To keep only reads that map without any mismatches:
+
+samtools filter -tag XM:0 -in S30.sorted.map3.bam -out S30.noMismatch.map3.bam
+
+Filtering sam/bam by using CIGAR deletion sites
+samtools view file.bam | awk '($6 ~ /D/) && ($5>10)'
+
+View alignment records that represent mapped reads. The -F 0x4 option says to filter records where the 0x4 flag (read unmapped) is 0, resulting it only mapped reads being output.
+
+samtools view -F 0x4 S30.sorted.map3.bam | cut -f 6 | head
+
+Count reads that mappedi with indels
+samtools view -F 0x4 S30.sorted.map3.bam | cut -f 6 | grep -P '[ID]' | wc -l
+
+
+Use samtools view with -F, -f and -q options to create a BAM containing only mapped, properly paired, high-quality (mapQ 20+) reads
+
+samtools view -F 0x04 -f 0x2 -q 5 -b S30.sorted.map3.bam > S30.sorted.map3.filt.bam
+or
+samtools view -F 0x04 -f 0x2 -q 20 -b -o S30.sorted.map3.filt.bam S30.sorted.map3.filtdort.bam
+
+
+Testing ivar consensus
+    // cat ${base}.mpileup | ivar consensus -q 20 -t 0.9 -m 10 -n N -p ${base}.consensus.fa
+    // header=\$(head -n1 ${base}.consensus.fa | sed 's/>//g')
+    // sed -i "s/\${header}/${base}/g" ${base}.consensus.fa
+
+// seqkit replace -p "${id}}" -r '${base}' ${base}.consensus.fa > ${base}.consensus.fa
+
+Must have samtools mpileup piped
+    samtools mpileup -d 1000 -A -Q 0 ${base}.map3.sorted.bam | ivar consensus -p ${base} -q 20 -t 0
+
+
+
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+    
+    bcftools mpileup \\
+                -f ${base}.consensus.fa\\
+                --count-orphans \\
+                --no-BAQ \\
+                --max-depth 50000 \\
+                --max-idepth 500000 \\
+                --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
+                ${base}.map3.sorted.bam > ${base}.mpileup
+
+
+
+samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth $params.mpileup_depth \\
+        --fasta-ref $fasta \\
+        --min-BQ $params.min_base_qual \\
+        --output ${prefix}.mpileup \\
+        ${bam[0]}
+
+fasta header replacement
+
+More than 5% N`s logs
+
+
+awk '/^>/{print ">" substr(FILENAME,1,length(FILENAME)-6); next} 1' *.fa
+
+fa-rename.py [--ids new_names.txt] FASTA > new.fasta
+
+seqtk comp in.fa | awk '{x+=$9}END{print x}'
+
+cd consensus-ivar
+seqtk comp 2S56XDXC8FP6.consensus-final.fa | awk '{x+=$9}END{print x}' > summary.csv
+
+echo Sample, N(%) > summary.csv
+echo 2S56XDXC8FP6 >> summary.csv
+seqtk comp 2S56XDXC8FP6.consensus-final.fa | awk '{x+=$9}END{print x}' >> summary.csv
+
+
+/Users/uwvirongs/Documents/bbmap/bbmap.sh in=55563.trimmed.fastq.gz outm=test.sam ref=55563.consensus.fa threads=8 local=true interleaved=false -Xmx6g > test_stats.txt 2>&1
+Teamviewer
+KeithJerome123!!!
+
+_____________________________________________________________________
+
+HRV PIPELINE COMMAND TO CAT CSV SUMMARY FILES TO ONE FILE-ONE HEADER 
+cd summary
+awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_summary.csv
+
+_____________________________________________________________________
+
+awk '
+    FNR==2 && NR=2 { while (/^<header>/) getline; }
+    2 {print}
+' *.csv > hrv-pl_batch_4-9_summary.csv
+
+head -3 *.csv > hrv-pl_batch_4-9_summary.csv
+
+
+
+My top used bash commands for fasta files:
+
+(1) counting number of sequences in a fasta file:
+
+grep -c "^>" file.fa
+(2) add something to end of all header lines:
+
+sed 's/>.*/&WHATEVERYOUWANT/' file.fa > outfile.fa
+(3) clean up a fasta file so only first column of the header is outputted:
+
+awk '{print $1}' file.fa > output.fa
+
+wc -l file.fa
+or
+
+wc file.fa
+in the first column, you get the line count. divide by 2 if fasta, 4 if fastq.
+
+To extract ids, just use the following:
+
+grep -o -E "^>\w+" file.fasta | tr -d ">"
+A useful step is to linearize your sequences (i.e. remove the sequence wrapping). This is not a perfect solution, as I suspect that a few steps could be avoided, but it works quite fast, even for thousands of sequences.
+
+sed -e 's/\(^>.*$\)/#\1#/' file.fasta | tr -d "\r" | tr -d "\n" | sed -e 's/$/#/' | tr "#" "\n" | sed -e '/^$/d'
+
+Remove duplicated sequences.
+sed -e '/^>/s/$/@/' -e 's/^>/#/' file.fasta | tr -d '\n' | tr "#" "\n" | tr "@" "\t" | sort -u -t $'\t' -f -k 2,2  | sed -e 's/^/>/' -e 's/\t/\n/'
+
+Fasta Percent N in Consensus
+
+awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length($0)}END{print l}' V340273658_S1_cat_R1.consensus-final.fa > bases.txt
+num_bases=$(awk 'FNR==2{print val,$1}' bases.txt)
+echo $num_bases
+grep -v "^>" V340273658_S1_cat_R1.consensus-final.fa | tr -cd N | wc -c > N.txt
+num_ns=$(awk 'FNR==1{print val,$1}' N.txt)
+echo $num_ns
+echo "$num_ns/$num_bases*100" | bc -l > n_percent.txt
+percent_n=$(awk 'FNR==1{print val,$1}' n_percent.txt)
