@@ -18,13 +18,13 @@ nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's
 Local
 
 10506_A01152_0055_BH7NL7DRXY batch_4_6_7
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume
 
 20210503_shotgun_RhV_batch_5
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/input/' --outdir '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/output/' --singleEnd -resume
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/input/' --outdir '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/output/' --singleEnd -resume
 
 HRV_Batch_4-9
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/HRV_batch_4-9/batch4-9_fastq/' --outdir '/Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/' --singleEnd -with-report -with-trace -with-timeline -resume
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9/batch4-9_fastq/input/' --outdir '/Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/' --singleEnd -with-report /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/report.html -with-trace /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/trace.txt -with-timeline /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/timeline.html -resume
 
 Work Directories on AWS S3
 s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
@@ -229,6 +229,12 @@ fasta header replacement
 
 More than 5% N`s logs
 
+Change Fasta Header to Filename
+perl -i -0777 -pe ' $x=$ARGV;$x=~s/\.fa//g; s/\>/>${x}_/ ' *fa
+
+awk '(FNR==1){f=FILENAME;sub(/\.[A-Za-z]*$/,"_",f)}
+     /^>/{$0=">" f substr($0,2)}
+     1' *.fa
 
 awk '/^>/{print ">" substr(FILENAME,1,length(FILENAME)-6); next} 1' *.fa
 
@@ -252,7 +258,7 @@ _____________________________________________________________________
 
 HRV PIPELINE COMMAND TO CAT CSV SUMMARY FILES TO ONE FILE-ONE HEADER 
 cd summary
-awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_summary.csv
+awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_run1_summary.csv
 
 _____________________________________________________________________
 
@@ -303,3 +309,65 @@ num_ns=$(awk 'FNR==1{print val,$1}' N.txt)
 echo $num_ns
 echo "$num_ns/$num_bases*100" | bc -l > n_percent.txt
 percent_n=$(awk 'FNR==1{print val,$1}' n_percent.txt)
+
+
+
+
+
+HRV PIPELINE-GENBANK SUBMISSION STEPS
+
+Combine Summary Files with One Header - QC Files-Remove incomplete protein/N >15%
+awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_run4_summary.csv
+
+Change Consensus File Names to Character 5-10 for a 6 digit Sample Name
+for FILE in *.fa ; do mv "${FILE}" "${FILE:4:6}.fa" ; done
+
+Change Consensus Fasta Headers to Filename
+for file in *.fa; do i=${file%%.fa}; sed "1s/.*/>$i/" $file > 'c_'$i'.fa'; done
+
+Remove original files
+
+remove _c from filenames
+for file in *.fa
+do
+   mv "$file" "${file:2}"
+done
+
+Concat all consensus fasta files in consensus directory
+cat *.fa > run4_rhinovirus.fasta
+
+Check concat file - remove Ns
+
+analyze files in genieous
+
+Run vapid on concatenated consensus files
+python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9/genbank-consensus-run4/run4_rhinovirus.fasta rhinovirus.sbt
+
+
+
+HRV Pipeline Batch 4-9 Run Notes 
+
+-Run Reports (in *.html format) in each runs respective output folder.
+
+Run 2
+Issues with half consensus in re-run samples below.
+to fix: remove reference MZ153281 - causing half consensus swequences
+rerun in run 3
+78
+79
+77
+11
+15
+10
+17
+
+Run 3 
+- no more half consensus sequences after removing MZ153281
+
+mail to:
+
+gb-sub@ncbi.nlm.nih.gov
+
+reply with 
+
+Please release these as soon as possible
