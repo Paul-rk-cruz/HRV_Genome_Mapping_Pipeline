@@ -446,8 +446,8 @@ process Sort_Bam {
     '''
 }
 process Mapping_final {
-	// errorStrategy 'retry'
-    // maxRetries 3
+	errorStrategy 'retry'
+    maxRetries 3
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz") from Consensus_Fasta_ch
@@ -482,8 +482,8 @@ process Mapping_final {
         --min-BQ 15 \\
         --output ${base}.mpileup \\
         ${base}.map3.sorted.bam
-    cat ${base}.mpileup | ivar consensus -q 30 -t 0.7 -m 5 -n N -p ${base}.consensus-final
-
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 5 -n N -p ${base}.consensus-final
+    
     bedtools genomecov \\
         -bga \\
         -ibam ${base}.map3.sorted.bam \\
