@@ -131,8 +131,8 @@ params.trimmomatic_adapters_file_SE = "/Users/uwvirongs/miniconda3/share/trimmom
 params.trimmomatic_adapters_parameters = "2:30:10:1"
 params.trimmomatic_window_length = "4"
 params.trimmomatic_window_value = "20"
-params.MINLEN = "75"
-MINLEN = "75"
+params.MINLEN = "35"
+MINLEN = "35"
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -221,7 +221,7 @@ if (params.singleEnd) {
     num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Mean_Coverage,Bam_Size,Consensus_Length,Percent_N > \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Ref_Coverage,Mean_Coverage,Bam_Size,Consensus_Length,Percent_N > \$base'_summary.csv'
     printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
     """
@@ -300,6 +300,7 @@ process Mapping {
     samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
+    ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fa
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
@@ -314,6 +315,7 @@ process Mapping {
     printf ",\$id" >> ${base}_summary2.csv
     printf ",\$id_ref_size" >> ${base}_summary2.csv
     printf ",\$reads_mapped" >> ${base}_summary2.csv
+    printf ",\$ref_coverage" >> ${base}_summary2.csv
     """
 }
 /*
