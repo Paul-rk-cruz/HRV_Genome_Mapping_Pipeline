@@ -24,7 +24,7 @@ nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volum
 nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/input/' --outdir '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/output/' --singleEnd -resume
 
 HRV_Batch_4-9
-nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9/batch4-9_fastq/input/' --outdir '/Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/' --singleEnd -with-report /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/report.html -with-trace /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/trace.txt -with-timeline /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/timeline.html -resume
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9/batch4-9_fastq_input/' --outdir '/Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/' --singleEnd -with-report /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/report.html -with-trace /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/trace.txt -with-timeline /Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/timeline.html -resume
 
 Work Directories on AWS S3
 s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
@@ -314,10 +314,10 @@ percent_n=$(awk 'FNR==1{print val,$1}' n_percent.txt)
 
 
 
-HRV PIPELINE-GENBANK SUBMISSION STEPS
+HRV PIPELINE-GENBANK SUBMISSION WORKFLOW
 
 Combine Summary Files with One Header - QC Files-Remove incomplete protein/N >15%
-awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_run4_summary.csv
+awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_run6_summary.csv
 
 Change Consensus File Names to Character 5-10 for a 6 digit Sample Name
 for FILE in *.fa ; do mv "${FILE}" "${FILE:4:6}.fa" ; done
@@ -334,16 +334,18 @@ do
 done
 
 Concat all consensus fasta files in consensus directory
-cat *.fa > run4_rhinovirus.fasta
+cat *.fa > run7_rhinovirus.fasta
 
 Check concat file - remove Ns
 
 analyze files in genieous
 
 Run vapid on concatenated consensus files
-python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9/genbank-consensus-run4/run4_rhinovirus.fasta rhinovirus.sbt
 
+python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9_run/genbank-consensus-run6/genbank-run6-submit/470120.fa rhinovirus.sbt
 
+Give vapid a reference if bad ref chosen
+python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9_run/genbank-issues/BDREY9.fa rhinovirus.sbt --r JQ837720.1
 
 HRV Pipeline Batch 4-9 Run Notes 
 
@@ -352,7 +354,7 @@ HRV Pipeline Batch 4-9 Run Notes
 Run 2
 Issues with half consensus in re-run samples below.
 to fix: remove reference MZ153281 - causing half consensus swequences
-rerun in run 3
+reran in run 3
 78
 79
 77
@@ -371,3 +373,102 @@ gb-sub@ncbi.nlm.nih.gov
 reply with 
 
 Please release these as soon as possible
+
+get all filenames in directory 
+without extension
+ls -1 | sed -e 's/\..*$//' > sample_names_no_ext.txt
+with extension
+ls > sample_names_with_ext.txt 
+
+Add reference coverage in summary--done
+ref_coverage=$(awk 'FNR==1{print val,$2}' V340256015_S80_cat_R1_most_mapped_ref.txt)
+echo $ref_coverage
+
+Re-run with MINLEN=35 (down from 75)
+samples that did not submit to NCBI
+samples from run 5
+
+Run Hrv Pipeline
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9_run/batch4-9_fastq_input/' --outdir '/Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/' --singleEnd -with-report /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/report.html -with-trace /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/trace.txt -with-timeline /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/timeline.html -resume
+
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9.1/batch4-9_fastq_input/' --outdir '/Volumes/HD2/HRV_batch_4-9.1/batch4-9_hrvpl_output/' --singleEnd -resume
+
+
+
+
+
+
+
+
+
+GENBANK SUBMISSION ISSUES
+
+The following protein coding sequences contain internal stop
+codons:
+
+InternalStop
+        lcl|255977:CDS   polyprotein     lcl|255977:573->7069   
+        lcl|303342:CDS   polyprotein     lcl|303342:573->7069   
+        lcl|BDREY9:CDS   genome polyprotein      lcl|BDREY9:c590-1      
+        lcl|163780:CDS   polyprotein     lcl|163780:573->7069   
+        lcl|469682:CDS   polyprotein     lcl|469682:625-7173    
+        lcl|470881:CDS   polyprotein     lcl|470881:622->7102   
+        lcl|470961:CDS   polyprotein     lcl|470961:573->7069   
+        lcl|762910:CDS   polyprotein     lcl|762910:583-7032    
+
+This generally indicates problems such as:
+
+  - errors in the nucleotide sequence
+  - sequences have not been trimmed of low quality
+  - problems with feature annotation which may be due to:
+        translation in the wrong reading frame or on the wrong strand
+        translation does not have the correct exon spans
+        translation includes noncoding sequence, such as introns or UTR's
+       
+We have also noticed the following product names:
+     1                        /product="genome polyprotein"
+     2                        /product="polyprotein precursor"
+     3                        /product="polyproteins"
+    
+which should all be polyprotein. We understand these are pulled from
+genomes that have been processed by NCBI such as KT726984.  Those we
+can correct when we know about them. If fixed, do they also become
+fixed in the VaPiD database?
+
+If there are equivalent reference sequences in our viral reference
+sequence database, we would prefer if reference sequences were used
+where possible as these should be curated for correct product names and
+annotation.
+           
+Please correct and resubmit. (Note, you only have to resubmit those
+with the internal stops).
+Stop
+UAA
+UAG
+UGA
+
+Start
+ATG, CTG, TTG
+
+Samples 163780, 255977, 303342, 762910, 470961
+MZ153261
+
+469862
+MZ153266
+
+470881
+MW969530
+
+Stop codons flagged with asterisks in consensus sequences
+Always display ORF Frame with top selections 'display by annotation or selection'.
+
+Fixed by Blasting at NCBI Blastn
+Choose the closest reference with complete cds
+Tell VAPiD to use the reference
+
+python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9_run/genbank-issues/BDREY9.fa rhinovirus.sbt --r JQ837720.1
+
+
+curl https://files.softwaredownloads.illumina.com/16c93bcf-d8ff-44d0-bf0a-f1c96d7779d7/bcl-convert-3.8.2_12_g85770e0b-2.el7.x86_64.rpm?Expires=1621382363&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9maWxlcy5zb2Z0d2FyZWRvd25sb2Fkcy5pbGx1bWluYS5jb20vMTZjOTNiY2YtZDhmZi00NGQwLWJmMGEtZjFjOTZkNzc3OWQ3L2JjbC1jb252ZXJ0LTMuOC4yXzEyX2c4NTc3MGUwYi0yLmVsNy54ODZfNjQucnBtIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNjIxMzgyMzYzfX19XX0_&Signature=uDidhs-XQwNQMcT93ZzDu1~pPYgrG3N0HVxiH6o~KOA6ydDh-h8Z-34FdzZtbyBhOMh5Wz2jIkgvyfu9EbJAcwNmk9IgNRfIbmwGX6cufB6sU-W6jUXhDGs-ZphTuNDwYXf6uxmD7HdQeo5GNzB6dcr7o-T~qnCX2qy5A4GB2Ex8~-fmHTTi7iOSzR35MovReJZ1hVzITsprFc5u3tdVL52wVJSlDW8oLFyYuFH4beQkHHw-S5Esdlp7TAm2vExYg9Bp7dyumMz0O635EXPurAJNlHn0a47vISsSnCa9hpxr7URK~LyxV3atATm69kaN4koHZxhO9-uUzNHwQWs5eA__&Key-Pair-Id=APKAJO3UYWPXK4A26FPQ -O bcl-convert-3.8.2_12_g85770e0b-2.el7.x86_64.rpm
+
+
