@@ -221,7 +221,7 @@ if (params.singleEnd) {
     num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Mean_Coverage,Bam_Size,Consensus_Length,Percent_N > \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,PCR CT,NCBI_Name,Method,Genbank_Submission > \$base'_summary.csv'
     printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
     """
@@ -250,9 +250,8 @@ if (params.singleEnd) {
     num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Mean_Coverage,Bam_Size,Consensus_Length,Percent_N > '\$base_summary.csv'
-    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> '\$base_summary.csv'
-
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,PCR CT,NCBI_Name,Method,Genbank_Submission > \$base'_summary.csv'
+    printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
 
     """
@@ -294,7 +293,7 @@ process Mapping {
 
     """
     #!/bin/bash
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map1_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
     samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
@@ -302,7 +301,7 @@ process Mapping {
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
     samtools faidx ${REFERENCE_FASTA} \$id > ${base}_mapped_ref_genome.fa
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false -Xmx6g > ${base}_map2_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
     mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
@@ -346,11 +345,21 @@ process Sort_Bam {
     samtools index ${base}.sorted.bam
     samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
     bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    
+    awk 'NR == 3 || \$3 > max {number = \$3; max = \$1} END {if (NR) print number, max}' < ${base}_coverage.txt > ${base}_min_coverage.txt
+    awk 'NR == 2 || \$3 > min {number = \$1; min = \$3} END {if (NR) print number, min}' < ${base}_coverage.txt > ${base}_max_coverage.txt
+    
     meancoverage=\$(cat ${base}_coverage.txt | awk '{sum+=\$3} END { print sum/NR}')
+    mincoverage=\$(awk 'FNR==1{print val,\$1}' ${base}_min_coverage.txt)
+    maxcoverage=\$(awk 'FNR==1{print val,\$2}' ${base}_max_coverage.txt)
     bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0))
+
     cp ${base}_summary2.csv ${base}_summary.csv
+    printf ",\$mincoverage" >> ${base}_summary.csv
     printf ",\$meancoverage" >> ${base}_summary.csv
+    printf ",\$maxcoverage" >> ${base}_summary.csv
     printf ",\$bamsize" >> ${base}_summary.csv
+
     """
 }
 /*
@@ -469,7 +478,7 @@ process Mapping_final {
     #!/bin/bash
     
     
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=8 local=true interleaved=false > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=8 local=true interleaved=false maxindel=9 strictmaxindel > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
@@ -482,8 +491,8 @@ process Mapping_final {
         --min-BQ 15 \\
         --output ${base}.mpileup \\
         ${base}.map3.sorted.bam
-    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 5 -n N -p ${base}.consensus-final
-    
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus-final
+
     bedtools genomecov \\
         -bga \\
         -ibam ${base}.map3.sorted.bam \\
