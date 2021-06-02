@@ -18,13 +18,16 @@ nextflow run Paul-rk-cruz/HRV_Genome_Mapping_Pipeline -r main -latest --reads 's
 Local
 
 10506_A01152_0055_BH7NL7DRXY batch_4_6_7
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/input/' --outdir '/Volumes/HD2/210506_A01152_0055_BH7NL7DRXY/output/' --singleEnd -resume
 
 20210503_shotgun_RhV_batch_5
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/input/' --outdir '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/output/' --singleEnd -resume
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/input/' --outdir '/Volumes/HD2/210503_A01152_0052_BH7NN3DRXY_batch_5/output/' --singleEnd -resume
 
 HRV_Batch_4-9
-nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline-main/main.nf --reads '/Volumes/HD2/HRV_batch_4-9/batch4-9_fastq/' --outdir '/Volumes/HD2/HRV_batch_4-9/batch4-9_hrvpl_output/' --singleEnd -with-report -with-trace -with-timeline -resume
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9/batch4-9_fastq_input/' --outdir '/Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/' --singleEnd -with-report /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/report.html -with-trace /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/trace.txt -with-timeline /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/timeline.html -resume
+
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9_run/batch4-9_fastq_input/' --outdir '/Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/' --singleEnd -resume
+
 
 Work Directories on AWS S3
 s3://covid19-work/ed/8df5f1a18a011f6fb7dfb6e13bd93d
@@ -229,6 +232,12 @@ fasta header replacement
 
 More than 5% N`s logs
 
+Change Fasta Header to Filename
+perl -i -0777 -pe ' $x=$ARGV;$x=~s/\.fa//g; s/\>/>${x}_/ ' *fa
+
+awk '(FNR==1){f=FILENAME;sub(/\.[A-Za-z]*$/,"_",f)}
+     /^>/{$0=">" f substr($0,2)}
+     1' *.fa
 
 awk '/^>/{print ">" substr(FILENAME,1,length(FILENAME)-6); next} 1' *.fa
 
@@ -252,7 +261,7 @@ _____________________________________________________________________
 
 HRV PIPELINE COMMAND TO CAT CSV SUMMARY FILES TO ONE FILE-ONE HEADER 
 cd summary
-awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_summary.csv
+awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_batch_4-9_run1_summary.csv
 
 _____________________________________________________________________
 
@@ -303,3 +312,544 @@ num_ns=$(awk 'FNR==1{print val,$1}' N.txt)
 echo $num_ns
 echo "$num_ns/$num_bases*100" | bc -l > n_percent.txt
 percent_n=$(awk 'FNR==1{print val,$1}' n_percent.txt)
+
+
+SRA SUBMISSION WORKFLOW
+change fastq.gz filename to digits 5:10
+for FILE in *.fastq.gz ; do mv "${FILE}" "${FILE:4:6}.fastq.gz" ; done
+
+save all filenames in directory without extension
+ls -1 | sed -e 's/\..*$//' > sra_sample_names_no_ext.txt
+save all filenames in directory with extension
+ls > sra_filenames_with_ext.txt 
+
+
+HRV PIPELINE-GENBANK SUBMISSION WORKFLOW
+
+Combine Summary Files with One Header - QC Files-Remove incomplete protein/N >15%
+awk '(NR == 1) || (FNR > 1)' *.csv > batch11_run1_summary.csv
+
+Change Consensus File Names to Character 5-10 for a 6 digit Sample Name
+for FILE in *.fa ; do mv "${FILE}" "${FILE:4:6}.fa" ; done
+
+Change Consensus Fasta Headers to Filename
+for file in *.fa; do i=${file%%.fa}; sed "1s/.*/>$i/" $file > 'c_'$i'.fa'; done
+
+Remove original files
+
+remove _c from filenames
+for file in *.fa
+do
+   mv "$file" "${file:2}"
+done
+
+Concat all consensus fasta files in consensus directory
+cat *.fa > sub3_cat.fa
+
+Check concat file - remove Ns
+
+analyze files in genieous
+
+Run vapid on concatenated consensus files
+
+python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9_run/genbank-consensus-run6/genbank-run6-submit/470120.fa rhinovirus.sbt
+
+Give vapid a reference if stop codons present (bad reference chosen)
+python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9_run/genbank-issues/BDREY9.fa rhinovirus.sbt --r MW969516.1
+
+for FILE in *.fastq.gz ; do mv "${FILE}" "${FILE:4:6}.fastq.gz" ; done
+
+Update hrv pipeline hrv-ref-db with all currently published genomes-done
+fix word-wrapping
+	tool: 
+		https://www.ncbi.nlm.nih.gov/CBBresearch/Spouge/html_ncbi/html/fasta/canonical.cgi
+
+
+
+batch11-run1 shotgun notes
+
+
+
+
+
+run 11-capture notes
+
+incomplete consensus-Always a reference problem-fix with ref removal, 
+then re-run
+short consensus-4350 on all below
+remove MZ268649
+then rerun:
+V340270131_S122_L001_R1_001
+V340301153_S123_L001_R1_001
+V340414255_V340422831_V340422825_V340412782_S7
+V340270131
+V340301153
+
+MZ153257
+V340323677_V340324303_V340323880_V340324695_S137
+
+MZ268654
+V340324294_V340324150_V340323353_V340324680_S135
+MZ268659
+V340163214_S160_L001
+KY369878
+V340399087_V340399664_V340399910_V340399828_S32
+KY369892
+V340414440_V340412090_V340422241_V340412146_S2
+
+
+
+
+
+
+
+
+HRV Pipeline Batch 4-9 Run Notes 
+
+-Run Reports (in *.html format) in each runs respective output folder.
+
+Run 2
+Issues with half consensus in re-run samples below.
+to fix: remove reference MZ153281 - causing half consensus swequences
+reran in run 3
+78
+79
+77
+11
+15
+10
+17
+
+Run 3 
+- no more half consensus sequences after removing MZ153281
+
+mail to:
+
+gb-sub@ncbi.nlm.nih.gov
+
+reply with 
+
+Please release these as soon as possible
+
+Add reference coverage in summary--done
+ref_coverage=$(awk 'FNR==1{print val,$2}' V340256015_S80_cat_R1_most_mapped_ref.txt)
+echo $ref_coverage
+
+Re-run with MINLEN=35 (down from 75)
+samples that did not submit to NCBI
+samples from run 5
+
+Run Hrv Pipeline
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9_run/batch4-9_fastq_input/' --outdir '/Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/' --singleEnd -with-report /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/report.html -with-trace /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/trace.txt -with-timeline /Volumes/HD2/HRV_batch_4-9_run/batch4-9_hrvpl_output/timeline.html -resume
+
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/HRV_batch_4-9.1/batch4-9_fastq_input/' --outdir '/Volumes/HD2/HRV_batch_4-9.1/batch4-9_hrvpl_output/' --singleEnd -resume
+
+GENBANK SUBMISSION ISSUES
+
+The following protein coding sequences contain internal stop
+codons:
+
+InternalStop
+        lcl|255977:CDS   polyprotein     lcl|255977:573->7069   
+        lcl|303342:CDS   polyprotein     lcl|303342:573->7069   
+        lcl|BDREY9:CDS   genome polyprotein      lcl|BDREY9:c590-1      
+        lcl|163780:CDS   polyprotein     lcl|163780:573->7069   
+        lcl|469682:CDS   polyprotein     lcl|469682:625-7173    
+        lcl|470881:CDS   polyprotein     lcl|470881:622->7102   
+        lcl|470961:CDS   polyprotein     lcl|470961:573->7069   
+        lcl|762910:CDS   polyprotein     lcl|762910:583-7032    
+
+This generally indicates problems such as:
+
+  - errors in the nucleotide sequence
+  - sequences have not been trimmed of low quality
+  - problems with feature annotation which may be due to:
+        translation in the wrong reading frame or on the wrong strand
+        translation does not have the correct exon spans
+        translation includes noncoding sequence, such as introns or UTR's
+       
+We have also noticed the following product names:
+     1                        /product="genome polyprotein"
+     2                        /product="polyprotein precursor"
+     3                        /product="polyproteins"
+    
+which should all be polyprotein. We understand these are pulled from
+genomes that have been processed by NCBI such as KT726984.  Those we
+can correct when we know about them. If fixed, do they also become
+fixed in the VaPiD database?
+
+If there are equivalent reference sequences in our viral reference
+sequence database, we would prefer if reference sequences were used
+where possible as these should be curated for correct product names and
+annotation.
+           
+Please correct and resubmit. (Note, you only have to resubmit those
+with the internal stops).
+
+
+[1] These have frameshifts in the polyprotein coding region:
+
+    469385.sqn
+    490076.sqn
+
+[2] This one has a truncated protein:
+
+    762910.sqn
+
+Stop
+UAA
+UAG
+UGA
+
+Start
+ATG, CTG, TTG
+
+Samples 163780, 255977, 303342, 762910, 470961
+MZ153261
+
+469862
+MZ153266
+
+470881
+MW969530
+
+Stop codons flagged with asterisks in consensus sequences
+Always display ORF Frame with top selections 'display by annotation or selection'.
+
+Fixed by Blasting at NCBI Blastn
+Choose the closest reference with complete cds
+Tell VAPiD to use the reference
+
+python2.7 vapid.py /Volumes/HD2/HRV_batch_4-9_run/genbank-consensus-run5/genbank-run5-submit/490076.fa rhinovirus.sbt --r MW969516.1
+
+
+Docker
+Creating and Building Docker files
+1. create docker file with dependencies
+2. add to repository:	https://quay.io/repository/kurtisc/hrv-pipeline
+Run in command line
+docker run -it --rm quay.io/kurtisc/hrv-pipeline
+
+
+
+Configuration files in python
+There are several ways to do this depending on the file format required.
+
+ConfigParser [.ini format]
+I would use the standard configparser approach unless there were compelling reasons to use a different format.
+
+Write a file like so:
+
+# python 2.x
+# from ConfigParser import SafeConfigParser
+# config = SafeConfigParser()
+
+# python 3.x
+from configparser import ConfigParser
+config = ConfigParser()
+
+config.read('config.ini')
+config.add_section('main')
+config.set('main', 'key1', 'value1')
+config.set('main', 'key2', 'value2')
+config.set('main', 'key3', 'value3')
+
+with open('config.ini', 'w') as f:
+    config.write(f)
+The file format is very simple with sections marked out in square brackets:
+
+[main]
+key1 = value1
+key2 = value2
+key3 = value3
+Values can be extracted from the file like so:
+
+# python 2.x
+# from ConfigParser import SafeConfigParser
+# config = SafeConfigParser()
+
+# python 3.x
+from configparser import ConfigParser
+config = ConfigParser()
+
+config.read('config.ini')
+
+print(config.get('main', 'key1')) # -> "value1"
+print(config.get('main', 'key2')) # -> "value2"
+print(config.get('main', 'key3')) # -> "value3"
+
+# getfloat() raises an exception if the value is not a float
+a_float = config.getfloat('main', 'a_float')
+
+# getint() and getboolean() also do this for their respective types
+an_int = config.getint('main', 'an_int')
+
+AWS ec2 CLI shortcuts
+
+Download entire run from project id
+bs download run -i <RunID> -o <output>
+
+Download specific files based on extension from project id
+bs download project -i 207082957 -o /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/ --extension=.fastq.gz
+
+Download samplesheet
+bs download run -i 207082957 -o /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/ --extension=.cbcl
+
+cd Data/Intensities/BaseCalls/
+
+Download bcls
+bs download run -i 207082957 -o /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/ --extension=.cbcl
+
+
+Demultiplexing NovaSeq6000 Runs in AWS ec2 using BCL Convert for fastq.gz file generation
+
+Open the runs folder
+cd runs
+
+create folder for your run
+mkdir <run_name>
+
+Download entire run from project id
+bs download run -i 207082957 -o /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/
+
+Enter run directory
+cd <run_name>
+
+Check that run directory contents include all run files
+ls -lh
+
+Copy and move RunInfo.xml to L001 & L002 folders (if 2 lanes were used)
+L001
+cp -R /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/RunInfo.xml /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/Data/Intensities/BaseCalls/L001/
+L002
+cp -R /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/RunInfo.xml /home/ssm-user/runs/<run_name>/Data/Intensities/BaseCalls/L002/
+
+BCL Convert Usage:
+Run BCL Conversion (BCL directory to *.fastq.gz)
+  bcl-convert --bcl-input-directory <BCL_ROOT_DIR> --output-directory <PATH> [options]
+
+We will add the following [options] to our commands:
+-sample-sheet <path>
+--no-lane-splitting true
+
+Start BCL Convert on *.cbcl files
+bcl-convert --bcl-input-directory /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/ --output-directory /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/fastq/ --sample-sheet /home/ssm-user/runs/20210518_Capture_RhV_batch4_5plate2_6_7/SampleSheet.csv -f --no-lane-splitting false
+
+
+AG - Add to HRV Pipeline Run Summary Report: Min/Max Reference Coverage
+done
+
+calculate min coverage of a bam file for all positions of mapped reference.
+
+bedtools genomecov -d -ibam V338470395_S16_cat.sorted.bam > coverage.txt
+
+awk 'NR == 3 || $3 > max {number = $3; max = $1} END {if (NR) print number, max}' < coverage.txt > min_coverage.txt
+mincoverage=$(awk 'FNR==1{print val,$1}' min_coverage.txt)
+
+echo $mincoverage
+
+calculate max coverage of a bam file for all positions of mapped reference.
+
+bedtools genomecov -d -ibam V338470389_S11_cat.sorted.bam > coverage.txt
+
+awk 'NR == 2 || $3 > min {number = $1; min = $3} END {if (NR) print number, min}' < coverage.txt > max_coverage.txt
+maxcoverage=$(awk 'FNR==1{print val,$2}' max_coverage.txt)
+
+echo $maxcoverage
+
+
+
+Download SRA fastq files from Sequence Read Archive (SRA)
+
+fastq-dump -A SRR8356928 --outdir /Volumes/HD2/Jason-sra
+
+
+SRR8356906
+SRR8356922
+SRR8356915
+SRR8356923
+SRR8356909
+SRR8356914
+SRR8356910
+SRR8356929
+SRR8356904
+SRR8356930
+SRR8356907
+SRR8356919
+SRR8356908
+SRR8356916
+SRR8356905
+SRR8356913
+SRR8356917
+SRR8356920
+SRR8356912
+SRR8356918
+SRR8356921
+SRR8356911
+SRR8356924
+SRR8356928
+SRR8356927
+SRR8356926
+SRR8356925
+
+
+Concat all consensus fasta files in consensus directory
+cat *.fa > run8_consensus_concat.fasta
+
+
+Enterovirus Genotyping Tool
+add to hrv pl? final summary?
+input: consensus fasta
+read pape, interpret to code logic
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC104435/
+VP1 region
+Amino acid identity
+output: serotype
+
+
+
+
+Excel chars 5-10 from list of fastq filenames:
+=MID(A2, 5, 6)
+
+echo duplicate values in text file
+cat sub3_serotype.txt | sort | uniq -c
+
+
+
+
+
+Respiratory Panel Test 05242021 run
+
+Add references to hrv pl db
+Para 1,2,3,4
+Ent
+Adeno
+
+
+
+
+Hrv Capture Plates
+
+20210518_Capture_RhV_batch4_5plate2_6_7                                                                                             | 262195934 | 6524003       |
+| 20210520_RhV_capture_Batch4_5p2_6_7                                                                                                 | 262312052 | 28671719764  
+
+
+
+| 210518_VH00474_10_AAAKTNYM5         | 207082957 | 20210518_Capture_RhV_batch4_5plate2_6_7  
+
+262312052
+
+/home/ssm-user/runs/210518_VH00474_10_AAAKTNYM5/fastq
+
+bs download project -i 262312052 -o /home/ssm-user/runs/210518_VH00474_10_AAAKTNYM5/fastq2/ --extension=fastq.gz 
+
+
+find /home/ssm-user/runs/210518_VH00474_10_AAAKTNYM5/fastq2 -type f -print0 | xargs -0 mv -t /home/ssm-user/runs/210518_VH00474_10_AAAKTNYM5/fastq/fastq-cat
+
+
+find . -name '*_R1.fastq.gz' -exec mv {} /home/ssm-user/runs/210518_VH00474_10_AAAKTNYM5/fastq/fastq-cat/fastq-up \;  
+
+
+6.34 MB
+
+
+s3://covid19-input-data/shotgun/210518_VH00474_10_AAAKTNYM5/
+
+
+aws s3 cp /home/ssm-user/runs/210518_VH00474_10_AAAKTNYM5/fastq/ s3://covid19-input-data/shotgun/210518_VH00474_10_AAAKTNYM5/ --recursive  
+
+
+
+for i in $(find ./ -type f -name "*.fastq.gz" | while read F; do basename $F | rev | cut -c 22- | rev; done | sort | uniq)
+
+    do 
+
+echo "$i"
+
+done;
+
+
+278207      
+278446      
+278484      
+278730      
+AY5HJB
+
+CAPTURE_Res-Panel                                                                                                                   | 264992730
+
+210524_M04202_0213_000000000-JL9DT  | 207403217 | 20210524_Illumina_RespiratoryPanelCapture_hbv
+
+bs download project -i 264992730 -o /home/ssm-user/runs/210524_M04202_0213_000000000-JL9DT/fastq/ --extension=fastq.gz 
+
+find /home/ssm-user/runs/210524_M04202_0213_000000000-JL9DT/fastq -type f -print0 | xargs -0 mv -t /home/ssm-user/runs/210524_M04202_0213_000000000-JL9DT/fastq/fastq-up
+
+aws s3 cp /home/ssm-user/runs/210524_M04202_0213_000000000-JL9DT/fastq/fastq-up s3://covid19-input-data/shotgun/210524_M04202_0213_000000000-JL9DT/ --recursive  
+
+/home/ssm-user/runs/210526_M04202_0214_000000000-JL9GK
+s3://covid19-input-data/shotgun/210524_M04202_0213_000000000-JL9DT/ 
+
+compare two columns in excel for matches
+Used for comparing submitted genomes to NCBI and new sample lists
+
+=IF(COUNTIF($B6:$B6, $B167)=0, "No matches in genbank-sub list for this sample", "")
+
+Batch11 runing on NextSeq2000 - check tomorrow
+
+
+
+
+Re-run w/ better reference
+
+W59804_S16 MK622939 - 35% ref cov
+Influenza A virus (A/Michigan/45/2015(H1N1)) segment 1 polymerase PB2 (PB2) gene, complete cds
+
+S71743_S17 - 21% ref cov
+Influenza B virus (B/Wisconsin/01/2010) polymerase PB2 (PB2) gene, complete cds
+
+the rest 98-100%
+
+https://basespace.illumina.com/run/207633473/details
+
+bcl-convert --bcl-input-directory /home/ssm-user/runs/210528_VH00474_14_AAAKCMGM5_2/ --output-directory /home/ssm-user/runs/210528_VH00474_14_AAAKCMGM5_2/fastq/ --sample-sheet /home/ssm-user/runs/210528_VH00474_14_AAAKCMGM5_2/SampleSheet.csv -f --no-lane-splitting false 
+
+
+/home/ssm-user/runs/210528_VH00474_14_AAAKCMGM5_2
+
+
+count number of files in directory
+ls | wc -l
+
+
+nextflow run /Volumes/HD2/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Volumes/HD2/20210527_shotgun_RhV_batch11_plate1-266285019/hrv_pl_input/' --outdir '/Volumes/HD2/20210527_shotgun_RhV_batch11_plate1-266285019/hrv_pl_output/' --singleEnd -resume
+
+
+
+Excel - Check all data in two columns for duplicates
+
+=IF(COUNTIF($B6:$B161, $B306:$B475)=0, "No matches in genbank-sub list for this sample", "Duplicate found.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
