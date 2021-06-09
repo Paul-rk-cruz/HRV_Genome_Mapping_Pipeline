@@ -79,7 +79,8 @@ Dependencies:
     fastqc              conda install -c bioconda fastqc
     ivar                conda install -c bioconda ivar
     seqtk               conda install -c bioconda seqtk
-
+    csvkit              conda install -c anaconda csvkit
+    
 PIPELINE SETUP
 
 Setup Multifasta Reference:
