@@ -88,7 +88,7 @@ PIPELINE OVERVIEW:
 */
 
 // Pipeline version
-version = '1.0'
+version = '1.1'
 def helpMsg() {
     log.info"""
 	 _______________________________________________________________________________
