@@ -2,7 +2,7 @@
 
 /*
 ========================================================================================
-                  Human Rhinovirus Genome Mapping Pipeline v1.0
+                  Rhinovirus Genome Mapping Pipeline v1.0
 ========================================================================================
  Github Repo:
  Greninger Lab
@@ -17,7 +17,9 @@
  Created: April, 2021
  LICENSE: GNU
 ----------------------------------------------------------------------------------------
-This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
+This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission. 
+The pipeline outputs mapping statistics, sam, bam, and consensus files, as well as a final report summary at the end of the workflow for analysis.
+
 PIPELINE OVERVIEW:
  - 1. : Trim Reads
  		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
@@ -89,9 +91,9 @@ PIPELINE OVERVIEW:
 version = '1.0'
 def helpMsg() {
     log.info"""
-	 __________________________________________________
+	 _______________________________________________________________________________
      Human Rhinovirus Genome Mapping Pipeline :  Version ${version}
-	__________________________________________________
+	________________________________________________________________________________
     
 	Pipeline Usage:
     To run the pipeline, enter the following in the command line:
@@ -101,6 +103,7 @@ def helpMsg() {
       --reads                       Path to input fastq.gz folder).
       --outdir                      The output directory where the results will be saved
     OPTIONAL:
+      --withSampleSheet             Adds Sample Sheet information to Final Report Summary
 	  --helpMsg						Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
 	  --withFastQC					Runs a quality control check on fastq files
@@ -116,7 +119,11 @@ params.skipTrim = false
 params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
+params.withSampleSheet = false
 // Script Files
+if(params.withSampleSheet != false) {
+    SAMPLE_SHEET = file(params.withSampleSheet)
+}
 TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
 SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
@@ -125,12 +132,7 @@ ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
 ADAPTERS_PE = file("${baseDir}/adapters/TruSeq2-PE.fa")
 REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fa")
 REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fa.fai")
-BBMAP_PATH="/Users/uwvirongs/Documents/KC/bbmap/"
-params.trimmomatic_adapters_file_PE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-PE.fa"
-params.trimmomatic_adapters_file_SE = "/Users/uwvirongs/miniconda3/share/trimmomatic-0.39-2/adapters/TruSeq2-SE.fa"
-params.trimmomatic_adapters_parameters = "2:30:10:1"
-params.trimmomatic_window_length = "4"
-params.trimmomatic_window_value = "20"
+BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
 // Show help msg
@@ -138,7 +140,6 @@ if (params.helpMsg){
     helpMsg()
     exit 0
 }
-
 // Check Nextflow version
 nextflow_req_v = '20.10.0'
 try {
@@ -151,11 +152,12 @@ try {
 
 if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a valid path with --reads"
 // log files header
-log.info "____________________________________________"
+log.info "_______________________________________________________________________________"
 log.info " Human Rhinovirus Genome Mapping Pipeline :  v${version}"
-log.info "____________________________________________"
+log.info "_______________________________________________________________________________"
 def summary = [:]
 summary['Fastq Files:']               = params.reads
+summary['Sample Sheet:']               = params.withSampleSheet
 summary['Read type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
 summary['Virus Reference:']           = REFERENCE_FASTA
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
@@ -171,23 +173,22 @@ if (params.singleEnd) {
 summary["Trimmomatic read length (minimum):"] = params.MINLEN
 summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
-log.info "____________________________________________"
+log.info "_______________________________________________________________________________"
 // Create channel for input reads.
 // Import reads depending on single-end or paired-end
 if(params.singleEnd == false) {
     // Check for R1s and R2s in input directory
     input_read_ch = Channel
         .fromFilePairs("${params.reads}*_R{1,2}*.fastq.gz")
-        .ifEmpty { error "> Cannot located paired-end reads in: ${params.reads}.\n> Please enter a valid file path." }
+        // .ifEmpty { error "> Cannot locate paired-end reads in: ${params.reads}.\n> Please enter a valid file path." }
         .map { it -> [it[0], it[1][0], it[1][1]]}
 } else {
     // input: *.gz
     input_read_ch = Channel
         .fromPath("${params.reads}*.gz")
-        //.map { it -> [ file(it)]}
+        .ifEmpty { error "> Cannot locate single-end reads in: ${params.reads}.\n> Please enter a valid file path." }
         .map { it -> file(it)}
 }
-
 /*
  * Trim Reads
  * 
@@ -206,7 +207,7 @@ if (params.singleEnd) {
         val MINLEN
 
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz"),file("*summary.csv") into Trim_out_SE, Trim_out_SE_FQC
+        tuple env(base),file("*.trimmed.fastq.gz"), file("${R1}_num_trimmed.txt"),file("*summary.csv") into Trim_out_SE, Trim_out_SE_FQC
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
 
@@ -220,8 +221,9 @@ if (params.singleEnd) {
     ILLUMINACLIP:${ADAPTERS_SE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
     num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
+    printf "\$num_trimmed" >> ${R1}_num_trimmed.txt
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,PCR CT,NCBI_Name,Method,Genbank_Submission > \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name> \$base'_summary.csv'
     printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
     """
@@ -237,7 +239,7 @@ if (params.singleEnd) {
         file ADAPTERS_PE
         val MINLEN
     output: 
-        tuple env(base),file("*.trimmed.fastq.gz"),file("*summary.csv") into Trim_out_PE, Trim_out_PE_FQC
+        tuple env(base),file("*.trimmed.fastq.gz"), file("*_num_trimmed.txt"),file("*summary.csv") into Trim_out_PE, Trim_out_PE_FQC
         // tuple val(base),file("${base}_results.csv") into Results_trimmed_ch
 
     publishDir "${params.outdir}fastq_trimmed", mode: 'copy',pattern:'*.trimmed.fastq*'
@@ -248,12 +250,11 @@ if (params.singleEnd) {
     trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
 	ILLUMINACLIP:${ADAPTERS_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
     num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
-    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
+    num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))>\$base_num_trimmed.txt
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,PCR CT,NCBI_Name,Method,Genbank_Submission > \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name> \$base'_summary.csv'
     printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
-
     """
 }
 }
@@ -269,11 +270,11 @@ process Mapping {
     maxRetries 3
 
     input: 
-        tuple val(base), file("${base}.trimmed.fastq.gz"),file("${base}_summary.csv") from Trim_out_SE
+        tuple val(base), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_summary.csv") from Trim_out_SE
         file REFERENCE_FASTA
 
     output:
-        tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz") into Everything_ch
+        tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Everything_ch
         tuple val(base), file("${base}_map1_histogram.txt"),file("${base}_map2_histogram.txt") into BBmap_map1_hist_ch
         tuple val (base), file("*") into Dump_map1_ch
 
@@ -296,6 +297,7 @@ process Mapping {
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${REFERENCE_FASTA} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
     samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
@@ -310,6 +312,7 @@ process Mapping {
     id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
     echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
     reads_mapped=\$(cat ${base}_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+    printf "\$reads_mapped" >> ${base}_num_mapped.txt
     cp ${base}_summary.csv ${base}_summary2.csv
     printf ",\$id" >> ${base}_summary2.csv
     printf ",\$id_ref_size" >> ${base}_summary2.csv
@@ -328,10 +331,10 @@ process Sort_Bam {
     maxRetries 3
 
     input: 
-    tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz") from Everything_ch
+    tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") from Everything_ch
     output:
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
-    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz") into Consensus_ch
+    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Consensus_ch
 
     publishDir "${params.outdir}bam", mode: 'copy', pattern:'*.bam*'
     publishDir "${params.outdir}bam_sorted", mode: 'copy', pattern:'*.sorted.bam*'  
@@ -371,14 +374,14 @@ process Sort_Bam {
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz") from Consensus_ch
+    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") from Consensus_ch
     
     file VCFUTILS
     file SPLITCHR
     file TRIM_ENDS
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz") into Consensus_Fasta_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Consensus_Fasta_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
 
     publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*' 
@@ -454,23 +457,23 @@ process Sort_Bam {
     fi
     '''
 }
-process Mapping_final {
+process Final_Mapping {
 	errorStrategy 'retry'
     maxRetries 3
 
     input:
-    tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz") from Consensus_Fasta_ch
+    tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") from Consensus_Fasta_ch
     
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), val(bamsize), val(id) into Mapping_Final_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Mapping_Final_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
     publishDir "${params.outdir}consensus-ivar", mode: 'copy', pattern:'*.consensus-final*'
-    publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
+    // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
     publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'
-    publishDir "${params.outdir}summary", mode: 'copy', pattern:'*.csv*'
+    publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_final_summary.csv*'
 
     script:
 
@@ -478,11 +481,11 @@ process Mapping_final {
     #!/bin/bash
     
     
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=8 local=true interleaved=false maxindel=9 strictmaxindel > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=8 local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
-    
+
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -491,7 +494,7 @@ process Mapping_final {
         --min-BQ 15 \\
         --output ${base}.mpileup \\
         ${base}.map3.sorted.bam
-    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus-final
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
 
     bedtools genomecov \\
         -bga \\
@@ -500,15 +503,17 @@ process Mapping_final {
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
     bedtools maskfasta \\
-        -fi ${base}.consensus-final.fa \\
+        -fi ${base}.consensus_final.fa \\
         -bed ${base}.mask.bed \\
         -fo ${base}.consensus.masked.fa
 
     sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
-    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus-final.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
 
-    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus-final.fa > bases.txt
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
 
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
@@ -520,9 +525,52 @@ process Mapping_final {
     cp ${base}_summary.csv ${base}_final_summary.csv
     
     """  
-// CALL in summary directory to combine all summary.csv files for all samples into one summary with one header
-// cd <out_directory>
-// awk '(NR == 1) || (FNR > 1)' *.csv > hrv-pl_<run_name>_summary.csv
+}
+if (params.withSampleSheet){
+    process Final_Processing {
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    file SAMPLE_LIST from SAMPLE_SHEET
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"),file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") from Mapping_Final_ch    
+
+    output:
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_sample_stats.csv"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt") into Final_Processing_final_ch  
+
+    publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
+
+    script:
+
+    """
+    #!/bin/bash
+
+    R1=${base}
+    NCBI_Name=\${R1:4:6}
+    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
+    method=\$(cat ${base}_method.txt | sed -n '2 p')
+
+    reads_mapped=\$(cat ${base}_num_mapped.txt | tr -d " \t\n\r" | sed -n '1 p')
+    num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
+
+    echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
+    Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
+
+    printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
+    printf ",\$pcr_ct" >> ${base}_final_summary.csv
+    printf ",\$method" >> ${base}_final_summary.csv
+    printf ",\$NCBI_Name" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+    """
+    }
 }
 if (params.withFastQC) {
 
