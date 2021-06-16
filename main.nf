@@ -130,9 +130,19 @@ SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
 FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
 ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
 ADAPTERS_PE = file("${baseDir}/adapters/TruSeq2-PE.fa")
-REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fa")
-REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fa.fai")
+// HRV
+// REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only.fa")
+// REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/hrv_ref_db01.fa.fai")
+// Respiratory Panel
+// REFERENCE_FASTA = file("${baseDir}/hrv_ref/hrv_ref_db01_accession_only-resp-panel.fa")
+// REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref_db01_accession_only-resp-panel.fa.fai")
+// Influenza B
+REFERENCE_FASTA = file("${baseDir}/hrv_ref/Influenza_B_virus_segment1-8-2.fa")
+REFERENCE_FASTA_INDEX = file("${baseDir}/hrv_ref/Influenza_B_virus_segment1-8-2.fa.fai")
+// BBMap Paths - KC COMP#1
 BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
+// BBMap Paths - KC COMP#2
+// BBMAP_PATH="/Volumes/HD2/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
 // Show help msg
@@ -258,10 +268,6 @@ if (params.singleEnd) {
     """
 }
 }
-// } else {
-//    input_read_ch
-//        .set {Trim_out_map1_ch}
-// }
 /*
  * Map sequence reads to HRV Genomes using BBMap.
  */
