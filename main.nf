@@ -104,9 +104,9 @@ def helpMsg() {
       --outdir                      The output directory where the results will be saved
     OPTIONAL:
       --withSampleSheet             Adds Sample Sheet information to Final Report Summary
-	  --helpMsg						Displays help message in terminal
+      --helpMsg			    Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
-	  --withFastQC					Runs a quality control check on fastq files
+      --withFastQC		    Runs a quality control check on fastq files
       --skipTrimming                Skips the fastq trimmming process
     """.stripIndent()
 }
