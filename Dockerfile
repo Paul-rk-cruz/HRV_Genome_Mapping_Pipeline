@@ -1,5 +1,5 @@
-{\rtf1\ansi\ansicpg1252\cocoartf1561\cocoasubrtf610
-{\fonttbl\f0\fnil\fcharset0 Consolas;\f1\fswiss\fcharset0 ArialMT;}
+{\rtf1\ansi\ansicpg1252\cocoartf2578
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 ArialMT;}
 {\colortbl;\red255\green255\blue255;\red27\green31\blue34;\red255\green255\blue255;\red0\green0\blue0;
 }
 {\*\expandedcolortbl;;\cssrgb\c14118\c16078\c18039;\cssrgb\c100000\c100000\c100000;\cssrgb\c0\c0\c0;
@@ -170,7 +170,7 @@ FROM ubuntu:16.04\cell
 \cf2 \cell 
 \pard\intbl\itap1\pardeftab720\sl400\partightenfactor0
 \cf2     conda install -c bioconda seqtk bowtie2 krakenuniq kallisto gmap snap-aligner samtools openssl bedtools bwa mafft bcftools tabix 
-\f1 \cf4 \cb3 trimmomatic bbtools bgzip  vcftools seqkit fastqc ivar 
+\f1 \cf4 \cb3 trimmomatic bbtools bgzip  vcftools seqkit fastqc ivar csvkit 
 \f0 \cf2 \cb1 && \\\cell \row
 
 \itap1\trowd \taflags1 \trgaph108\trleft-108 \trcbpat3 \trbrdrl\brdrnil \trbrdrr\brdrnil 
