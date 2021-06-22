@@ -85,13 +85,7 @@ PIPELINE SETUP
 
 Setup Multifasta Reference:
 
-1. REFERENCE_FASTA (must be a multifasta containing concatenated full length RhV genome sequences (6-10K bp) formatted with accession numbers only)
-    Current file: rhv_ref_db01_accession_only.fasta - 327 Human Rhinovirus Complete Genome Sequences courtesy of NCBI Genbank, 2021.
-    source: https://www.ncbi.nlm.nih.gov/nucleotide/
-2. REFERENCE_FASTA_INDEX
-        run:
-        samtools faidx <reference.fasta>
-        to create a multifasta index file.
+1. REFERENCE_FASTA (must be a multifasta/fasta containing  full length Viral genome sequences (6-10K bp) formatted with accession numbers only)
 
 Setup File Paths:
 1. BBMAP_PATH
@@ -112,12 +106,13 @@ EXAMPLE USAGE:
 
 Run Pipeline Help Message:
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline --helpMsg helpMsg
 
-Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L002_R1_001.fastq))
+Run Pipeline on Single-end sequence reads:
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/' --singleEnd singleEnd
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/'  --Reference_Fasta /Users/example/hrv_ref/hrv_ref_db01_accession_only.fa --singleEnd 
 
-Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
+Run Pipeline on Paired-end sequence reads:
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_se/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/'  --Reference_Fasta /Users/example/hrv_ref/hrv_ref_db01_accession_only.fa
+        
