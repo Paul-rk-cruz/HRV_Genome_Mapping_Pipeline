@@ -1,4 +1,4 @@
-## Human Rhinovirus (HRV) Genome Mapping Pipeline v1.0
+## HRV Pipeline v1.2
 
 Github Repo:
 https://github.com/greninger-lab/HRV_Genome_Mapping_Pipeline
