@@ -99,14 +99,14 @@ def helpMsg() {
         nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
     Valid CLI Arguments:
     REQUIRED:
-      --reads                       Path to input fastq.gz folder).
-      --outdir                      The output directory where the results will be saved
+      --reads                       Path to input fastq.gz folder (files must be *.gz)
+      --outdir                      Path to output directory to store pipeline output files
+      --Reference_Fasta             Path to Fasta with reference virus sequence(multi-fasta/single fasta)
     OPTIONAL:
-      --withSampleSheet             Adds Sample Sheet information to Final Report Summary
-	  --helpMsg						Displays help message in terminal
-      --singleEnd                   Specifies that the input fastq files are single end reads
+      --helpMsg						Display help message in terminal
+      --withSampleSheet             Add FASTQ sample information to final summary report *.csv
+      --singleEnd                   Specifies that the input fastq files are single-end reads
 	  --withFastQC					Runs a quality control check on fastq files
-      --skipTrimming                Skips the fastq trimmming process
     """.stripIndent()
 }
 // Show help msg
