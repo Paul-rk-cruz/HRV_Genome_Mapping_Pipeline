@@ -86,7 +86,11 @@ PIPELINE OVERVIEW:
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
  ----------------------------------------------------------------------------------------
 */
-
+// Show help msg
+if (params.helpMsg){
+    helpMsg()
+    exit 0
+}
 // Pipeline version
 version = '1.2'
 def helpMsg() {
@@ -120,11 +124,6 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
-// Show help msg
-if (params.helpMsg){
-    helpMsg()
-    exit 0
-}
 params.Reference_Fasta = false
 Reference_Fasta = file(params.Reference_Fasta)
 // Script Files
