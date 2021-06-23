@@ -86,17 +86,12 @@ PIPELINE OVERVIEW:
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
  ----------------------------------------------------------------------------------------
 */
-// Show help msg
-if (params.helpMsg){
-    helpMsg()
-    exit 0
-}
 // Pipeline version
 version = '1.2'
 def helpMsg() {
     log.info"""
 	 _______________________________________________________________________________
-     Human Rhinovirus Genome Mapping Pipeline :  Version ${version}
+     Human Respiratory Virus (HRV) Pipeline :  Version ${version}
 	________________________________________________________________________________
     
 	Pipeline Usage:
@@ -113,6 +108,11 @@ def helpMsg() {
 	  --withFastQC					Runs a quality control check on fastq files
       --skipTrimming                Skips the fastq trimmming process
     """.stripIndent()
+}
+// Show help msg
+if (params.helpMsg){
+    helpMsg()
+    exit 0
 }
 // Initialize parameters
 params.helpMsg = false
