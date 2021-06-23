@@ -94,19 +94,21 @@ def helpMsg() {
      Human Respiratory Virus (HRV) Pipeline :  Version ${version}
 	________________________________________________________________________________
     
-	Pipeline Usage:
+	Usage:
     To run the pipeline, enter the following in the command line:
-        nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
-    Valid CLI Arguments:
+
+        nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR --Reference_Fasta PATH_TO_REF_FASTA 
+    
+    Valid command-line arguments:
     REQUIRED:
       --reads                       Path to input fastq.gz folder (files must be *.gz)
       --outdir                      Path to output directory to store pipeline output files
       --Reference_Fasta             Path to Fasta with reference virus sequence(multi-fasta/single fasta)
     OPTIONAL:
-      --helpMsg						Display help message in terminal
+      --helpMsg                     Display help message in terminal
       --withSampleSheet             Add FASTQ sample information to final summary report *.csv
       --singleEnd                   Specifies that the input fastq files are single-end reads
-	  --withFastQC					Runs a quality control check on fastq files
+      --withFastQC                  Runs a quality control check on fastq files
     """.stripIndent()
 }
 // Show help msg
