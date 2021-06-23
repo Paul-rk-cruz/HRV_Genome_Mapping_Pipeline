@@ -120,6 +120,11 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
+// Show help msg
+if (params.helpMsg){
+    helpMsg()
+    exit 0
+}
 params.Reference_Fasta = false
 Reference_Fasta = file(params.Reference_Fasta)
 // Script Files
@@ -137,11 +142,6 @@ BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
 // BBMAP_PATH="/Volumes/HD2/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
-// Show help msg
-if (params.helpMsg){
-    helpMsg()
-    exit 0
-}
 // Check Nextflow version
 nextflow_req_v = '20.10.0'
 try {
@@ -199,7 +199,7 @@ if(params.singleEnd == false) {
 // if(!params.skipTrimming) {
 if (params.singleEnd) {
 	process Trim_Reads {
-    // container "quay.io/biocontainers/trimmomatic:0.35--6"
+    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -219,7 +219,7 @@ if (params.singleEnd) {
     #!/bin/bash
     base=`basename ${R1} ".fastq.gz"`
     echo \$base
-    trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
+    /usr/local/miniconda/bin/trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
     ILLUMINACLIP:${ADAPTERS_SE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
     num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
@@ -232,7 +232,7 @@ if (params.singleEnd) {
 } 
 } else {
 	process Trim_Reads_PE {
-    // container "quay.io/biocontainers/trimmomatic:0.35--6"
+
     errorStrategy 'retry'
     maxRetries 3
 
@@ -324,7 +324,7 @@ process Mapping {
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
     samtools faidx ${Reference_Fasta} \$id > ${base}_mapped_ref_genome.fa
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus}e covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
     mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
@@ -361,7 +361,7 @@ process Mapping_PE {
     publishDir "${params.outdir}txt_bbmap_map1_hist", mode: 'copy', pattern:'*_map2_histogram.txt*' 
     publishDir "${params.outdir}txt_bbmap_map2_stats", mode: 'copy', pattern:'*_map2_bbmap_out.txt*'  
     publishDir "${params.outdir}txt_bbmap_map2_hist", mode: 'copy', pattern:'*_map2_histogram.txt*'
-    publishDir "${params.outdir}txt_indxstats_mapped_refs", mode: 'copy', pattern:'*_idxstats.txt*'   
+    publishDir "${params.outdir}txt_indxstats_mapped_refs-map1", mode: 'copy', pattern:'*_idxstats.txt*'   
     publishDir "${params.outdir}ref_id", mode: 'copy', pattern:'*_most_mapped_ref.txt*'  
     publishDir "${params.outdir}ref_fasta", mode: 'copy', pattern:'*_mapped_ref_genome.fa*'
     publishDir "${params.outdir}ref_size", mode: 'copy', pattern:'*_most_mapped_ref_size.txt*'
@@ -416,9 +416,9 @@ process Sort_Bam {
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Consensus_ch
 
-    publishDir "${params.outdir}bam", mode: 'copy', pattern:'*.bam*'
-    publishDir "${params.outdir}bam_sorted", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}txt_bam_flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
+    publishDir "${params.outdir}bam-map2", mode: 'copy', pattern:'*.bam*'
+    publishDir "${params.outdir}bam_sorted-map2", mode: 'copy', pattern:'*.sorted.bam*'  
+    publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*' 
 
     script:
     """
@@ -456,9 +456,9 @@ process Sort_Bam_PE {
     tuple val(base), file("${base}.bam") into Aligned_bam_PE_ch, Bam_PE_ch
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Consensus_PE_ch
 
-    publishDir "${params.outdir}bam", mode: 'copy', pattern:'*.bam*'
-    publishDir "${params.outdir}bam_sorted", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}txt_bam_flagstats", mode: 'copy', pattern:'*_flagstats.txt*'  
+    publishDir "${params.outdir}bam-map2", mode: 'copy', pattern:'*.bam*'
+    publishDir "${params.outdir}bam_sorted-map2", mode: 'copy', pattern:'*.sorted.bam*'  
+    publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*'  
 
     script:
     """
@@ -506,9 +506,9 @@ if (params.singleEnd) {
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Consensus_Fasta_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
 
-    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*' 
-    publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
-    publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
+    publishDir "${params.outdir}consensus-unmasked", mode: 'copy', pattern:'*.consensus.fa*' 
+    publishDir "${params.outdir}vcf-map2", mode: 'copy', pattern:'*_bcftools.vcf*' 
+    publishDir "${params.outdir}vcf_pre-map2", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
 
     shell:
     '''
@@ -596,9 +596,9 @@ if (params.singleEnd) {
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Consensus_Fasta_PE_ch
     tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_PE_ch
 
-    publishDir "${params.outdir}consensus", mode: 'copy', pattern:'*.consensus.fa*' 
-    publishDir "${params.outdir}vcf", mode: 'copy', pattern:'*_bcftools.vcf*' 
-    publishDir "${params.outdir}vcf_pre", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
+    publishDir "${params.outdir}consensus-unmasked", mode: 'copy', pattern:'*.consensus.fa*' 
+    publishDir "${params.outdir}vcf-map2", mode: 'copy', pattern:'*_bcftools.vcf*' 
+    publishDir "${params.outdir}vcf_pre-map2", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
 
     shell:
     '''
@@ -754,7 +754,7 @@ process Final_Mapping_PE {
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
-    publishDir "${params.outdir}consensus-ivar", mode: 'copy', pattern:'*.consensus-final*'
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus-final*'
     // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
     publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_final_summary.csv*'
