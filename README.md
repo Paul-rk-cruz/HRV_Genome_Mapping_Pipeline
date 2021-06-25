@@ -20,7 +20,7 @@ Created: April, 2021
 License: MIT
 
 ### Description:
-Rhinovirus Genome Mapping Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
+Human Respiratory Virus (HRV) Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Viral complete genomes for analysis and Genbank submission.
 
 ### PIPELINE OVERVIEW:
 1. Trim Reads
