@@ -17,7 +17,7 @@
  Created: April, 2021
  LICENSE: GNU
 ----------------------------------------------------------------------------------------
-This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission. 
+This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Respiratory Virus Complete Genomes for analysis and Genbank submission. 
 The pipeline outputs mapping statistics, sam, bam, and consensus files, as well as a final report summary at the end of the workflow for analysis.
 
 PIPELINE OVERVIEW:
