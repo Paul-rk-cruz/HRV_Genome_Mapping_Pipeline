@@ -61,7 +61,7 @@ PIPELINE OVERVIEW:
     1. Reference_Fasta (Multifasta containing concatenated full length RhV genome sequences (6-10K bp) formatted with accession numbers only)
         Current file: rhv_ref_db01_accession_only.fasta - 500~ Human Rhinovirus Complete Genome Sequences courtesy of NCBI Genbank, 2021.
             source: https://www.ncbi.nlm.nih.gov/nucleotide/
-    The pipeline can also run using a fasta reference.
+    This pipeline can also run using one fasta reference.
 
     Setup File Paths:
     1. BBMAP_PATH
@@ -87,6 +87,7 @@ PIPELINE OVERVIEW:
  ----------------------------------------------------------------------------------------
 */
 // Pipeline version
+params.helpMsg = false
 version = '1.2'
 def helpMsg() {
     log.info"""
@@ -103,12 +104,11 @@ def helpMsg() {
     REQUIRED:
       --reads                       Path to input fastq.gz folder (files must be *.gz)
       --outdir                      Path to output directory to store pipeline output files
-      --Reference_Fasta             Path to Fasta with reference virus sequence(multi-fasta/single fasta)
     OPTIONAL:
-      --helpMsg                     Display help message in terminal
       --withSampleSheet             Add FASTQ sample information to final summary report *.csv
       --singleEnd                   Specifies that the input fastq files are single-end reads
       --withFastQC                  Runs a quality control check on fastq files
+      --helpMsg                     Display help message in terminal      
     """.stripIndent()
 }
 // Show help msg
@@ -117,7 +117,6 @@ if (params.helpMsg){
     exit 0
 }
 // Initialize parameters
-params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
 params.withFastQC = false
@@ -126,8 +125,16 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
-params.Reference_Fasta = false
-Reference_Fasta = file(params.Reference_Fasta)
+// Reference Files
+
+// Rhinovirus Reference Multi-Fasta
+Reference_Fasta_hrv = file("${baseDir}/hrv-ref/hrv_ref_rhinovirus.fa")
+// Respiratoery Panel Reference Multi-Fasta
+Reference_Fasta_hcov = file("${baseDir}/hrv-ref/hrv_ref_db01_accession_only-resp-panel.fa")
+// HCoV Reference Multi-Fasta
+Reference_Fasta_hcov = file("${baseDir}/hrv-ref/hrv_ref_hcov.fa")
+// Influenza B Reference Multi-Fasta
+Reference_Fasta_hcov = file("${baseDir}/hrv-ref/hrv_ref_Influenza_B.fa")
 // Script Files
 if(params.withSampleSheet != false) {
     SAMPLE_SHEET = file(params.withSampleSheet)
@@ -200,9 +207,10 @@ if(params.singleEnd == false) {
 // if(!params.skipTrimming) {
 if (params.singleEnd) {
 	process Trim_Reads {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"
-    errorStrategy 'retry'
-    maxRetries 3
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"
+    // errorStrategy 'retry'
+    // maxRetries 3
+
 
     input:
         file R1 from input_read_ch
@@ -233,7 +241,7 @@ if (params.singleEnd) {
 } 
 } else {
 	process Trim_Reads_PE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -288,13 +296,13 @@ if (params.singleEnd) {
  */
  if (params.singleEnd) {
 process Mapping {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"
     errorStrategy 'retry'
     maxRetries 3
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_summary.csv") from Trim_out_SE
-        file Reference_Fasta
+        file Reference_Fasta_hrv
 
     output:
         tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Everything_ch
@@ -317,7 +325,9 @@ process Mapping {
 
     """
     #!/bin/bash
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_Fasta} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+    
+    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_Fasta_hrv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
     samtools index ${base}.sorted.bam
@@ -325,7 +335,11 @@ process Mapping {
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${Reference_Fasta} \$id > ${base}_mapped_ref_genome.fa
+    samtools faidx ${Reference_Fasta_hrv} \$id > ${base}_mapped_ref_genome.fa
+
+
+
+
     bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
@@ -345,13 +359,13 @@ process Mapping {
 }
 } else {
 process Mapping_PE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest" 
     errorStrategy 'retry'
     maxRetries 3
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_summary.csv") from Trim_out_PE
-        file Reference_Fasta
+        file Reference_Fasta_hrv
 
     output:
         tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Everything_PE_ch
@@ -374,7 +388,8 @@ process Mapping_PE {
 
     """
     #!/bin/bash
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_Fasta} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true -Xmx6g > ${base}_map1_stats.txt 2>&1
+    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_Fasta_hrv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt maxindel=20 strictmaxindel local=true -Xmx6g > ${base}_map1_stats.txt 2>&1
+
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
     samtools index ${base}.sorted.bam
@@ -382,8 +397,9 @@ process Mapping_PE {
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${Reference_Fasta} \$id > ${base}_mapped_ref_genome.fa
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true -Xmx6g > ${base}_map2_stats.txt 2>&1
+    samtools faidx ${Reference_Fasta_hrv} \$id > ${base}_mapped_ref_genome.fa
+
+    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
     mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
@@ -410,7 +426,7 @@ process Mapping_PE {
  // Step 3. Generate Statistics about Bam file
 if (params.singleEnd) {
 process Sort_Bam {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"      
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -427,11 +443,11 @@ process Sort_Bam {
     script:
     """
     #!/bin/bash
-    /usr/local/miniconda/bin/samtools view -S -b ${base}_map2.sam > ${base}.bam
-    /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    /usr/local/miniconda/bin/samtools index ${base}.sorted.bam
-    /usr/local/miniconda/bin/samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-    /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    samtools view -S -b ${base}_map2.sam > ${base}.bam
+    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
+    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     
     awk 'NR == 3 || \$3 > max {number = \$3; max = \$1} END {if (NR) print number, max}' < ${base}_coverage.txt > ${base}_min_coverage.txt
     awk 'NR == 2 || \$3 > min {number = \$1; min = \$3} END {if (NR) print number, min}' < ${base}_coverage.txt > ${base}_max_coverage.txt
@@ -451,7 +467,7 @@ process Sort_Bam {
 }
 } else {
 process Sort_Bam_PE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"      
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"  
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -468,11 +484,11 @@ process Sort_Bam_PE {
     script:
     """
     #!/bin/bash
-    /usr/local/miniconda/bin/samtools view -S -b ${base}_map2.sam > ${base}.bam
-    /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    /usr/local/miniconda/bin/samtools index ${base}.sorted.bam
-    /usr/local/miniconda/bin/samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-    /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    samtools view -S -b ${base}_map2.sam > ${base}.bam
+    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
+    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     
     awk 'NR == 3 || \$3 > max {number = \$3; max = \$1} END {if (NR) print number, max}' < ${base}_coverage.txt > ${base}_min_coverage.txt
     awk 'NR == 2 || \$3 > min {number = \$1; min = \$3} END {if (NR) print number, min}' < ${base}_coverage.txt > ${base}_max_coverage.txt
@@ -496,7 +512,7 @@ process Sort_Bam_PE {
   */
 if (params.singleEnd) {
  process Generate_Consensus {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -586,7 +602,7 @@ if (params.singleEnd) {
 }
 } else {
  process Generate_Consensus_PE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
     errorStrategy 'retry'
     maxRetries 3
 
@@ -677,7 +693,7 @@ if (params.singleEnd) {
 }
 if (params.singleEnd) {
 process Final_Mapping {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -701,11 +717,11 @@ process Final_Mapping {
     #!/bin/bash
     
     bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
-    /usr/local/miniconda/bin/samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    /usr/local/miniconda/bin/samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    /usr/local/miniconda/bin/samtools index ${base}.map3.sorted.bam
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
 
-    /usr/local/miniconda/bin/samtools mpileup \\
+    samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
         --max-depth 50000 \\
@@ -713,15 +729,15 @@ process Final_Mapping {
         --min-BQ 15 \\
         --output ${base}.mpileup \\
         ${base}.map3.sorted.bam
-    cat ${base}.mpileup | /usr/local/miniconda/bin/ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
 
-    /usr/local/miniconda/bin/bedtools genomecov \\
+    bedtools genomecov \\
         -bga \\
         -ibam ${base}.map3.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
-    /usr/local/miniconda/bin/bedtools maskfasta \\
+    bedtools maskfasta \\
         -fi ${base}.consensus_final.fa \\
         -bed ${base}.mask.bed \\
         -fo ${base}.consensus.masked.fa
@@ -732,7 +748,7 @@ process Final_Mapping {
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
 
-    /usr/local/miniconda/bin/seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
 
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
@@ -747,7 +763,7 @@ process Final_Mapping {
 }
 } else {
 process Final_Mapping_PE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"   
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -772,11 +788,11 @@ process Final_Mapping_PE {
     
     
     bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true -Xmx6g > ${base}_map3_stats.txt 2>&1
-    /usr/local/miniconda/bin/samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    /usr/local/miniconda/bin/samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    /usr/local/miniconda/bin/samtools index ${base}.map3.sorted.bam
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
 
-    /usr/local/miniconda/bin/samtools mpileup \\
+    samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
         --max-depth 50000 \\
@@ -784,15 +800,15 @@ process Final_Mapping_PE {
         --min-BQ 15 \\
         --output ${base}.mpileup \\
         ${base}.map3.sorted.bam
-    cat ${base}.mpileup | /usr/local/miniconda/bin/ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
 
-    /usr/local/miniconda/bin/bedtools genomecov \\
+    bedtools genomecov \\
         -bga \\
         -ibam ${base}.map3.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
-    /usr/local/miniconda/bin/bedtools maskfasta \\
+    bedtools maskfasta \\
         -fi ${base}.consensus_final.fa \\
         -bed ${base}.mask.bed \\
         -fo ${base}.consensus.masked.fa
@@ -803,7 +819,7 @@ process Final_Mapping_PE {
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
 
-    /usr/local/miniconda/bin/seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
 
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
@@ -820,7 +836,7 @@ process Final_Mapping_PE {
 if (params.withSampleSheet) {
     if (params.singleEnd) {
     process Final_Processing {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
     errorStrategy 'retry'
     maxRetries 3
 
@@ -840,11 +856,11 @@ if (params.withSampleSheet) {
 
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    /usr/local/miniconda/bin/csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
 
-    /usr/local/miniconda/bin/csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    /usr/local/miniconda/bin/csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
-    /usr/local/miniconda/bin/csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
 
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
@@ -866,7 +882,7 @@ if (params.withSampleSheet) {
     }
     } else {
     process Final_Processing_PE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
     errorStrategy 'retry'
     maxRetries 3
 
@@ -886,11 +902,11 @@ if (params.withSampleSheet) {
 
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    /usr/local/miniconda/bin/csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
 
-    /usr/local/miniconda/bin/csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    /usr/local/miniconda/bin/csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
-    /usr/local/miniconda/bin/csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
 
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
@@ -921,7 +937,7 @@ if (params.withFastQC) {
  * Sequence read quality control analysis.
  */
 process FastQC_SE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -941,7 +957,7 @@ process FastQC_SE {
     }
 } else {
 process FastQC_PE {
-    container "hub.docker.com/repository/docker/paulrkcruz/hrv-pipeline"    
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
 	errorStrategy 'retry'
     maxRetries 3
 
