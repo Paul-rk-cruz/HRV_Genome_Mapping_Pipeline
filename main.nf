@@ -2,7 +2,7 @@
 
 /*
 ========================================================================================
-                  Human Respiratory Virus (HRV) Pipeline v1.2
+                  Rhinovirus Genome Mapping Pipeline v1.3
 ========================================================================================
  Github Repo:
  Greninger Lab
@@ -17,9 +17,8 @@
  Created: April, 2021
  LICENSE: GNU
 ----------------------------------------------------------------------------------------
-This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Respiratory Virus Complete Genomes for analysis and Genbank submission. 
+This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission. 
 The pipeline outputs mapping statistics, sam, bam, and consensus files, as well as a final report summary at the end of the workflow for analysis.
-
 PIPELINE OVERVIEW:
  - 1. : Trim Reads
  		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
@@ -56,13 +55,11 @@ PIPELINE OVERVIEW:
     fastqc
     
     PIPELINE SETUP
-
     Setup fasta Reference:
     1. Reference_Fasta (Multifasta containing concatenated full length RhV genome sequences (6-10K bp) formatted with accession numbers only)
         Current file: rhv_ref_db01_accession_only.fasta - 500~ Human Rhinovirus Complete Genome Sequences courtesy of NCBI Genbank, 2021.
             source: https://www.ncbi.nlm.nih.gov/nucleotide/
-    This pipeline can also run using one fasta reference.
-
+    The pipeline can also run using a fasta reference.
     Setup File Paths:
     1. BBMAP_PATH
         Path to your installation of BBTools --> bbmap.sh
@@ -86,37 +83,32 @@ PIPELINE OVERVIEW:
         nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
  ----------------------------------------------------------------------------------------
 */
+
 // Pipeline version
-params.helpMsg = false
-version = '1.2'
+version = '1.3'
 def helpMsg() {
     log.info"""
 	 _______________________________________________________________________________
-     Human Respiratory Virus (HRV) Pipeline :  Version ${version}
+     Human Rhinovirus Genome Mapping Pipeline :  Version ${version}
 	________________________________________________________________________________
     
-	Usage:
+	Pipeline Usage:
     To run the pipeline, enter the following in the command line:
-
-        nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR --Reference_Fasta PATH_TO_REF_FASTA 
-    
-    Valid command-line arguments:
+        nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
+    Valid CLI Arguments:
     REQUIRED:
-      --reads                       Path to input fastq.gz folder (files must be *.gz)
-      --outdir                      Path to output directory to store pipeline output files
+      --reads                       Path to input fastq.gz folder).
+      --outdir                      The output directory where the results will be saved
     OPTIONAL:
-      --withSampleSheet             Add FASTQ sample information to final summary report *.csv
-      --singleEnd                   Specifies that the input fastq files are single-end reads
-      --withFastQC                  Runs a quality control check on fastq files
-      --helpMsg                     Display help message in terminal      
+      --withSampleSheet             Adds Sample Sheet information to Final Report Summary
+	  --helpMsg						Displays help message in terminal
+      --singleEnd                   Specifies that the input fastq files are single end reads
+	  --withFastQC					Runs a quality control check on fastq files
+      --skipTrimming                Skips the fastq trimmming process
     """.stripIndent()
 }
-// Show help msg
-if (params.helpMsg){
-    helpMsg()
-    exit 0
-}
 // Initialize parameters
+params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
 params.withFastQC = false
@@ -125,16 +117,13 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
-// Reference Files
-
-// Rhinovirus Reference Multi-Fasta
-Reference_Fasta_hrv = file("${baseDir}/hrv-ref/hrv_ref_rhinovirus.fa")
-// Respiratoery Panel Reference Multi-Fasta
-Reference_Fasta_hcov = file("${baseDir}/hrv-ref/hrv_ref_db01_accession_only-resp-panel.fa")
-// HCoV Reference Multi-Fasta
-Reference_Fasta_hcov = file("${baseDir}/hrv-ref/hrv_ref_hcov.fa")
-// Influenza B Reference Multi-Fasta
-Reference_Fasta_hcov = file("${baseDir}/hrv-ref/hrv_ref_Influenza_B.fa")
+// params.Reference_Fasta = false
+// Reference_Fasta = file(params.Reference_Fasta)
+// Reference multi-fasta files
+Reference_rv=file("${baseDir}/hrv_ref/hrv_ref_rhinovirus.fa")
+Reference_hcov=file("${baseDir}/hrv_ref/hrv_ref_hcov.fa")
+Reference_respp=file("${baseDir}/hrv_ref/hrv_ref_resp-panel.fa")
+Reference_inflb=file("${baseDir}/hrv_ref/hrv_ref_Influenza_B.fa")
 // Script Files
 if(params.withSampleSheet != false) {
     SAMPLE_SHEET = file(params.withSampleSheet)
@@ -150,6 +139,11 @@ BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
 // BBMAP_PATH="/Volumes/HD2/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
+// Show help msg
+if (params.helpMsg){
+    helpMsg()
+    exit 0
+}
 // Check Nextflow version
 nextflow_req_v = '20.10.0'
 try {
@@ -169,7 +163,7 @@ def summary = [:]
 summary['Fastq Files:']               = params.reads
 summary['Sample Sheet:']               = params.withSampleSheet
 summary['Read type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
-summary['Virus Reference:']           = Reference_Fasta
+summary['Virus Reference:']           = Reference_rv
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Current directory path:']        = "$PWD"
 summary['Working directory path:']         = workflow.workDir
@@ -208,16 +202,15 @@ if(params.singleEnd == false) {
 if (params.singleEnd) {
 	process Trim_Reads {
     container "docker.io/paulrkcruz/hrv-pipeline:latest"
-    // errorStrategy 'retry'
-    // maxRetries 3
-
+    errorStrategy 'retry'
+    maxRetries 3
 
     input:
         file R1 from input_read_ch
         file ADAPTERS_SE
         val MINLEN
 
-    output: 
+    output:
         tuple env(base),file("*.trimmed.fastq.gz"), file("${R1}_num_trimmed.txt"),file("*summary.csv") into Trim_out_SE, Trim_out_SE_FQC
 
     publishDir "${params.outdir}trimmed_fastqs", mode: 'copy',pattern:'*.trimmed.fastq*'
@@ -254,29 +247,22 @@ if (params.singleEnd) {
         tuple val(base), file(R1),file(R2),file("${base}.R1.paired.fastq.gz"), file("${base}.R2.paired.fastq.gz"),file("${base}.R1.unpaired.fastq.gz"), file("${base}.R2.unpaired.fastq.gz") into Trim_out_ch2
         tuple val(base), file("${base}.trimmed.fastq.gz") into Trim_out_ch3
 
-
     publishDir "${params.outdir}fastq_trimmed", mode: 'copy',pattern:'*.trimmed.fastq*'
     
     script:
     """
     #!/bin/bash
-
-
     /usr/local/miniconda/bin/trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
     ILLUMINACLIP:${ADAPTERS_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
-
     num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
     num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
     num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
-
     num_r1_paired=\$(gunzip -c ${base}.R1.paired.fastq.gz | wc -l)
     num_r2_paired=\$(gunzip -c ${base}.R2.paired.fastq.gz | wc -l)
     num_paired=\$((\$((num_r1_paired + num_r2_paired))/4))
-
     num_r1_unpaired=\$(gunzip -c ${base}.R1.unpaired.fastq.gz | wc -l)
     num_r2_unpaired=\$(gunzip -c ${base}.R2.unpaired.fastq.gz | wc -l)
     num_unpaired=\$((\$((num_r1_unpaired + num_r2_unpaired))/4))
-
     num_trimmed=\$((num_paired + num_unpaired))
     
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
@@ -285,9 +271,7 @@ if (params.singleEnd) {
     echo Sample_Name,Raw_Reads,Trimmed_Paired_Reads,Trimmed_Unpaired_Reads,Total_Trimmed_Reads, Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name> \$base'_summary.csv'
     printf "${base},\$num_untrimmed,\$num_paired,\$num_unpaired,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
-
     cat *paired.fastq.gz > ${base}.trimmed.fastq.gz
-
     """
 }
 }
@@ -296,19 +280,24 @@ if (params.singleEnd) {
  */
  if (params.singleEnd) {
 process Mapping {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"
-    errorStrategy 'retry'
-    maxRetries 3
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
+    // errorStrategy 'retry'
+    // maxRetries 3
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_summary.csv") from Trim_out_SE
-        file Reference_Fasta_hrv
+        file Reference_rv
+        file Reference_hcov
+        file Reference_respp
+        file Reference_inflb
 
     output:
         tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Everything_ch
         tuple val(base), file("${base}_map1_histogram.txt"),file("${base}_map2_histogram.txt") into BBmap_map1_hist_ch
         tuple val (base), file("*") into Dump_map1_ch
 
+    publishDir "${params.outdir}all_ref", mode: 'copy', pattern:'*all_ref.sam*'
+    publishDir "${params.outdir}all_ref", mode: 'copy', pattern:'*all_ref*'    
     publishDir "${params.outdir}sam_map1", mode: 'copy', pattern:'*_map1.sam*'
     publishDir "${params.outdir}sam_map2", mode: 'copy', pattern:'*_map2.sam*'
     publishDir "${params.outdir}txt_bbmap_map1_stats", mode: 'copy', pattern:'*_map1_bbmap_out.txt*'  
@@ -325,9 +314,31 @@ process Mapping {
 
     """
     #!/bin/bash
-    
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_Fasta_hrv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
 
+    cat ${Reference_respp} ${Reference_rv} ${Reference_inflb} ${Reference_hcov} > ${base}_all_ref.fa
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_all_ref.sam ref=${base}_all_ref.fa threads=${task.cpus} covstats=${base}_all_ref_bbmap_out.txt covhist=${base}_all_ref_histogram.txt local=true interleaved=false -Xmx10g > ${base}_all_ref_stats.txt 2>&1
+
+    samtools view -S -b ${base}_all_ref.sam > ${base}_all_ref.bam
+    samtools sort -@ 4 ${base}_all_ref.bam > ${base}_all_ref.sorted.bam
+    samtools index ${base}_all_ref.sorted.bam
+    samtools idxstats ${base}_all_ref.sorted.bam > ${base}_all_ref_idxstats.txt
+    
+    awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_all_ref_bbmap_out.txt > ${base}_all_ref_id.txt
+    all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
+
+    grep -B 0 ">" ${Reference_rv} | tr -d ">" > ${base}_rv_ids.txt
+    grep -B 0 ">" ${Reference_respp} | tr -d ">" > ${base}_resp-p_ids.txt
+    grep -B 0 ">" ${Reference_inflb} | tr -d ">" > ${base}_inbflb_ids.txt
+    grep -B 0 ">" ${Reference_hcov} | tr -d ">" > ${base}_hcov_ids.txt
+
+    # Rhinovirus
+    if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
+    then
+    echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
+
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_rv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
     samtools index ${base}.sorted.bam
@@ -335,17 +346,14 @@ process Mapping {
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${Reference_Fasta_hrv} \$id > ${base}_mapped_ref_genome.fa
-
-
-
-
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
+    samtools faidx ${Reference_rv} \$id > ${base}_mapped_ref_genome.fa
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
     mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
     samtools faidx ${base}_mapped_ref_genome.fa
     awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
+
     id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
     echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
     reads_mapped=\$(cat ${base}_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
@@ -355,17 +363,149 @@ process Mapping {
     printf ",\$id_ref_size" >> ${base}_summary2.csv
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
+
+
+    # Respiratory Panel
+    elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
+    then
+    echo "< Accession found in respiratory virus multifasta file. hrv_ref_resp-panel.fa will be used for mapping."
+
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_rv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+    samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
+    samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
+    awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
+    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
+    ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
+    samtools faidx ${Reference_rv} \$id > ${base}_mapped_ref_genome.fa
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
+    head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
+    grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
+    mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
+    samtools faidx ${base}_mapped_ref_genome.fa
+    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
+
+    id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
+    echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
+    reads_mapped=\$(cat ${base}_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+    printf "\$reads_mapped" >> ${base}_num_mapped.txt
+    cp ${base}_summary.csv ${base}_summary2.csv
+    printf ",\$id" >> ${base}_summary2.csv
+    printf ",\$id_ref_size" >> ${base}_summary2.csv
+    printf ",\$reads_mapped" >> ${base}_summary2.csv
+    printf ",\$ref_coverage" >> ${base}_summary2.csv
+
+
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
+
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_rv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+    samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
+    samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
+    awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
+    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
+    ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
+    samtools faidx ${Reference_rv} \$id > ${base}_mapped_ref_genome.fa
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
+    head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
+    grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
+    mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
+    samtools faidx ${base}_mapped_ref_genome.fa
+    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
+
+    id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
+    echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
+    reads_mapped=\$(cat ${base}_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+    printf "\$reads_mapped" >> ${base}_num_mapped.txt
+    cp ${base}_summary.csv ${base}_summary2.csv
+    printf ",\$id" >> ${base}_summary2.csv
+    printf ",\$id_ref_size" >> ${base}_summary2.csv
+    printf ",\$reads_mapped" >> ${base}_summary2.csv
+    printf ",\$ref_coverage" >> ${base}_summary2.csv
+
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_rv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+    samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
+    samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
+    awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
+    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
+    ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
+    samtools faidx ${Reference_rv} \$id > ${base}_mapped_ref_genome.fa
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
+    head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
+    grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
+    mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
+    samtools faidx ${base}_mapped_ref_genome.fa
+    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
+
+    id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
+    echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
+    reads_mapped=\$(cat ${base}_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+    printf "\$reads_mapped" >> ${base}_num_mapped.txt
+    cp ${base}_summary.csv ${base}_summary2.csv
+    printf ",\$id" >> ${base}_summary2.csv
+    printf ",\$id_ref_size" >> ${base}_summary2.csv
+    printf ",\$reads_mapped" >> ${base}_summary2.csv
+    printf ",\$ref_coverage" >> ${base}_summary2.csv
+
+
+    else
+
+    # Not Rhinovirus, Inlfuenza B, OR Human Coronavirus - Use Regular Mapping Settings
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_rv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+    samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
+    samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    samtools idxstats ${base}.sorted.bam > ${base}_idxstats.txt
+    awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
+    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
+    ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
+    samtools faidx ${Reference_rv} \$id > ${base}_mapped_ref_genome.fa
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
+    head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
+    grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
+    mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
+    samtools faidx ${base}_mapped_ref_genome.fa
+    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref_size_out.txt
+
+    id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref_size_out.txt)
+    echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
+    reads_mapped=\$(cat ${base}_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+    printf "\$reads_mapped" >> ${base}_num_mapped.txt
+    cp ${base}_summary.csv ${base}_summary2.csv
+    printf ",\$id" >> ${base}_summary2.csv
+    printf ",\$id_ref_size" >> ${base}_summary2.csv
+    printf ",\$reads_mapped" >> ${base}_summary2.csv
+    printf ",\$ref_coverage" >> ${base}_summary2.csv
+
+
+    fi
+
     """
 }
 } else {
 process Mapping_PE {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest" 
     errorStrategy 'retry'
     maxRetries 3
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_summary.csv") from Trim_out_PE
-        file Reference_Fasta_hrv
+        file Reference_Fasta
 
     output:
         tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt") into Everything_PE_ch
@@ -388,8 +528,7 @@ process Mapping_PE {
 
     """
     #!/bin/bash
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_Fasta_hrv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt maxindel=20 strictmaxindel local=true -Xmx6g > ${base}_map1_stats.txt 2>&1
-
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_Fasta} threads=8 covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
     samtools index ${base}.sorted.bam
@@ -397,9 +536,8 @@ process Mapping_PE {
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${Reference_Fasta_hrv} \$id > ${base}_mapped_ref_genome.fa
-
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true -Xmx6g > ${base}_map2_stats.txt 2>&1
+    samtools faidx ${Reference_Fasta} \$id > ${base}_mapped_ref_genome.fa
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=8 covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
     mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
@@ -426,7 +564,7 @@ process Mapping_PE {
  // Step 3. Generate Statistics about Bam file
 if (params.singleEnd) {
 process Sort_Bam {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"    
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -438,16 +576,16 @@ process Sort_Bam {
 
     publishDir "${params.outdir}bam-map2", mode: 'copy', pattern:'*.bam*'
     publishDir "${params.outdir}bam_sorted-map2", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*' 
+    publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*'  
 
     script:
     """
     #!/bin/bash
-    samtools view -S -b ${base}_map2.sam > ${base}.bam
-    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    samtools index ${base}.sorted.bam
-    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    /usr/local/miniconda/bin/samtools view -S -b ${base}_map2.sam > ${base}.bam
+    /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools index ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
+    /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     
     awk 'NR == 3 || \$3 > max {number = \$3; max = \$1} END {if (NR) print number, max}' < ${base}_coverage.txt > ${base}_min_coverage.txt
     awk 'NR == 2 || \$3 > min {number = \$1; min = \$3} END {if (NR) print number, min}' < ${base}_coverage.txt > ${base}_max_coverage.txt
@@ -456,18 +594,16 @@ process Sort_Bam {
     mincoverage=\$(awk 'FNR==1{print val,\$1}' ${base}_min_coverage.txt)
     maxcoverage=\$(awk 'FNR==1{print val,\$2}' ${base}_max_coverage.txt)
     bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0))
-
     cp ${base}_summary2.csv ${base}_summary.csv
     printf ",\$mincoverage" >> ${base}_summary.csv
     printf ",\$meancoverage" >> ${base}_summary.csv
     printf ",\$maxcoverage" >> ${base}_summary.csv
     printf ",\$bamsize" >> ${base}_summary.csv
-
     """
 }
 } else {
 process Sort_Bam_PE {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"  
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"    
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -479,16 +615,16 @@ process Sort_Bam_PE {
 
     publishDir "${params.outdir}bam-map2", mode: 'copy', pattern:'*.bam*'
     publishDir "${params.outdir}bam_sorted-map2", mode: 'copy', pattern:'*.sorted.bam*'  
-    publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*'  
+    publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*' 
 
     script:
     """
     #!/bin/bash
-    samtools view -S -b ${base}_map2.sam > ${base}.bam
-    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    samtools index ${base}.sorted.bam
-    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    /usr/local/miniconda/bin/samtools view -S -b ${base}_map2.sam > ${base}.bam
+    /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools index ${base}.sorted.bam
+    /usr/local/miniconda/bin/samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
+    /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     
     awk 'NR == 3 || \$3 > max {number = \$3; max = \$1} END {if (NR) print number, max}' < ${base}_coverage.txt > ${base}_min_coverage.txt
     awk 'NR == 2 || \$3 > min {number = \$1; min = \$3} END {if (NR) print number, min}' < ${base}_coverage.txt > ${base}_max_coverage.txt
@@ -497,13 +633,11 @@ process Sort_Bam_PE {
     mincoverage=\$(awk 'FNR==1{print val,\$1}' ${base}_min_coverage.txt)
     maxcoverage=\$(awk 'FNR==1{print val,\$2}' ${base}_max_coverage.txt)
     bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0))
-
     cp ${base}_summary2.csv ${base}_summary.csv
     printf ",\$mincoverage" >> ${base}_summary.csv
     printf ",\$meancoverage" >> ${base}_summary.csv
     printf ",\$maxcoverage" >> ${base}_summary.csv
     printf ",\$bamsize" >> ${base}_summary.csv
-
     """
 }
 }
@@ -602,7 +736,7 @@ if (params.singleEnd) {
 }
 } else {
  process Generate_Consensus_PE {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"
     errorStrategy 'retry'
     maxRetries 3
 
@@ -693,7 +827,6 @@ if (params.singleEnd) {
 }
 if (params.singleEnd) {
 process Final_Mapping {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -716,11 +849,11 @@ process Final_Mapping {
     """
     #!/bin/bash
     
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
+    
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
-
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -730,7 +863,6 @@ process Final_Mapping {
         --output ${base}.mpileup \\
         ${base}.map3.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
-
     bedtools genomecov \\
         -bga \\
         -ibam ${base}.map3.sorted.bam \\
@@ -741,29 +873,23 @@ process Final_Mapping {
         -fi ${base}.consensus_final.fa \\
         -bed ${base}.mask.bed \\
         -fo ${base}.consensus.masked.fa
-
     sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
-
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
-
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
     printf ",\$num_bases" >> ${base}_summary.csv
     printf ",\$percent_n" >> ${base}_summary.csv
-
     cp ${base}_summary.csv ${base}_final_summary.csv
     
     """  
 }
 } else {
 process Final_Mapping_PE {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"   
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -787,11 +913,10 @@ process Final_Mapping_PE {
     #!/bin/bash
     
     
-    bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true -Xmx6g > ${base}_map3_stats.txt 2>&1
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
-
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -801,7 +926,6 @@ process Final_Mapping_PE {
         --output ${base}.mpileup \\
         ${base}.map3.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
-
     bedtools genomecov \\
         -bga \\
         -ibam ${base}.map3.sorted.bam \\
@@ -812,22 +936,17 @@ process Final_Mapping_PE {
         -fi ${base}.consensus_final.fa \\
         -bed ${base}.mask.bed \\
         -fo ${base}.consensus.masked.fa
-
     sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
-
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
-
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
     printf ",\$num_bases" >> ${base}_summary.csv
     printf ",\$percent_n" >> ${base}_summary.csv
-
     cp ${base}_summary.csv ${base}_final_summary.csv
     
     """  
@@ -836,7 +955,7 @@ process Final_Mapping_PE {
 if (params.withSampleSheet) {
     if (params.singleEnd) {
     process Final_Processing {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"        
     errorStrategy 'retry'
     maxRetries 3
 
@@ -853,36 +972,29 @@ if (params.withSampleSheet) {
 
     """
     #!/bin/bash
-
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
-
-    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
-    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
-
+    /usr/local/miniconda/bin/csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    /usr/local/miniconda/bin/csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    /usr/local/miniconda/bin/csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    /usr/local/miniconda/bin/csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
     method=\$(cat ${base}_method.txt | sed -n '2 p')
-
     reads_mapped=\$(cat ${base}_num_mapped.txt | tr -d " \t\n\r" | sed -n '1 p')
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
-
     echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
     Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
-
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
     printf ",\$method" >> ${base}_final_summary.csv
     printf ",\$NCBI_Name" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary.csv
-
     """
     }
     } else {
     process Final_Processing_PE {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"        
     errorStrategy 'retry'
     maxRetries 3
 
@@ -899,31 +1011,24 @@ if (params.withSampleSheet) {
 
     """
     #!/bin/bash
-
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
-
-    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
-    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
-
+    /usr/local/miniconda/bin/csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    /usr/local/miniconda/bin/csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    /usr/local/miniconda/bin/csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    /usr/local/miniconda/bin/csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
     method=\$(cat ${base}_method.txt | sed -n '2 p')
-
     reads_mapped=\$(cat ${base}_num_mapped.txt | tr -d " \t\n\r" | sed -n '1 p')
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
-
     echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
     Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
-
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
     printf ",\$method" >> ${base}_final_summary.csv
     printf ",\$NCBI_Name" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary.csv
-
     """
     }
     }
@@ -937,7 +1042,7 @@ if (params.withFastQC) {
  * Sequence read quality control analysis.
  */
 process FastQC_SE {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -952,12 +1057,14 @@ process FastQC_SE {
     script:
     """
     #!/bin/bash
-    fastqc --quiet --threads $task.cpus *.fastq.gz
+    
+    /usr/local/miniconda/bin/fastqc --quiet --threads ${task.cpus} *.fastq.gz
+
     """
     }
 } else {
 process FastQC_PE {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"   
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"
 	errorStrategy 'retry'
     maxRetries 3
 
@@ -972,7 +1079,9 @@ process FastQC_PE {
     script:
     """
     #!/bin/bash
-    fastqc --quiet --threads $task.cpus *.fastq.gz
+
+    /usr/local/miniconda/bin/fastqc --quiet --threads ${task.cpus} *.fastq.gz
+
     """
     }
 }
