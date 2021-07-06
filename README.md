@@ -1,4 +1,4 @@
-## HRV Pipeline v1.2
+## HRV Pipeline v1.3
 
 Github Repo:
 https://github.com/greninger-lab/HRV_Genome_Mapping_Pipeline
@@ -17,10 +17,12 @@ University of Washington
 
 Created: April, 2021
 
+Last Update: July 6, 2021
+
 License: MIT
 
 ### Description:
-Human Respiratory Virus (HRV) Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human Respiratory Virus Complete Genomes for analysis and Genbank submission.
+Rhinovirus Genome Mapping Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission.
 
 ### PIPELINE OVERVIEW:
 1. Trim Reads
@@ -115,4 +117,3 @@ Run Pipeline on Single-end sequence reads:
 Run Pipeline on Paired-end sequence reads:
         
         nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/'  --Reference_Fasta /Users/example/hrv_ref/hrv_ref_db01_accession_only.fa
-        
