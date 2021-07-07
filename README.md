@@ -85,9 +85,9 @@ Dependencies:
     
 PIPELINE SETUP
 
-Setup Multifasta Reference:
+Setup Multifasta References:
 
-1. REFERENCE_FASTA (must be a multifasta/fasta containing  full length Viral genome sequences (6-10K bp) formatted with accession numbers only)
+1. Multifasta references containing Viral genome sequences formatted with accession numbers only; Rhinovirus, Human Coronavirus, Influenza B, Respiratory Virus Panel.
 
 Setup File Paths:
 1. BBMAP_PATH
@@ -108,12 +108,12 @@ EXAMPLE USAGE:
 
 Run Pipeline Help Message:
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline --helpMsg helpMsg
+        nextflow run HRV_Genome_Mapping_Pipeline --helpMsg helpMsg
 
 Run Pipeline on Single-end sequence reads:
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/'  --Reference_Fasta /Users/example/hrv_ref/hrv_ref_db01_accession_only.fa --singleEnd 
+        nextflow run HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/' --singleEnd 
 
 Run Pipeline on Paired-end sequence reads:
         
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/'  --Reference_Fasta /Users/example/hrv_ref/hrv_ref_db01_accession_only.fa
+        nextflow run HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/'
