@@ -68,7 +68,9 @@ Human Respiratory Virus Pipeline was designed to run either single-end or paired
  	8.1. Sequence read quality control analysis.
 
 Dependencies:
-                        
+
+HRV-Docker includes all dependencies. Currently (7/2021), Mapping step requires local dependencies. Please see docker for dependencies required.
+
     trimmomatic         conda install -c bioconda trimmomatic
     bbtools             conda install -c bioconda bbmap    
     bgzip               conda install -c bioconda tabix
@@ -87,7 +89,7 @@ PIPELINE SETUP
 
 Setup Multifasta References:
 
-1. Multifasta references containing Viral genome sequences formatted with accession numbers only; Rhinovirus, Human Coronavirus, Influenza B, Respiratory Virus Panel.
+1. Multifasta references containing Viral genome sequences formatted with accession numbers only; Rhinovirus, Human Coronavirus, Influenza B, HPIV3, Respiratory Virus Panel.
 
 Setup File Paths:
 1. BBMAP_PATH

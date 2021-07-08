@@ -2,7 +2,7 @@
 
 /*
 ========================================================================================
-                  Rhinovirus Genome Mapping Pipeline v1.3
+                 Human Respiratory Virus Pipeline v1.3
 ========================================================================================
  Github Repo:
  Greninger Lab
@@ -17,8 +17,7 @@
  Created: April, 2021
  LICENSE: GNU
 ----------------------------------------------------------------------------------------
-This pipeline was designed to run either single-end or paired end Next-Generation Sequencing reads to identify Human Rhinovirus complete genomes for analysis and Genbank submission. 
-The pipeline outputs mapping statistics, sam, bam, and consensus files, as well as a final report summary at the end of the workflow for analysis.
+Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human respiratory virus discovery, analysis, and Genbank submission.
 PIPELINE OVERVIEW:
  - 1. : Trim Reads
  		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
@@ -43,44 +42,45 @@ PIPELINE OVERVIEW:
         -Creates the Final Consensus by editing the fasta header.       
  - 6. : FastQC
  		-Sequence read quality control analysis.
-    Dependencies:
+
+Dependencies:
+
+HRV-Docker includes all dependencies. Currently (7/2021), Mapping step requires local dependencies. Please see docker for dependencies required.
     
-    trimmomatic
-    samtools
-    bbtools  
-    bcftools
-    seqkit
-    bgzip
-    bedtools
-    fastqc
+Setup Multifasta References:
+
+1. Multifasta references containing Viral genome sequences formatted with accession numbers only; Rhinovirus, Human Coronavirus, Influenza B, HPIV3, Respiratory Virus Panel.
+
+Setup File Paths:
+1. BBMAP_PATH
+    Path to your installation of BBTools --> bbmap.sh
+2. trimmomatic_adapters_file_SE
+    Path to your Trimmomatic single-end file
+3. trimmomatic_adapters_file_PE
+    Path to your Trimmomatic paired-end file
+
     
-    PIPELINE SETUP
-    Setup fasta Reference:
-    1. Reference_Fasta (Multifasta containing concatenated full length RhV genome sequences (6-10K bp) formatted with accession numbers only)
-        Current file: rhv_ref_db01_accession_only.fasta - 500~ Human Rhinovirus Complete Genome Sequences courtesy of NCBI Genbank, 2021.
-            source: https://www.ncbi.nlm.nih.gov/nucleotide/
-    The pipeline can also run using a fasta reference.
-    Setup File Paths:
-    1. BBMAP_PATH
-        Path to your installation of BBTools --> bbmap.sh
-    2. trimmomatic_adapters_file_SE
-        Path to your Trimmomatic single-end file
-    3. trimmomatic_adapters_file_PE
-            Path to your Trimmomatic paired-end file
-    Setup Trimmomatic Parameters:
+Setup Trimmomatic Parameters:
     1. params.trimmomatic_adapters_parameters = "2:30:10:1"
     2. params.trimmomatic_window_length = "4"
     3. params.trimmomatic_window_value = "20"
     4. params.trimmomatic_mininum_length = "75"
+
     
     EXAMPLE USAGE:
-        Run Pipeline Help Message:
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/main.nf --helpMsg helpMsg
-/Users/uwvirongs/Documents/KC/input
-        Run Pipeline on Single-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L002_R1_001.fastq))
-        nextflow run /Users/uwvirongs/Documents/KC/HRV_Genome_Mapping_Pipeline/main.nf --reads '/Users/uwvirongs/Documents/KC/input/' --outdir '/Users/uwvirongs/Documents/KC/input/' --singleEnd
-        Run Pipeline on Paired-end sequence reads ((SAMPLE_NAME)_S1_L001_R1_001.fastq, ((SAMPLE_NAME)_S1_L001_R2_001.fastq))
-        nextflow run /Users/Kurtisc/Downloads/CURRENT/Virus_Genome_Mapping_Pipeline/Virus_Genome_Mapping_Pipeline/main.nf --reads '/Users/Kurtisc/Downloads/CURRENT/test_fastq_pe/' --outdir '/Users/Kurtisc/Downloads/CURRENT/test_output/'
+
+    Run Pipeline Help Message:
+            
+            nextflow run HRV_Genome_Mapping_Pipeline --helpMsg helpMsg
+
+    Run Pipeline on Single-end sequence reads:
+            
+            nextflow run HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/' --singleEnd 
+
+    Run Pipeline on Paired-end sequence reads:
+            
+            nextflow run HRV_Genome_Mapping_Pipeline --reads '/Users/example/' --outdir '/Users/example/example_output/'
+
  ----------------------------------------------------------------------------------------
 */
 
@@ -471,7 +471,7 @@ process Mapping {
     echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
 
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hcov} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hpiv3} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
     samtools index ${base}.sorted.bam
@@ -479,7 +479,7 @@ process Mapping {
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${Reference_hcov} \$id > ${base}_mapped_ref_genome.fa
+    samtools faidx ${Reference_hpiv3} \$id > ${base}_mapped_ref_genome.fa
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
