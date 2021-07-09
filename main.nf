@@ -107,7 +107,13 @@ def helpMsg() {
       --skipTrimming                Skips the fastq trimmming process
     """.stripIndent()
 }
-// Initialize parameters
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+/*                                                    */
+/*          SET UP CONFIGURATION VARIABLES            */
+/*                                                    */
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
 params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
@@ -117,6 +123,10 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
+// Make sure outdir ends with trailing slash
+if (!params.outdir.endsWith("/")){
+   params.outdir = "${params.outdir}/"
+}
 // params.Reference_Fasta = false
 // Reference_Fasta = file(params.Reference_Fasta)
 // Reference multi-fasta files
@@ -135,6 +145,15 @@ SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
 FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
 ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
 ADAPTERS_PE = file("${baseDir}/adapters/TruSeq2-PE.fa")
+
+def hrvheader() {
+    
+    return """"
+
+    """.stripIndent()
+}
+
+
 // BBMap Path
 BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
 // BBMAP_PATH="/Volumes/HD2/bbmap/"
@@ -157,6 +176,7 @@ try {
 
 if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a valid path with --reads"
 // log files header
+log.info hrvheader()
 log.info "_______________________________________________________________________________"
 log.info " Human Respiratory Virus Pipeline :  v${version}"
 log.info "_______________________________________________________________________________"
