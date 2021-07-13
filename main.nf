@@ -107,6 +107,11 @@ def helpMsg() {
       --outdir                      The output directory where the results will be saved
     OPTIONAL:
       --withSampleSheet             Adds Sample Sheet information to Final Report Summary
+      --ref_rv                      Overwrite set multi-fasta Rhinovirus reference file
+      --ref_hcov                    Overwrite set multi-fasta Human Coronavirus reference file
+      --ref_respp                   Overwrite set multi-fasta Influenza B reference file
+      --ref_inflb                   Overwrite set multi-fasta Respiratory Panel reference file
+      --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
 	  --helpMsg						Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
 	  --withFastQC					Runs a quality control check on fastq files
@@ -129,6 +134,7 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
+// Trimmomatic Paths and variables
 params.ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
 params.ADAPTERS_EE = file("${baseDir}/adapters/TruSeq2-PE.fa")
 ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
@@ -156,14 +162,50 @@ FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
 BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
-// params.Reference_Fasta = false
-// Reference_Fasta = file(params.Reference_Fasta)
-// Reference multi-fasta files
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+/*                                                    */
+/*               MULTI-FASTA REFERENCES               */
+/*                                                    */
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+// Setup MULTIFASTA Reference parameters.
+params.ref_rv = false
+params.ref_hcov = false
+params.ref_respp = false
+params.ref_inflb = false
+params.ref_hpiv3 = false
+// Setup MULTIFASTA Reference File Paths.
+// Rhinovirus
+if(params.ref_rv != false) {
+    Reference_rv = file(params.ref_rv)
+} else {
 Reference_rv=file("${baseDir}/hrv_ref/hrv_ref_rhinovirus.fa")
+}
+// Human Coronavirus
+if(params.ref_hcov != false) {
+    Reference_hcov = file(params.ref_hcov)
+} else {
 Reference_hcov=file("${baseDir}/hrv_ref/hrv_ref_hcov.fa")
+}
+// Respiratory Panel
+if(params.ref_respp != false) {
+    Reference_respp = file(params.ref_respp)
+} else {
 Reference_respp=file("${baseDir}/hrv_ref/hrv_ref_resp-panel.fa")
+}
+// Influenza B
+if(params.ref_inflb != false) {
+    Reference_inflb = file(params.ref_inflb)
+} else {
 Reference_inflb=file("${baseDir}/hrv_ref/hrv_ref_Influenza_B.fa")
+}
+// HPIV3 - Human Parainfluenza Virus 3
+if(params.ref_hpiv3 != false) {
+    Reference_hpiv3 = file(params.ref_hpiv3)
+} else {
 Reference_hpiv3=file("${baseDir}/hrv_ref/hrv_ref_hpiv3.fa")
+}
 // Show help msg
 if (params.helpMsg){
     helpMsg()
@@ -459,7 +501,6 @@ process Mapping {
     then
     echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_inflb} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
@@ -492,7 +533,6 @@ process Mapping {
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hcov} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
@@ -519,11 +559,11 @@ process Mapping {
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
 
+
     # HPIV3 - Human parainfluenza virus 3
     elif grep -q \$all_ref_id "${base}_hpiv3.txt";
     then
     echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
-
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hpiv3} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
@@ -596,6 +636,7 @@ process Mapping_PE {
         file Reference_hcov
         file Reference_respp
         file Reference_inflb
+        file Reference_hpiv3
 
     output:
         tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"), file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),env(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),env(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Everything_PE_ch
@@ -774,7 +815,7 @@ process Mapping_PE {
     echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
 
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hcov} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hpiv3} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
     samtools index ${base}.sorted.bam
@@ -782,7 +823,7 @@ process Mapping_PE {
     awk 'NR == 2 || \$5 > max {number = \$1; max = \$5} END {if (NR) print number, max}' < ${base}_map1_bbmap_out.txt > ${base}_most_mapped_ref.txt
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
-    samtools faidx ${Reference_hcov} \$id > ${base}_mapped_ref_genome.fa
+    samtools faidx ${Reference_hpiv3} \$id > ${base}_mapped_ref_genome.fa
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
@@ -1112,10 +1153,6 @@ process Final_Mapping {
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Consensus_Fasta_ch
-    file Reference_rv
-    file Reference_hcov
-    file Reference_respp
-    file Reference_inflb
 
     output:
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Mapping_Final_ch
@@ -1138,36 +1175,35 @@ process Final_Mapping {
     then
     echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
-
 
     # Respiratory Panel
     elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
     then
     echo "< Accession found in respiratory virus multifasta file. hrv_ref_resp-panel.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
-
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
     then
     echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
-
 
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
 
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
 
     else
 
@@ -1219,11 +1255,7 @@ process Final_Mapping_PE {
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Consensus_Fasta_PE_ch
-    file Reference_rv
-    file Reference_hcov
-    file Reference_respp
-    file Reference_inflb
-        
+
     output:
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Mapping_Final_PE_ch
 
@@ -1240,46 +1272,40 @@ process Final_Mapping_PE {
     """
     #!/bin/bash
 
-    grep -B 0 ">" ${Reference_rv} | tr -d ">" > ${base}_rv_ids.txt
-    grep -B 0 ">" ${Reference_respp} | tr -d ">" > ${base}_resp-p_ids.txt
-    grep -B 0 ">" ${Reference_inflb} | tr -d ">" > ${base}_inbflb_ids.txt
-    grep -B 0 ">" ${Reference_hcov} | tr -d ">" > ${base}_hcov_ids.txt
-
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
     then
     echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
-
 
     # Respiratory Panel
     elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
     then
     echo "< Accession found in respiratory virus multifasta file. hrv_ref_resp-panel.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
-
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
     then
     echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
-
 
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
 
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
 
     else
 
