@@ -83,7 +83,13 @@ Setup Trimmomatic Parameters:
 
  ----------------------------------------------------------------------------------------
 */
-
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+/*                                                    */
+/*                      HELP MSG                      */
+/*                                                    */
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
 // Pipeline version
 version = '1.3'
 def helpMsg() {
@@ -123,18 +129,22 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
+params.ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
+params.ADAPTERS_EE = file("${baseDir}/adapters/TruSeq2-PE.fa")
+ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
+ADAPTERS_PE = file("${baseDir}/adapters/TruSeq2-PE.fa")
+params.SETTING = "2:30:10:1:true"
+SETTING = "2:30:10:1:true"
+params.LEADING = "3"
+LEADING = "3"
+params.TRAILING = "3"
+TRAILING = "3"
+params.SWINDOW = "4:20"
+SWINDOW = "4:20"
 // Make sure outdir ends with trailing slash
 if (!params.outdir.endsWith("/")){
    params.outdir = "${params.outdir}/"
 }
-// params.Reference_Fasta = false
-// Reference_Fasta = file(params.Reference_Fasta)
-// Reference multi-fasta files
-Reference_rv=file("${baseDir}/hrv_ref/hrv_ref_rhinovirus.fa")
-Reference_hcov=file("${baseDir}/hrv_ref/hrv_ref_hcov.fa")
-Reference_respp=file("${baseDir}/hrv_ref/hrv_ref_resp-panel.fa")
-Reference_inflb=file("${baseDir}/hrv_ref/hrv_ref_Influenza_B.fa")
-Reference_hpiv3=file("${baseDir}/hrv_ref/hrv_ref_hpiv3.fa")
 // Script Files
 if(params.withSampleSheet != false) {
     SAMPLE_SHEET = file(params.withSampleSheet)
@@ -143,27 +153,29 @@ TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
 SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
 FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
-ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
-ADAPTERS_PE = file("${baseDir}/adapters/TruSeq2-PE.fa")
-
-def hrvheader() {
-    
-    return """"
-
-    """.stripIndent()
-}
-
-
-// BBMap Path
 BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
-// BBMAP_PATH="/Volumes/HD2/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
+// params.Reference_Fasta = false
+// Reference_Fasta = file(params.Reference_Fasta)
+// Reference multi-fasta files
+Reference_rv=file("${baseDir}/hrv_ref/hrv_ref_rhinovirus.fa")
+Reference_hcov=file("${baseDir}/hrv_ref/hrv_ref_hcov.fa")
+Reference_respp=file("${baseDir}/hrv_ref/hrv_ref_resp-panel.fa")
+Reference_inflb=file("${baseDir}/hrv_ref/hrv_ref_Influenza_B.fa")
+Reference_hpiv3=file("${baseDir}/hrv_ref/hrv_ref_hpiv3.fa")
 // Show help msg
 if (params.helpMsg){
     helpMsg()
     exit 0
 }
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+/*                                                    */
+/*                  SET UP CHANNELS                   */
+/*                                                    */
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
 // Check Nextflow version
 nextflow_req_v = '20.10.0'
 try {
@@ -173,31 +185,7 @@ try {
 } catch (all) {
 	log.error"ERROR: This version of Nextflow is out of date.\nPlease update to the latest version of Nextflow."
 }
-
 if (! params.reads ) exit 1, "> Error: Fastq files not found. Please specify a valid path with --reads"
-// log files header
-log.info hrvheader()
-log.info "_______________________________________________________________________________"
-log.info " Human Respiratory Virus Pipeline :  v${version}"
-log.info "_______________________________________________________________________________"
-def summary = [:]
-summary['Fastq Files:']               = params.reads
-summary['Sample Sheet:']               = params.withSampleSheet
-summary['Read type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
-if(workflow.revision) summary['Pipeline Release'] = workflow.revision
-summary['Current directory path:']        = "$PWD"
-summary['Working directory path:']         = workflow.workDir
-summary['Output directory path:']          = params.outdir
-summary['Pipeline directory path:']          = workflow.projectDir
-if (params.singleEnd) {
-// summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_SE
-} else {
-// summary['Trimmomatic adapters:'] = params.trimmomatic_adapters_file_PE
-}
-summary["Trimmomatic read length (minimum):"] = params.MINLEN
-summary['Configuration Profile:'] = workflow.profile
-log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
-log.info "_______________________________________________________________________________"
 // Create channel for input reads.
 // Import reads depending on single-end or paired-end
 if(params.singleEnd == false) {
@@ -213,6 +201,52 @@ if(params.singleEnd == false) {
         .ifEmpty { error "> Cannot locate single-end reads in: ${params.reads}.\n> Please enter a valid file path." }
         .map { it -> file(it)}
 }
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+/*                                                    */
+/*                       HEADER                       */
+/*                                                    */
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+def hrvheader() {
+    
+    return """
+    """.stripIndent()
+}
+// log files header
+// log.info hrvheader()
+log.info "_______________________________________________________________________________"
+log.info " Human Respiratory Virus Pipeline :  v${version}"
+log.info "_______________________________________________________________________________"
+def summary = [:]
+summary['Current directory path:']        = "$PWD"
+summary['HRV Pipeline directory path:']          = workflow.projectDir
+summary['Work directory path:']         = workflow.workDir
+summary['Output directory path:']          = params.outdir
+summary['Fastq Files:']               = params.reads
+summary['Fastq Sample Sheet:']               = params.withSampleSheet
+summary['Fastq type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
+if(workflow.revision) summary['Pipeline Release'] = workflow.revision
+if (params.singleEnd) {
+summary['Trimmomatic adapters:'] = params.ADAPTERS_SE
+} else {
+summary['Trimmomatic adapters:'] = params.ADAPTERS_PE
+}
+summary["Trimmomatic read length (minimum):"] = params.MINLEN
+summary["Trimmomatic Setting:"] = params.SETTING
+summary["Trimmomatic Sliding Window:"] = params.SWINDOW
+summary["Trimmomatic Leading:"] = params.LEADING
+summary["Trimmomatic Trailing:"] = params.TRAILING
+summary['Configuration Profile:'] = workflow.profile
+log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
+log.info "_______________________________________________________________________________"
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+/*                                                    */
+/*                    PROCESSES                       */
+/*                                                    */
+////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
 /*
  * Trim Reads
  * 
@@ -242,7 +276,7 @@ if (params.singleEnd) {
     base=`basename ${R1} ".fastq.gz"`
     echo \$base
     /usr/local/miniconda/bin/trimmomatic SE -threads ${task.cpus} ${R1} \$base.trimmed.fastq.gz \
-    ILLUMINACLIP:${ADAPTERS_SE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+    ILLUMINACLIP:${ADAPTERS_SE}:${SETTING} LEADING:${LEADING} TRAILING:${TRAILING} SLIDINGWINDOW:${SWINDOW} MINLEN:${MINLEN}
     num_untrimmed=\$((\$(gunzip -c ${R1} | wc -l)/4))
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
     printf "\$num_trimmed" >> ${R1}_num_trimmed.txt
@@ -273,7 +307,7 @@ if (params.singleEnd) {
     """
     #!/bin/bash
     /usr/local/miniconda/bin/trimmomatic PE -threads ${task.cpus} ${R1} ${R2} ${base}.R1.paired.fastq.gz ${base}.R1.unpaired.fastq.gz ${base}.R2.paired.fastq.gz ${base}.R2.unpaired.fastq.gz \
-    ILLUMINACLIP:${ADAPTERS_PE}:2:30:10:1:true LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:${MINLEN}
+    ILLUMINACLIP:${ADAPTERS_PE}:${SETTING} LEADING:${LEADING} TRAILING:${TRAILING} SLIDINGWINDOW:${SWINDOW} MINLEN:${MINLEN}
     num_r1_untrimmed=\$(gunzip -c ${R1} | wc -l)
     num_r2_untrimmed=\$(gunzip -c ${R2} | wc -l)
     num_untrimmed=\$((\$((num_r1_untrimmed + num_r2_untrimmed))/4))
@@ -1073,8 +1107,8 @@ if (params.singleEnd) {
 }
 if (params.singleEnd) {
 process Final_Mapping {
-	errorStrategy 'retry'
-    maxRetries 3
+	// errorStrategy 'retry'
+    // maxRetries 3
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Consensus_Fasta_ch
