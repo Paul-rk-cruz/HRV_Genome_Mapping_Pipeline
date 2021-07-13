@@ -17,15 +17,15 @@
  Created: April, 2021
  LICENSE: GNU
 ----------------------------------------------------------------------------------------
-Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human respiratory virus discovery, analysis, and Genbank submission.
+Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence for Human respiratory virus discovery, analysis, and Genbank submission.
 PIPELINE OVERVIEW:
  - 1. : Trim Reads
  		-Trimmomatic - sequence read trimming of adaptors and low quality reads.
  - 2. : Genome Mapping
  		-BBMap - align to MultiFasta Reference Virus Genome.
  		-Samtools - SAM and BAM file processing.
- - 3. : Reference Fasta Generation
- 		-Generate a fasta reference from the genome mapping results.  
+ - 3. : Reference Fasta Selection
+ 		-Selects the closest reference genome.  
  - 4. : Sort Bam
   		-Convert Sam to Bam
         -Sort Bam file by coordinates
@@ -39,8 +39,10 @@ PIPELINE OVERVIEW:
         -Consensus generation using variants VCF, mapped reference fasta, and
         sorted bam. 
  - 7. : Final Consensus
-        -Creates the Final Consensus by editing the fasta header.       
- - 6. : FastQC
+        -Creates the Final Consensus by editing the fasta header.
+ - 8. : Summary Report Generation
+        Generates a run report summary.               
+ - 9. : FastQC
  		-Sequence read quality control analysis.
 
 Dependencies:
@@ -86,7 +88,7 @@ Setup Trimmomatic Parameters:
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 /*                                                    */
-/*                      HELP MSG                      */
+/*                DISPLAY HELP MSG                    */
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
@@ -121,7 +123,7 @@ def helpMsg() {
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 /*                                                    */
-/*          SET UP CONFIGURATION VARIABLES            */
+/*              CONFIGURATION VARIABLES               */
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
@@ -165,7 +167,7 @@ MINLEN = "35"
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 /*                                                    */
-/*               MULTI-FASTA REFERENCES               */
+/*            VIRAL MULTI-FASTA REFERENCES            */
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
@@ -246,7 +248,7 @@ if(params.singleEnd == false) {
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 /*                                                    */
-/*                       HEADER                       */
+/*              WORKFLOW DISPLAY HEADER               */
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
@@ -285,7 +287,7 @@ log.info "______________________________________________________________________
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 /*                                                    */
-/*                    PROCESSES                       */
+/*                WORKFLOW PROCESSES                  */
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////

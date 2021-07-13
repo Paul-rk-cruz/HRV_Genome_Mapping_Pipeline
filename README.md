@@ -21,6 +21,26 @@ Last Update: July 6, 2021
 
 License: MIT
 
+## Usage
+
+    To run the pipeline, enter the following in the command line:
+        nextflow run FILE_PATH/HRV_Genome_Mapping_Pipeline/main.nf --reads PATH_TO_FASTQ --outdir PATH_TO_OUTPUT_DIR
+    Valid CLI Arguments:
+    REQUIRED:
+      --reads                       Path to input fastq.gz folder).
+      --outdir                      The output directory where the results will be saved
+    OPTIONAL:
+      --withSampleSheet             Adds Sample Sheet information to Final Report Summary
+      --ref_rv                      Overwrite set multi-fasta Rhinovirus reference file
+      --ref_hcov                    Overwrite set multi-fasta Human Coronavirus reference file
+      --ref_respp                   Overwrite set multi-fasta Influenza B reference file
+      --ref_inflb                   Overwrite set multi-fasta Respiratory Panel reference file
+      --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
+	  --helpMsg						Displays help message in terminal
+      --singleEnd                   Specifies that the input fastq files are single end reads
+	  --withFastQC					Runs a quality control check on fastq files
+      --skipTrimming                Skips the fastq trimmming process
+
 ### Description:
 Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human respiratory virus discovery, analysis, and Genbank submission.
 
