@@ -111,8 +111,8 @@ def helpMsg() {
       --withSampleSheet             Adds Sample Sheet information to Final Report Summary
       --ref_rv                      Overwrite set multi-fasta Rhinovirus reference file
       --ref_hcov                    Overwrite set multi-fasta Human Coronavirus reference file
-      --ref_respp                   Overwrite set multi-fasta Influenza B reference file
-      --ref_inflb                   Overwrite set multi-fasta Respiratory Panel reference file
+      --ref_respp                   Overwrite set multi-fasta Respiratory Panel reference file
+      --ref_inflb                   Overwrite set multi-fasta Influenza B reference file
       --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
 	  --helpMsg						Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
