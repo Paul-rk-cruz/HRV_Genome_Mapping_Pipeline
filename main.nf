@@ -265,10 +265,10 @@ log.info "______________________________________________________________________
 def summary = [:]
 summary['Current directory path:']        = "$PWD"
 summary['HRV Pipeline directory path:']          = workflow.projectDir
-summary['Work directory path:']         = workflow.workDir
+summary['Input directory path:']               = params.reads
 summary['Output directory path:']          = params.outdir
-summary['Fastq Files:']               = params.reads
-summary['Fastq Sample Sheet:']               = params.withSampleSheet
+summary['Work directory path:']         = workflow.workDir
+summary['SampleSheet:']               = params.withSampleSheet ? 'True' : 'False'
 summary['Fastq type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 if (params.singleEnd) {
