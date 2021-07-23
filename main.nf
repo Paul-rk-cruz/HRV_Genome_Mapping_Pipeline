@@ -127,6 +127,14 @@ def helpMsg() {
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
+// Make sure outdir path ends with trailing slash
+if (!params.outdir.endsWith("/")){
+   params.outdir = "${params.outdir}/"
+}
+// Make sure reads path ends with trailing slash
+if (!params.reads.endsWith("/")){
+   params.reads = "${params.outdir}/"
+}
 params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
@@ -149,10 +157,6 @@ params.TRAILING = "3"
 TRAILING = "3"
 params.SWINDOW = "4:20"
 SWINDOW = "4:20"
-// Make sure outdir ends with trailing slash
-if (!params.outdir.endsWith("/")){
-   params.outdir = "${params.outdir}/"
-}
 // Script Files
 if(params.withSampleSheet != false) {
     SAMPLE_SHEET = file(params.withSampleSheet)
@@ -177,7 +181,7 @@ params.ref_hcov = false
 params.ref_respp = false
 params.ref_inflb = false
 params.ref_hpiv3 = false
-// Setup MULTIFASTA Reference File Paths.
+// Setup MULTIFASTA Reference file paths for OPTIONAL-override of set file paths.
 // Rhinovirus
 if(params.ref_rv != false) {
     Reference_rv = file(params.ref_rv)
