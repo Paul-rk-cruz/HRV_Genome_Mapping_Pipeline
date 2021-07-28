@@ -1346,6 +1346,9 @@ process Final_Mapping_PE {
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
+
+    awk '/^>/ {gsub(/.fa(sta)?\$/,"",FILENAME);printf(">%s\n",FILENAME);next;} {print}' ${base}.consensus-final.fa
+
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
