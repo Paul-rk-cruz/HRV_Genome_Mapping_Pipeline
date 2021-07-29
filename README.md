@@ -46,50 +46,40 @@ Human Respiratory Virus Pipeline was designed to run either single-end or paired
 
 ### PIPELINE OVERVIEW:
 1. Trim Reads
-
     1.1. Trimmomatic - sequence read trimming of adaptors and low quality reads.
     
- 2. Genome Mapping
- 
- 	2.1. BBMap - align to MultiFasta Reference Virus Genome.
- 	
- 	2.2. Samtools - SAM and BAM file processing.
- 	
- 3. Reference Fasta Generation
- 
- 	3.1. Generate a fasta reference from the genome mapping results.
- 	
+ 2. Genome Mapping & alignment
+    2.1. BBMap - align to MultiFasta Reference Virus Genome.
+    2.2. Samtools - SAM and BAM file processing.
+
  4. Sort Bam
- 
     4.1. Convert Sam to Bam
-    
     4.2. Sort Bam file by coordinates
-    
-    4.3. Generate Statistics about Bam file
+    4.3. Generate bam statistics
     
  5. Variant Calling
- 
     5.1. Calculate the read coverage of positions in the genome
-    
     5.2. Detect the single nucleotide polymorphisms (SNPs)
-    
     5.3. Filter and report the SNP variants in variant calling format (VCF)
     
-    5.4. CLI Command to view results:   less -S ${base}_final_variants.vcf
-    
- 6. Consensus
-    6.1. Consensus generation using variants VCF, mapped reference fasta, and
-    sorted bam.
+ 6. Consensus Generation
+    6.1. Generates an un-masked consensus.
    
- 7. Final Consensus
-    7.1. Creates the Final Consensus by editing the fasta header.
+ 7. Final Mapping
+    7.1. Perform final mapping to unmasked consensus and generates a masked consensus.
     
- 8. FastQC
- 	8.1. Sequence read quality control analysis.
+ 8. Final Processing (optional; --withSampleSheet)
+    8.1. Sample Sheet information is added to the Final Summary Report.
+  
+ 7. Final Summary Report Generation
+    7.1. Generates summary statistics for each sample in csv format.
+       
+ 9. FastQC (optional)
+    9.1. Sequence read quality control analysis. Output in HTML format.
 
 Dependencies:
 
-HRV-Docker includes all dependencies. Currently (7/2021), Mapping step requires local dependencies. Please see docker for dependencies required.
+HRV-Docker includes all dependencies. Currently in v1.3, mapping step requires local dependencies.
 
     trimmomatic         conda install -c bioconda trimmomatic
     bbtools             conda install -c bioconda bbmap    
