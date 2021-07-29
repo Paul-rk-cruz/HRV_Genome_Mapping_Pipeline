@@ -71,11 +71,11 @@ Human Respiratory Virus Pipeline was designed to run either single-end or paired
  8. Final Processing (optional; --withSampleSheet)
     8.1. Sample Sheet information is added to the Final Summary Report.
   
- 7. Final Summary Report Generation
-    7.1. Generates summary statistics for each sample in csv format.
+ 9. Final Summary Report Generation
+    9.1. Generates summary statistics for each sample in csv format.
        
- 9. FastQC (optional)
-    9.1. Sequence read quality control analysis. Output in HTML format.
+ 10. FastQC (optional)
+    10.1. Sequence read quality control analysis. Output in HTML format.
 
 Dependencies:
 
