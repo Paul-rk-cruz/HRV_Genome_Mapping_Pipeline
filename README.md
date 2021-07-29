@@ -42,7 +42,7 @@ License: MIT
       --skipTrimming                Skips the fastq trimmming process
 
 ### Description:
-Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads to identify Human respiratory virus discovery, analysis, and Genbank submission.
+Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads for Human respiratory virus discovery, analysis, and Genbank submission.
 
 ### PIPELINE OVERVIEW:
 1. Trim Reads
