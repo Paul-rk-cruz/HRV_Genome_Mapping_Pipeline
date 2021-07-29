@@ -37,7 +37,7 @@ License: MIT
       --ref_inflb                   Overwrite set multi-fasta Respiratory Panel reference file
       --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
 	  --helpMsg		    Displays help message in terminal
-      --singleEnd                   Specifies that the input fastq files are single end reads
+      --singleEnd                   Specifies that the input fastq files are single end reads. Pipeline assumes paired-end reads if this flag is not specified.
 	  --withFastQC		    Runs a quality control check on fastq files
       --skipTrimming                Skips the fastq trimmming process (not available in v1.3; will be released in v1.4)
 
