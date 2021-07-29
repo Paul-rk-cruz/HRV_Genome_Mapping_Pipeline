@@ -3,7 +3,7 @@
 Github Repo:
 https://github.com/greninger-lab/HRV_Genome_Mapping_Pipeline
 
-Author:
+Authors:
 Paul RK Cruz <kurtisc@uw.edu>
 Michelle J Lin <Mjlin@uw.edu>
 Alex L Greninger <agrening@uw.edu>
