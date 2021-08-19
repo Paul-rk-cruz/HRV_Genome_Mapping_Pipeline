@@ -382,9 +382,9 @@ if (params.singleEnd) {
  */
  if (params.singleEnd) {
 process Mapping {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"    
-    // errorStrategy 'retry'
-    // maxRetries 3
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest" 
+    errorStrategy 'retry'
+    maxRetries 3
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_summary.csv") from Trim_out_SE
@@ -633,6 +633,7 @@ process Mapping {
 }
 } else {
 process Mapping_PE {
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
     errorStrategy 'retry'
     maxRetries 3
 
@@ -1154,8 +1155,9 @@ if (params.singleEnd) {
 }
 if (params.singleEnd) {
 process Final_Mapping {
-	// errorStrategy 'retry'
-    // maxRetries 3
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
+	errorStrategy 'retry'
+    maxRetries 3
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Consensus_Fasta_ch
@@ -1256,6 +1258,7 @@ process Final_Mapping {
 }
 } else {
 process Final_Mapping_PE {
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
 	errorStrategy 'retry'
     maxRetries 3
 
