@@ -1366,7 +1366,7 @@ process Final_Mapping_PE {
 if (params.withSampleSheet) {
     if (params.singleEnd) {
     process Final_Processing {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"        
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
     errorStrategy 'retry'
     maxRetries 3
 
@@ -1385,10 +1385,10 @@ if (params.withSampleSheet) {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    /usr/local/miniconda/bin/csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
-    /usr/local/miniconda/bin/csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    /usr/local/miniconda/bin/csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
-    /usr/local/miniconda/bin/csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
+    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
     method=\$(cat ${base}_method.txt | sed -n '2 p')
