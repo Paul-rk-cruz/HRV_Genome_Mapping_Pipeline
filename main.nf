@@ -1029,6 +1029,7 @@ if (params.singleEnd) {
         # Index and generate consensus from vcf with majority variants
         /usr/local/miniconda/bin/bgzip \${R1}.vcf
         /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
+        
         cat !{base}_mapped_ref_genome.fa | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
         
         # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
@@ -1168,7 +1169,7 @@ process Final_Mapping {
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
-    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus-final*'
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus*'
     // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
     publishDir "${params.outdir}txt_bbmap_final_mapping_stats", mode: 'copy', pattern:'*_final_mapping_stats.txt*'
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_final_summary.csv*'
@@ -1243,17 +1244,83 @@ process Final_Mapping {
         -fo ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
-    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    
+    # Rhinovirus
+    if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
+    then
+    echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # Respiratory Panel
+    elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
+    then
+    echo "< Accession found in respiratory virus multifasta file. hrv_ref_resp-panel.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    else
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    fi
+
+    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
+    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
+    samtools index ${base}.map4.sorted.bam
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus_final \\
+        --min-BQ 15 \\
+        --output ${base}_map4.mpileup \\
+        ${base}.map4.sorted.bam
+    cat ${base}_map4.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.map4.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.map4.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus.fa
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
-    grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus.fa > ${base}.consensus.fa
+    grep -v "^>" ${base}.consensus.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
     printf ",\$num_bases" >> ${base}_summary.csv
     printf ",\$percent_n" >> ${base}_summary.csv
     cp ${base}_summary.csv ${base}_final_summary.csv
-    
+
     """  
 }
 } else {
@@ -1271,9 +1338,12 @@ process Final_Mapping_PE {
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
+    publishDir "${params.outdir}bam_map4", mode: 'copy', pattern:'*.map4.sorted.bam*'
+    publishDir "${params.outdir}sam_map4", mode: 'copy', pattern:'*_map4.sam*'
     publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus-final*'
     // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
     publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'
+    publishDir "${params.outdir}txt_bbmap_map4_stats", mode: 'copy', pattern:'*_map4_stats.txt*'    
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_final_summary.csv*'
 
     script:
@@ -1349,9 +1419,7 @@ process Final_Mapping_PE {
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
-
     awk '/^>/ {gsub(/.fa(sta)?\$/,"",FILENAME);printf(">%s\n",FILENAME);next;} {print}' ${base}.consensus-final.fa
-
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
