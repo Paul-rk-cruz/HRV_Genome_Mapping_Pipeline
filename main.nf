@@ -1174,7 +1174,8 @@ process Final_Mapping {
     publishDir "${params.outdir}mpileup_map4", mode: 'copy', pattern:'*_map4.mpileup*'
     publishDir "${params.outdir}bam_map4", mode: 'copy', pattern:'*.map4.sorted.bam*'
     publishDir "${params.outdir}sam_map4", mode: 'copy', pattern:'*_map4.sam*'
-    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus_final.fa*'
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*consensus_final.fa*'
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*consensus_final.fa*'
     // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
     publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map3", mode: 'copy', pattern:'*_final_mapping_stats.txt*'
     publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map4", mode: 'copy', pattern:'*_final_mapping_stats_map4.txt*'
@@ -1226,6 +1227,7 @@ process Final_Mapping {
 
     fi
 
+
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
@@ -1250,6 +1252,21 @@ process Final_Mapping {
         -fo ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+    awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
     
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
@@ -1295,19 +1312,6 @@ process Final_Mapping {
     samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
     samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
     samtools index ${base}.map4.sorted.bam
-    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
-    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
-
-    awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensus-final.fa
-
-    grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
-    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
-    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
-    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_summary.csv
-    printf ",\$percent_n" >> ${base}_summary.csv
-    cp ${base}_summary.csv ${base}_final_summary.csv
 
     """  
 }
@@ -1453,9 +1457,7 @@ process Final_Mapping_PE {
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
-
     awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensus-final.fa
-
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
@@ -1476,14 +1478,15 @@ if (params.withSampleSheet) {
 
     input:
     file SAMPLE_LIST from SAMPLE_SHEET
-    file BLAST_DB_VP1 
-    file BLAST_DB_ALL     
+    file BLASTDB_VP1 from BLAST_DB_VP1
+
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Mapping_Final_ch  
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Final_Processing_final_ch  
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_blast_db_vp1.txt") into Final_Processing_final_ch  
 
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
+    publishDir "${params.outdir}blast_db_vp1", mode: 'copy', pattern:'*_blast_db_vp1.txt*'
 
     script:
 
@@ -1491,10 +1494,14 @@ if (params.withSampleSheet) {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
+    
     csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
     csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
     csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
     csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
+
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
     method=\$(cat ${base}_method.txt | sed -n '2 p')
@@ -1502,10 +1509,7 @@ if (params.withSampleSheet) {
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
     Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
-
-
-
-    serotype="serotype"
+    serotype=\$(cat ${base}_blast_db_vp1.txt | tr -d " \t\n\r" | sed -n '2 p')
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
     printf ",\$method" >> ${base}_final_summary.csv
@@ -1546,9 +1550,6 @@ if (params.withSampleSheet) {
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
     Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
-
-
-
     serotype="serotype"
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
@@ -1560,9 +1561,7 @@ if (params.withSampleSheet) {
     }
     }
     }
-
 if (params.withFastQC) {
-
     if (params.singleEnd) {
  /* FastQC
  *
@@ -1577,7 +1576,7 @@ process FastQC_SE {
         file R1 from Trim_out_fastqc_SE
 
     output:
-	file '*_fastqc.{zip,html}' into fastqc_results
+	file '*_fastqc.{zip,html}' into Fastqc_results_SE
 
     publishDir "${params.outdir}fastqc_results", mode: 'copy', pattern:'*_fastqc.{zip,html}*'  
 
@@ -1597,7 +1596,7 @@ process FastQC_PE {
     input:
     tuple val(base), file(R1),file(R2),file("${base}.R1.paired.fastq.gz"), file("${base}.R2.paired.fastq.gz"),file("${base}.R1.unpaired.fastq.gz"), file("${base}.R2.unpaired.fastq.gz") from Trim_out_fastqc_PE
     output: 
-    file("*fastqc*") //into Fastqc_ch 
+    file("*fastqc*") into Fastqc_results_PE 
 
     publishDir "${params.OUTDIR}fastqc", mode: 'copy'
 
