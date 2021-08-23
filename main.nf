@@ -165,6 +165,8 @@ TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
 SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
 FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
+BLAST_DB_VP1 = file("${baseDir}/blast_db/VP1_164_annotated_nospaces.fasta")
+BLAST_DB_ALL = file("${baseDir}/blast_db/allref.fasta")
 BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
@@ -329,7 +331,7 @@ if (params.singleEnd) {
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
     printf "\$num_trimmed" >> ${R1}_num_trimmed.txt
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name> \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype> \$base'_summary.csv'
     printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
     """
@@ -370,7 +372,7 @@ if (params.singleEnd) {
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
     printf "\$num_trimmed" >> ${R1}_num_trimmed.txt
     
-    echo Sample_Name,Raw_Reads,Trimmed_Paired_Reads,Trimmed_Unpaired_Reads,Total_Trimmed_Reads, Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name> \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Paired_Reads,Trimmed_Unpaired_Reads,Total_Trimmed_Reads, Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype> \$base'_summary.csv'
     printf "${base},\$num_untrimmed,\$num_paired,\$num_unpaired,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
     cat *paired.fastq.gz > ${base}.trimmed.fastq.gz
@@ -1164,14 +1166,18 @@ process Final_Mapping {
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Consensus_Fasta_ch
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Mapping_Final_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Mapping_Final_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
-    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus*'
+    publishDir "${params.outdir}mpileup_map4", mode: 'copy', pattern:'*_map4.mpileup*'
+    publishDir "${params.outdir}bam_map4", mode: 'copy', pattern:'*.map4.sorted.bam*'
+    publishDir "${params.outdir}sam_map4", mode: 'copy', pattern:'*_map4.sam*'
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus_final.fa*'
     // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
-    publishDir "${params.outdir}txt_bbmap_final_mapping_stats", mode: 'copy', pattern:'*_final_mapping_stats.txt*'
+    publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map3", mode: 'copy', pattern:'*_final_mapping_stats.txt*'
+    publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map4", mode: 'copy', pattern:'*_final_mapping_stats_map4.txt*'
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_final_summary.csv*'
 
     script:
@@ -1250,70 +1256,52 @@ process Final_Mapping {
     then
     echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
     # Respiratory Panel
     elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
     then
     echo "< Accession found in respiratory virus multifasta file. hrv_ref_resp-panel.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
     then
     echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
     # HPIV3 - Human parainfluenza virus 3
     elif grep -q \$all_ref_id "${base}_hpiv3.txt";
     then
     echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
     else
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
     fi
 
     samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
     samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
     samtools index ${base}.map4.sorted.bam
-    samtools mpileup \\
-        --count-orphans \\
-        --no-BAQ \\
-        --max-depth 50000 \\
-        --fasta-ref ${base}.consensus_final \\
-        --min-BQ 15 \\
-        --output ${base}_map4.mpileup \\
-        ${base}.map4.sorted.bam
-    cat ${base}_map4.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus
-    bedtools genomecov \\
-        -bga \\
-        -ibam ${base}.map4.sorted.bam \\
-        -g ${base}_mapped_ref_genome.fa \\
-        | awk '\$4 < 10' | bedtools merge > ${base}.mask.map4.bed
-    
-    bedtools maskfasta \\
-        -fi ${base}.consensus \\
-        -bed ${base}.mask.bed \\
-        -fo ${base}.consensus.masked.fa
-    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
-    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus.fa
-    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus.fa > bases.txt
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus.fa > ${base}.consensus.fa
-    grep -v "^>" ${base}.consensus.fa | tr -cd N | wc -c > N.txt
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
+
+    awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensus-final.fa
+
+    grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
@@ -1333,17 +1321,18 @@ process Final_Mapping_PE {
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Consensus_Fasta_PE_ch
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Mapping_Final_PE_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Mapping_Final_PE_ch
 
     publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
     publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
+    publishDir "${params.outdir}mpileup_map4", mode: 'copy', pattern:'*_map4.mpileup*'
     publishDir "${params.outdir}bam_map4", mode: 'copy', pattern:'*.map4.sorted.bam*'
     publishDir "${params.outdir}sam_map4", mode: 'copy', pattern:'*_map4.sam*'
-    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus-final*'
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus_final.fa*'
     // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
-    publishDir "${params.outdir}txt_bbmap_map3_stats", mode: 'copy', pattern:'*_map3_stats.txt*'
-    publishDir "${params.outdir}txt_bbmap_map4_stats", mode: 'copy', pattern:'*_map4_stats.txt*'    
+    publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map3", mode: 'copy', pattern:'*_final_mapping_stats.txt*'
+    publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map4", mode: 'copy', pattern:'*_final_mapping_stats_map4.txt*'
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_final_summary.csv*'
 
     script:
@@ -1356,39 +1345,39 @@ process Final_Mapping_PE {
     then
     echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
     # Respiratory Panel
     elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
     then
     echo "< Accession found in respiratory virus multifasta file. hrv_ref_resp-panel.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
     then
     echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
     # HPIV3 - Human parainfluenza virus 3
     elif grep -q \$all_ref_id "${base}_hpiv3.txt";
     then
     echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
     else
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map3_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
     fi
 
@@ -1416,10 +1405,57 @@ process Final_Mapping_PE {
         -fo ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
     sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+    
+    # Rhinovirus
+    if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
+    then
+    echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # Respiratory Panel
+    elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
+    then
+    echo "< Accession found in respiratory virus multifasta file. hrv_ref_resp-panel.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    else
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    fi
+
+    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
+    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
+    samtools index ${base}.map4.sorted.bam
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensus-final.fa
-    awk '/^>/ {gsub(/.fa(sta)?\$/,"",FILENAME);printf(">%s\n",FILENAME);next;} {print}' ${base}.consensus-final.fa
+
+    awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensus-final.fa
+
     grep -v "^>" ${base}.consensus-final.fa | tr -cd N | wc -c > N.txt
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
@@ -1440,10 +1476,12 @@ if (params.withSampleSheet) {
 
     input:
     file SAMPLE_LIST from SAMPLE_SHEET
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"),file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Mapping_Final_ch    
+    file BLAST_DB_VP1 
+    file BLAST_DB_ALL     
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Mapping_Final_ch  
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_sample_stats.csv"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Final_Processing_final_ch  
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Final_Processing_final_ch  
 
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
 
@@ -1464,10 +1502,15 @@ if (params.withSampleSheet) {
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
     Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
+
+
+
+    serotype="serotype"
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
     printf ",\$method" >> ${base}_final_summary.csv
     printf ",\$NCBI_Name" >> ${base}_final_summary.csv
+    printf ",\$serotype" >> ${base}_final_summary.csv    
     cp ${base}_final_summary.csv ${base}_summary.csv
     """
     }
@@ -1479,10 +1522,10 @@ if (params.withSampleSheet) {
 
     input:
     file SAMPLE_LIST from SAMPLE_SHEET
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"),file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt") from Mapping_Final_PE_ch    
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Mapping_Final_PE_ch    
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus-final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map3_stats.txt"), file("${base}.mpileup"), file("${base}_sample_stats.csv"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt") into Final_Processing_PE_ch  
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Final_Processing_PE_ch  
 
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
 
@@ -1492,10 +1535,10 @@ if (params.withSampleSheet) {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    /usr/local/miniconda/bin/csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
-    /usr/local/miniconda/bin/csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    /usr/local/miniconda/bin/csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
-    /usr/local/miniconda/bin/csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
+    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
     method=\$(cat ${base}_method.txt | sed -n '2 p')
@@ -1503,10 +1546,15 @@ if (params.withSampleSheet) {
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
     Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
+
+
+
+    serotype="serotype"
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
     printf ",\$method" >> ${base}_final_summary.csv
     printf ",\$NCBI_Name" >> ${base}_final_summary.csv
+    printf ",\$serotype" >> ${base}_final_summary.csv    
     cp ${base}_final_summary.csv ${base}_summary.csv
     """
     }
