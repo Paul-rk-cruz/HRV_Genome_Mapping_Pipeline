@@ -15,6 +15,7 @@
  Department of Laboratory Medicine and Pathology
  University of Washington
  Created: April, 2021
+ Updated: August 24, 2021
  LICENSE: GNU
 ----------------------------------------------------------------------------------------
 Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence for Human respiratory virus discovery, analysis, and Genbank submission.
@@ -144,6 +145,7 @@ params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
 params.withSampleSheet = false
+params.withSerotype = false
 // Trimmomatic Paths and variables
 params.ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
 params.ADAPTERS_EE = file("${baseDir}/adapters/TruSeq2-PE.fa")
@@ -160,6 +162,10 @@ SWINDOW = "4:20"
 // Script Files
 if(params.withSampleSheet != false) {
     SAMPLE_SHEET = file(params.withSampleSheet)
+}
+if(params.withSerotype != false) {
+    BLAST_DB_VP1 = file("${baseDir}/blast_db/VP1_164_annotated_nospaces.fasta")
+    BLAST_DB_ALL = file("${baseDir}/blast_db/all_ref.fasta")
 }
 TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
 VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
@@ -275,6 +281,7 @@ summary['Input directory path:']               = params.reads
 summary['Output directory path:']          = params.outdir
 summary['Work directory path:']         = workflow.workDir
 summary['SampleSheet:']               = params.withSampleSheet ? 'True' : 'False'
+summary['Serotyping:']               = params.withSerotype ? 'True' : 'False'
 summary['Fastq type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 if (params.singleEnd) {
@@ -331,7 +338,7 @@ if (params.singleEnd) {
     num_trimmed=\$((\$(gunzip -c \$base'.trimmed.fastq.gz' | wc -l)/4))
     printf "\$num_trimmed" >> ${R1}_num_trimmed.txt
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
-    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype> \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature> \$base'_summary.csv'
     printf "\$base,\$num_untrimmed,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
     """
@@ -372,7 +379,7 @@ if (params.singleEnd) {
     percent_trimmed=\$((100-\$((100*num_trimmed/num_untrimmed))))
     printf "\$num_trimmed" >> ${R1}_num_trimmed.txt
     
-    echo Sample_Name,Raw_Reads,Trimmed_Paired_Reads,Trimmed_Unpaired_Reads,Total_Trimmed_Reads, Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype> \$base'_summary.csv'
+    echo Sample_Name,Raw_Reads,Trimmed_Paired_Reads,Trimmed_Unpaired_Reads,Total_Trimmed_Reads, Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature> \$base'_summary.csv'
     printf "${base},\$num_untrimmed,\$num_paired,\$num_unpaired,\$num_trimmed,\$percent_trimmed" >> \$base'_summary.csv'
     ls -latr
     cat *paired.fastq.gz > ${base}.trimmed.fastq.gz
@@ -904,8 +911,7 @@ process Sort_Bam {
     tuple val(base), file("${base}.bam") into Aligned_bam_ch, Bam_ch
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Consensus_ch
 
-    publishDir "${params.outdir}bam-map2", mode: 'copy', pattern:'*.bam*'
-    publishDir "${params.outdir}bam_sorted-map2", mode: 'copy', pattern:'*.sorted.bam*'  
+    publishDir "${params.outdir}bam_map2", mode: 'copy', pattern:'*.sorted.bam*'  
     publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*'  
 
     script:
@@ -943,8 +949,7 @@ process Sort_Bam_PE {
     tuple val(base), file("${base}.bam") into Aligned_bam_PE_ch, Bam_PE_ch
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Consensus_PE_ch
 
-    publishDir "${params.outdir}bam-map2", mode: 'copy', pattern:'*.bam*'
-    publishDir "${params.outdir}bam_sorted-map2", mode: 'copy', pattern:'*.sorted.bam*'  
+    publishDir "${params.outdir}bam_map2", mode: 'copy', pattern:'*.sorted.bam*'  
     publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*' 
 
     script:
@@ -1254,9 +1259,9 @@ process Final_Mapping {
     sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
 
     awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
-
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
     awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
     grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
     cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
@@ -1471,22 +1476,20 @@ process Final_Mapping_PE {
 }
 if (params.withSampleSheet) {
     if (params.singleEnd) {
-    process Final_Processing {
+process Summary_Generation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
     errorStrategy 'retry'
     maxRetries 3
 
     input:
     file SAMPLE_LIST from SAMPLE_SHEET
-    file BLASTDB_VP1 from BLAST_DB_VP1
 
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Mapping_Final_ch  
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_blast_db_vp1.txt") into Final_Processing_final_ch  
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Final_Processing_final_ch  
 
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
-    publishDir "${params.outdir}blast_db_vp1", mode: 'copy', pattern:'*_blast_db_vp1.txt*'
 
     script:
 
@@ -1494,14 +1497,10 @@ if (params.withSampleSheet) {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    
     csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
     csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
     csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
     csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
-
-    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
-
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
     method=\$(cat ${base}_method.txt | sed -n '2 p')
@@ -1509,17 +1508,15 @@ if (params.withSampleSheet) {
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
     Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
-    serotype=\$(cat ${base}_blast_db_vp1.txt | tr -d " \t\n\r" | sed -n '2 p')
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
     printf ",\$method" >> ${base}_final_summary.csv
-    printf ",\$NCBI_Name" >> ${base}_final_summary.csv
-    printf ",\$serotype" >> ${base}_final_summary.csv    
+    printf ",\$NCBI_Name" >> ${base}_final_summary.csv 
     cp ${base}_final_summary.csv ${base}_summary.csv
     """
     }
     } else {
-    process Final_Processing_PE {
+process Summary_Generation_PE {
     container "docker.io/paulrkcruz/hrv-pipeline:latest"        
     errorStrategy 'retry'
     maxRetries 3
@@ -1554,6 +1551,133 @@ if (params.withSampleSheet) {
     printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
     printf ",\$pcr_ct" >> ${base}_final_summary.csv
     printf ",\$method" >> ${base}_final_summary.csv
+    printf ",\$NCBI_Name" >> ${base}_final_summary.csv  
+    cp ${base}_final_summary.csv ${base}_summary.csv
+    """
+    }
+    }
+    }
+if (params.withSerotype) {
+    if (params.singleEnd) {
+process Serotyping {
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
+    // errorStrategy 'retry'
+    // maxRetries 3
+
+    input:
+    file SAMPLE_LIST from SAMPLE_SHEET
+    file BLASTDB_VP1 from BLAST_DB_VP1
+    file BLASTDB_ALL from BLAST_DB_ALL
+
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Final_Processing_final_ch   
+
+    output:
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("blast_db_vp1.txt") into Serotype_ch 
+
+    publishDir "${params.outdir}Serotype", mode: 'copy', pattern:'*blast_db_vp1.txt*'
+    // publishDir "${params.outdir}Serotype", mode: 'copy', pattern:'*_collection_year.txt*'
+    // publishDir "${params.outdir}Serotype", mode: 'copy', pattern:'*_country_collected.txt*'
+    // publishDir "${params.outdir}Serotype", mode: 'copy', pattern:'*_nomenclature.txt*'
+
+    script:
+
+    """
+    #!/bin/bash
+    R1=${base}
+    NCBI_Name=\${R1:4:6}
+
+    # Rhinovirus
+    if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
+    then
+    echo "< Accession found in Rhinovirus multifasta file."
+
+    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    serotype=\$(cat blast_db_vp1.txt | tr -d " \t\n\r" | sed -n '2 p')
+
+    nomenclature=\$serotype + "/" + \$country_collected + "/" + \$collection_year + "/" + \$NCBI_Name > ${base}_nomenclature.txt
+
+    printf ",\$serotype" >> ${base}_summary.csv   
+    printf ",\$nomenclature" >> ${base}_summary.csv 
+
+    # Respiratory Panel
+    elif grep -q \$all_ref_id "${base}_resp-p_ids.txt";
+    then
+    echo "< Accession found in respiratory virus multifasta file."
+
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file."
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file."
+
+
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file."
+
+    else
+
+    printf ",\$serotype" >> ${base}_summary.csv   
+    printf ",\$nomenclature" >> ${base}_summary.csv 
+
+    fi
+   
+    cp ${base}_summary.csv ${base}_final_summary.csv
+
+    """
+    }
+    } else {
+process Serotyping_PE {
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"        
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    file SAMPLE_LIST from SAMPLE_SHEET
+
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") from Final_Processing_PE_ch   
+
+    output:
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt") into Serotyping_PE_ch
+
+    publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
+
+    script:
+
+    """
+    #!/bin/bash
+    R1=${base}
+    NCBI_Name=\${R1:4:6}
+    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_pcr_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    pcr_ct=\$(cat ${base}_pcr_ct.txt | sed -n '2 p')
+    method=\$(cat ${base}_method.txt | sed -n '2 p')
+    reads_mapped=\$(cat ${base}_num_mapped.txt | tr -d " \t\n\r" | sed -n '1 p')
+    num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
+    echo "\$reads_mapped/\$num_trimmed*100" | bc -l > reads-on-t_percent.txt
+    Reads_On_Target=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent.txt)
+    serotype="serotype"
+    printf ",\$Reads_On_Target" >> ${base}_final_summary.csv
+    printf ",\$pcr_ct" >> ${base}_final_summary.csv
+    printf ",\$method" >> ${base}_final_summary.csv
     printf ",\$NCBI_Name" >> ${base}_final_summary.csv
     printf ",\$serotype" >> ${base}_final_summary.csv    
     cp ${base}_final_summary.csv ${base}_summary.csv
@@ -1561,6 +1685,8 @@ if (params.withSampleSheet) {
     }
     }
     }
+
+
 if (params.withFastQC) {
     if (params.singleEnd) {
  /* FastQC

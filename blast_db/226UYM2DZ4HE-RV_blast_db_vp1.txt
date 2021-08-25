@@ -1,1 +1,0 @@
-Consensus_226UYM2DZ4HE-RV.consensus_final_threshold_0.6_quality_15	EU840952_RV-C11	95.360	819	38	0	2303	3121	1	819	0.0	1306
