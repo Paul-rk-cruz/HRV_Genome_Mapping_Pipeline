@@ -109,7 +109,7 @@ def helpMsg() {
       --reads                       Path to input fastq.gz folder).
       --outdir                      The output directory where the results will be saved
     OPTIONAL:
-      --withSampleSheet             Adds Sample Sheet information to Final Report Summary
+      --withMetadata                Adds Metadata information to Final Run Report Summary
       --ref_rv                      Overwrite set multi-fasta Rhinovirus reference file
       --ref_hcov                    Overwrite set multi-fasta Human Coronavirus reference file
       --ref_respp                   Overwrite set multi-fasta Respiratory Panel reference file
@@ -144,13 +144,15 @@ params.skipTrim = false
 params.reads = false
 params.singleEnd = false
 params.ADAPTERS = false
-params.withSampleSheet = false
+params.withMetadata = false
 params.withSerotype = false
+params.withVapid = false
 // Trimmomatic Paths and variables
 params.ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
 params.ADAPTERS_EE = file("${baseDir}/adapters/TruSeq2-PE.fa")
 ADAPTERS_SE = file("${baseDir}/adapters/TruSeq2-SE.fa")
 ADAPTERS_PE = file("${baseDir}/adapters/TruSeq2-PE.fa")
+vapid_rhinovirus_sbt = file("${baseDir}/vapid/rhinovirus.sbt")
 params.SETTING = "2:30:10:1:true"
 SETTING = "2:30:10:1:true"
 params.LEADING = "3"
@@ -160,8 +162,23 @@ TRAILING = "3"
 params.SWINDOW = "4:20"
 SWINDOW = "4:20"
 // Script Files
-if(params.withSampleSheet != false) {
-    SAMPLE_SHEET = file(params.withSampleSheet)
+if(params.withMetadata != false) {
+    METADATA = file(params.withMetadata)
+}
+if(params.withVapid != false) {
+    vapid_python = file("${baseDir}/vapid/vapid3.py")
+    VAPID_DB_ALL_1 = file("${baseDir}/blast_db/all_virus.fasta")
+    VAPID_DB_ALL_2 = file("${baseDir}/blast_db/all_virus.fasta.ndb")
+    VAPID_DB_ALL_3 = file("${baseDir}/blast_db/all_virus.fasta.nhr")
+    VAPID_DB_ALL_4 = file("${baseDir}/blast_db/all_virus.fasta.nin")
+    VAPID_DB_ALL_5 = file("${baseDir}/blast_db/all_virus.fasta.nog")
+    VAPID_DB_ALL_6 = file("${baseDir}/blast_db/all_virus.fasta.nos")
+    VAPID_DB_ALL_7 = file("${baseDir}/blast_db/all_virus.fasta.not")
+    VAPID_DB_ALL_8 = file("${baseDir}/blast_db/all_virus.fasta.nsq")
+
+    tbl2asn = file("${baseDir}/blast_db/tbl2asn")  
+
+
 }
 if(params.withSerotype != false) {
     // Rhinovirus VP1 database files
@@ -299,7 +316,7 @@ summary['HRV Pipeline directory path:']          = workflow.projectDir
 summary['Input directory path:']               = params.reads
 summary['Output directory path:']          = params.outdir
 summary['Work directory path:']         = workflow.workDir
-summary['SampleSheet:']               = params.withSampleSheet ? 'True' : 'False'
+summary['Metadata:']               = params.withMetadata ? 'True' : 'False'
 summary['Serotyping:']               = params.withSerotype ? 'True' : 'False'
 summary['Fastq type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
@@ -1205,9 +1222,6 @@ process Final_Mapping {
     """
     #!/bin/bash
 
-    R1=${base}
-    NCBI_Name=\${R1:4:6}
-
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
 
     # Rhinovirus
@@ -1280,7 +1294,7 @@ process Final_Mapping {
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
 
-    awk '/^>/{print ">${NCBI_Name}" ++i; next}{print}' < ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
     grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
     cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
     
@@ -1499,7 +1513,7 @@ process Final_Mapping_PE {
     """  
 }
 }
-if (params.withSampleSheet) {
+if (params.withMetadata) {
     if (params.singleEnd) {
 process Summary_Generation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
@@ -1507,14 +1521,14 @@ process Summary_Generation {
     maxRetries 3
 
     input:
-    file SAMPLE_LIST from SAMPLE_SHEET
+    file SAMPLE_LIST from METADATA
 
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Mapping_Final_ch  
 
     output:
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") into Final_Processing_final_ch  
 
-    publishDir "${params.outdir}summary_withSampleSheet", mode: 'copy', pattern:'*_final_summary.csv*'
+    publishDir "${params.outdir}summary_withMetadata", mode: 'copy', pattern:'*_final_summary.csv*'
 
     script:
 
@@ -1553,7 +1567,7 @@ process Summary_Generation_PE {
     output:
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") into Final_Processing_PE_ch  
 
-    publishDir "${params.outdir}summary_withSampleSheet", mode: 'copy', pattern:'*_final_summary.csv*'
+    publishDir "${params.outdir}summary_withMetadata", mode: 'copy', pattern:'*_final_summary.csv*'
 
     script:
 
@@ -1590,7 +1604,7 @@ process Serotyping {
     // maxRetries 3
 
     input:
-    file SAMPLE_LIST from SAMPLE_SHEET
+    file METADATA_INFO from METADATA
     file BLASTDB_VP1_1 from BLAST_DB_VP1_1
     file BLASTDB_VP1_2 from BLAST_DB_VP1_2
     file BLASTDB_VP1_3 from BLAST_DB_VP1_3
@@ -1641,7 +1655,7 @@ process Serotyping {
     then
     echo "< Accession found in Rhinovirus multifasta file."
 
-    csvgrep -c sample_id -r \$NCBI_Name ${SAMPLE_LIST} > ${base}_sample_stats.csv
+    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
     csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
     csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
     csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
@@ -1718,7 +1732,8 @@ process Serotyping {
    
     coverage=""
     echo strain, collection_date, country, coverage, full_name> ${base}_vapid_metadata.csv
-    printf "\$NCBI_Name, \$collection_year, \$country_collected, \$coverage, \$nomen" >> ${base}_vapid_metadata.csv
+    name=${base}
+    printf "\$name, \$collection_year, \$country_collected, \$coverage, \$nomen" >> ${base}_vapid_metadata.csv
 
     printf ",\$serots" >> ${base}_final_summary.csv
     printf ",\$nomen" >> ${base}_final_summary.csv
@@ -1733,7 +1748,6 @@ process Serotyping {
     """
     }
 
-
 process Merge_run_summary {
     echo true
 
@@ -1741,38 +1755,41 @@ process Merge_run_summary {
         file '*.csv' from Summary_cat_ch.collect()
 
     output:
-        file("Run_Summary_cat.csv") into final_summary_out
+        file("Run_Summary_Final_cat.csv") into final_summary_out
 
-    publishDir "summary_withserotype_cat", mode: 'copy', pattern:'*.csv*'
+    publishDir "${params.outdir}summary_withserotype_cat", mode: 'copy', pattern:'*Run_Summary_Final_cat.csv*'
 
     script:
     """
     
     awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
 
-    """
-    }
+    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
 
-process Merge_vapid_metadata {
-    echo true
-
-    input:
-        file '*.csv' from Vapid_metadata_cat_ch.collect()
-
-    output:
-        file("vapid_metadata_cat.csv") into final_metadata_out
-
-    publishDir "summary_vapid_metadata_cat", mode: 'copy', pattern:'*vapid_metadata_cat.csv*'    
-
-    script:
-    """
-
-    awk '(NR == 1) || (FNR > 1)' *.csv >  vapid_metadata_cat.csv
-
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
 
     """
     }
 
+// process Merge_vapid_metadata {
+//     echo true
+
+//     input:
+//         file '*.csv' from Vapid_metadata_cat_ch.collect()
+
+//     output:
+//         file("vapid_metadata_cat.csv") into final_metadata_out
+
+//     publishDir "${params.outdir}summary_vapid_metadata_cat", mode: 'copy', pattern:'*vapid_metadata_cat.csv*'    
+
+//     script:
+//     """
+
+//     awk '(NR == 1) || (FNR > 1)' *.csv >  vapid_metadata_cat.csv
+
+
+//     """
+//     }
 
     // echo strain, collection_date, country, coverage, full_name> vapid_metadata_cat.csv
     // echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject> Run_Summary_cat.csv
@@ -1825,7 +1842,88 @@ process Serotyping_PE {
     }
     }
     }
+    
 
+if (params.withVapid) {
+    if (params.singleEnd) {
+process Vapid_Annotation {
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
+    // errorStrategy 'retry'
+    // maxRetries 3
+
+    input:
+    file VAPID_DB_ALL_1
+    file VAPID_DB_ALL_2
+    file VAPID_DB_ALL_3
+    file VAPID_DB_ALL_4
+    file VAPID_DB_ALL_5
+    file VAPID_DB_ALL_6
+    file VAPID_DB_ALL_7
+    file VAPID_DB_ALL_8
+    file tbl2asn
+    file vapid_python_main from vapid_python
+    file vapid_rhinovirus_sbt
+    // file BLASTDB_ALL_1 from BLAST_DB_ALL_1
+    // file BLASTDB_ALL_2 from BLAST_DB_ALL_2
+    // file BLASTDB_ALL_3 from BLAST_DB_ALL_3
+    // file BLASTDB_ALL_4 from BLAST_DB_ALL_4
+    // file BLASTDB_ALL_5 from BLAST_DB_ALL_5
+    // file BLASTDB_ALL_6 from BLAST_DB_ALL_6
+    // file BLASTDB_ALL_7 from BLAST_DB_ALL_7
+    // file BLASTDB_ALL_8 from BLAST_DB_ALL_8
+    // file BLASTDB_ALL_9 from BLAST_DB_ALL_9
+    // file BLASTDB_ALL_10 from BLAST_DB_ALL_10
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt") from Serotype_ch
+    tuple val(base), file("${base}_vapid_metadata.csv") from Vapid_metadata_cat_ch
+    // tuple val(base), file("${base}_summary_final.csv") from Summary_cat_ch
+    file("Run_Summary_cat.csv") from final_summary_out
+    // file("vapid_metadata_cat.csv") from final_metadata_out
+
+    output:
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_resp-p_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt") into All_files_ch
+    tuple val(base), file("${base}_vapid_metadata.csv"), file("${base}.sqn") into Vapid_md_output_ch
+    tuple val(base), file("${base}_summary_final.csv") into Summary_outputs_ch
+
+    publishDir "${params.outdir}Summary_vapid_annotation_sqn", mode: 'copy', pattern:'*.sqn*'
+    publishDir "${params.outdir}Summary_merged", mode: 'copy', pattern:'*Run_Summary_Final.csv*'
+
+    script:
+
+    """
+    #!/bin/bash
+
+    reference_name=\$(grep -e ">" ${base}_mapped_ref_genome.fa > ${base}_ref_name.txt)
+    ref_name_edit=\$(sed 's/>//g' ${base}_ref_name.txt > ${base}_ref_name_edit.txt)
+    ref=\$(awk 'FNR==1{print val,\$1}' ${base}_ref_name_edit.txt)
+
+    python3 ${vapid_python_main} ${base}.consensus_final.fa ${vapid_rhinovirus_sbt} --r \${ref} --metadata_loc ${base}_vapid_metadata.csv
+
+
+    
+
+    """
+    }
+    } else {
+process Vapid_Annotation_PE {
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    
+    output:
+    
+    publishDir "${params.outdir}vapid_annotation_sqn", mode: 'copy', pattern:'*_final_summary.csv*'
+
+    script:
+
+    """
+    #!/bin/bash
+
+    """
+    }
+    }
+    }
 
 if (params.withFastQC) {
     if (params.singleEnd) {
