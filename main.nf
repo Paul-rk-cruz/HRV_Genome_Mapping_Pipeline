@@ -1294,7 +1294,7 @@ process Final_Mapping {
     num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
     seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
 
-    awk '/^>/{print ">${base}" ++i; next}{print}' < ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
     grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
     cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
     
@@ -1304,6 +1304,8 @@ process Final_Mapping {
     printf ",\$num_bases" >> ${base}_final_summary.csv
     printf ",\$percent_n" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary.csv
+
+    # FINAL MAPPING: map4
 
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
@@ -1689,7 +1691,7 @@ process Serotyping {
     serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
     nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
 
-    blastn -out ${base}_blast_db_all_ref.txt -query ${base}_mapped_ref_genome.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
 
     awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
     sed -i -e 's/<Hit_def>//g'  strain.txt
