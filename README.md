@@ -1,4 +1,4 @@
-## HRV Pipeline v1.3
+## HRV Pipeline v1.4
 
 Github Repo:
 https://github.com/greninger-lab/HRV_Genome_Mapping_Pipeline
