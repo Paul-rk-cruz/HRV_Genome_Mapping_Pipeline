@@ -2,7 +2,7 @@
 
 /*
 ========================================================================================
-                 Human Respiratory Virus Pipeline v1.3
+                 Human Respiratory Virus Pipeline v1.4
 ========================================================================================
  Github Repo:
  Greninger Lab
@@ -2088,7 +2088,7 @@ process Vapid_Annotation {
 
     python3 ${vapid_python_main} ${base}.consensus_final.fa ${vapid_rhinovirus_sbt} --r \${ref} --metadata_loc ${base}_vapid_metadata.csv
 
-    
+
     
 
     """
