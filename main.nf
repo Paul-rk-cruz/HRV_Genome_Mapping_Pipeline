@@ -1709,22 +1709,209 @@ process Serotyping {
     then
     echo "< Accession found in respiratory virus multifasta file."
 
+    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
+    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
+    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
+    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
+    rv='HCoV_'
+    serotype_parse="\${rv} \${serotype_parsed}" 
+    echo \$serotype_parse > sero.txt
+    cat sero.txt | tr -d " \t\n\r" > serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
+    space='/'
+    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
+    echo \$nomenclature > nomenclature.txt
+    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > serots.txt
+    echo \$nomenclature_parsed | xargs > nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
+
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
+    sed -i -e 's/<Hit_def>//g'  strain.txt
+    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
+    Reference_Name=\$(head -n 1 strain-parsed.txt)
+
+    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
+    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
+    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
+    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
+    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
+
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
     then
     echo "< Accession found in Influenza B multifasta file."
+
+    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
+    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
+    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
+    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
+    rv='Influenza_'
+    serotype_parse="\${rv} \${serotype_parsed}" 
+    echo \$serotype_parse > sero.txt
+    cat sero.txt | tr -d " \t\n\r" > serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
+    space='/'
+    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
+    echo \$nomenclature > nomenclature.txt
+    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > serots.txt
+    echo \$nomenclature_parsed | xargs > nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
+
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
+    sed -i -e 's/<Hit_def>//g'  strain.txt
+    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
+    Reference_Name=\$(head -n 1 strain-parsed.txt)
+
+    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
+    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
+    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
+    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
+    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
 
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
     then
     echo "Accession found in HCoVs multifasta file."
 
+    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
+    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
+    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
+    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
+    rv='HCoV_'
+    serotype_parse="\${rv} \${serotype_parsed}" 
+    echo \$serotype_parse > sero.txt
+    cat sero.txt | tr -d " \t\n\r" > serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
+    space='/'
+    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
+    echo \$nomenclature > nomenclature.txt
+    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > serots.txt
+    echo \$nomenclature_parsed | xargs > nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
+
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
+    sed -i -e 's/<Hit_def>//g'  strain.txt
+    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
+    Reference_Name=\$(head -n 1 strain-parsed.txt)
+
+    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
+    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
+    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
+    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
+    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
 
     # HPIV3 - Human parainfluenza virus 3
     elif grep -q \$all_ref_id "${base}_hpiv3.txt";
     then
     echo "Accession found in HPIV3 multifasta file."
 
+    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
+    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
+    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
+    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
+    rv='HCoV_'
+    serotype_parse="\${rv} \${serotype_parsed}" 
+    echo \$serotype_parse > sero.txt
+    cat sero.txt | tr -d " \t\n\r" > serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
+    space='/'
+    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
+    echo \$nomenclature > nomenclature.txt
+    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > serots.txt
+    echo \$nomenclature_parsed | xargs > nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
+
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
+    sed -i -e 's/<Hit_def>//g'  strain.txt
+    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
+    Reference_Name=\$(head -n 1 strain-parsed.txt)
+
+    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
+    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
+    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
+    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
+    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
+    
     else
 
     printf ",\$serotype" >> ${base}_final_summary.csv   
@@ -1849,7 +2036,8 @@ process Serotyping_PE {
 if (params.withVapid) {
     if (params.singleEnd) {
 process Vapid_Annotation {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"
+    container "docker.io/confurious/blastn:latest"     
     // errorStrategy 'retry'
     // maxRetries 3
 
@@ -1900,7 +2088,7 @@ process Vapid_Annotation {
 
     python3 ${vapid_python_main} ${base}.consensus_final.fa ${vapid_rhinovirus_sbt} --r \${ref} --metadata_loc ${base}_vapid_metadata.csv
 
-
+    
     
 
     """
