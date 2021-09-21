@@ -17,7 +17,7 @@ University of Washington
 
 Created: April, 2021
 
-Last Update: August 24, 2021
+Last Update: September 16, 2021
 
 License: MIT
 
@@ -31,6 +31,8 @@ License: MIT
       --outdir                      The output directory where the results will be saved
     OPTIONAL:
       --withSampleSheet             Adds Sample Sheet information to Final Report Summary
+      --withSerotype                Serotyping performed at the end of the run (along with nomenclature) - Rhinovirus ONLY (other virus`s in progress)
+      --withVapid                   IN-PROGRESS
       --ref_rv                      Overwrite set multi-fasta Rhinovirus reference file
       --ref_hcov                    Overwrite set multi-fasta Human Coronavirus reference file
       --ref_respp                   Overwrite set multi-fasta Influenza B reference file
@@ -40,6 +42,10 @@ License: MIT
       --singleEnd                   Specifies that the input fastq files are single end reads. Pipeline assumes paired-end reads if this flag is not specified.
 	  --withFastQC		    Runs a quality control check on fastq files
       --skipTrimming                Skips the fastq trimmming process (not available in v1.3; will be released in v1.4)
+
+      Example Run:
+
+      nextflow run ./HRV_Pipeline/main.nf --reads './HRV_Pipeline/example/' --outdir './HRV_Pipeline/example/output/' --withMetadata './HRV_Pipeline/example/example_metadata.csv' --withSerotype --singleEnd -resume
 
 ### Description:
 Human Respiratory Virus Pipeline was designed to run either single-end or paired end Illumina Next-Generation-Sequencing (NGS) sequence reads for Human respiratory virus discovery, analysis, and Genbank submission.
