@@ -1648,6 +1648,7 @@ process Serotyping {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
+    SAMPLEName=\${R1:1:6}
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
 
     # Rhinovirus
@@ -1702,12 +1703,12 @@ process Serotyping {
     release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
     bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
     
-    # Respiratory Panel
+    # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
     then
     echo "< Accession found in respiratory virus multifasta file."
-
-    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
+    
+    csvgrep -c sample_id -r \$SAMPLEName ${METADATA_INFO} > ${base}_sample_stats.csv
     csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
     csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
     csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
@@ -2035,7 +2036,7 @@ if (params.withVapid) {
     if (params.singleEnd) {
 process Vapid_Annotation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"
-    container "docker.io/confurious/blastn:latest"     
+    // container "docker.io/confurious/blastn:latest"     
     // errorStrategy 'retry'
     // maxRetries 3
 
@@ -2087,7 +2088,6 @@ process Vapid_Annotation {
     python3 ${vapid_python_main} ${base}.consensus_final.fa ${vapid_rhinovirus_sbt} --r \${ref} --metadata_loc ${base}_vapid_metadata.csv
 
 
-    
 
     """
     }
