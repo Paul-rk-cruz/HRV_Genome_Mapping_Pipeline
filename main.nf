@@ -48,7 +48,7 @@ PIPELINE OVERVIEW:
 
 Dependencies:
 
-HRV-Docker includes all dependencies. Currently (7/2021), Mapping step requires local dependencies. Please see docker for dependencies required.
+HRV-Docker includes all dependencies. Currently (7/2021), Mapping step requires local dependencies. Please see docker for dependencies required for mapping and viral annotation steps.
     
 Setup Multifasta References:
 
@@ -92,7 +92,7 @@ Setup Trimmomatic Parameters:
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 // Pipeline version
-version = '1.3'
+version = '1.4'
 def helpMsg() {
     log.info"""
 	 _______________________________________________________________________________
@@ -108,6 +108,7 @@ def helpMsg() {
       --outdir                      The output directory where the results will be saved
     OPTIONAL:
       --withMetadata                Adds Metadata information to Final Run Report Summary
+      --withVapid                   Annotate the resulting consensus fasta for GenBank submission         
       --ref_rv                      Overwrite set multi-fasta Rhinovirus reference file
       --ref_hcov                    Overwrite set multi-fasta Human Coronavirus reference file
       --ref_hpv                     Overwrite set multi-fasta HPV reference file
@@ -116,7 +117,7 @@ def helpMsg() {
 	  --helpMsg						Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
 	  --withFastQC					Runs a quality control check on fastq files
-      --skipTrimming                Skips the fastq trimmming process
+      --skipTrimming                Skips the fastq trimmming process   
     """.stripIndent()
 }
 ////////////////////////////////////////////////////////
@@ -164,19 +165,17 @@ if(params.withMetadata != false) {
     METADATA = file(params.withMetadata)
 }
 if(params.withVapid != false) {
-    vapid_python = file("${baseDir}/vapid/vapid3.py")
-    VAPID_DB_ALL_1 = file("${baseDir}/blast_db/all_virus.fasta")
-    VAPID_DB_ALL_2 = file("${baseDir}/blast_db/all_virus.fasta.ndb")
-    VAPID_DB_ALL_3 = file("${baseDir}/blast_db/all_virus.fasta.nhr")
-    VAPID_DB_ALL_4 = file("${baseDir}/blast_db/all_virus.fasta.nin")
-    VAPID_DB_ALL_5 = file("${baseDir}/blast_db/all_virus.fasta.nog")
-    VAPID_DB_ALL_6 = file("${baseDir}/blast_db/all_virus.fasta.nos")
-    VAPID_DB_ALL_7 = file("${baseDir}/blast_db/all_virus.fasta.not")
-    VAPID_DB_ALL_8 = file("${baseDir}/blast_db/all_virus.fasta.nsq")
-
-    tbl2asn = file("${baseDir}/blast_db/tbl2asn")  
-
-
+    vapid_python = file("${baseDir}/vapid/vapid.py")
+    vapid_python3 = file("${baseDir}/vapid/vapid3.py")
+    VAPID_DB_ALL_1 = file("${baseDir}/vapid/all_virus.fasta")
+    VAPID_DB_ALL_2 = file("${baseDir}/vapid/all_virus.fasta.ndb")
+    VAPID_DB_ALL_3 = file("${baseDir}/vapid/all_virus.fasta.nhr")
+    VAPID_DB_ALL_4 = file("${baseDir}/vapid/all_virus.fasta.nin")
+    VAPID_DB_ALL_5 = file("${baseDir}/vapid/all_virus.fasta.not")
+    VAPID_DB_ALL_6 = file("${baseDir}/vapid/all_virus.fasta.nsq")
+    VAPID_DB_ALL_7 = file("${baseDir}/vapid/all_virus.fasta.ntf")
+    VAPID_DB_ALL_8 = file("${baseDir}/vapid/all_virus.fasta.nto")
+    tbl2asn = file("${baseDir}/vapid/tbl2asn")
 }
 if(params.withSerotype != false) {
     // Rhinovirus VP1 database files
@@ -1194,8 +1193,8 @@ if (params.singleEnd) {
 if (params.singleEnd) {
 process Final_Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
-	errorStrategy 'retry'
-    maxRetries 3
+	// errorStrategy 'retry'
+    // maxRetries 3
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Consensus_Fasta_ch
@@ -1213,6 +1212,7 @@ process Final_Mapping {
     // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
     publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map3", mode: 'copy', pattern:'*_final_mapping_stats.txt*'
     publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map4", mode: 'copy', pattern:'*_final_mapping_stats_map4.txt*'
+    // publishDir "${params.outdir}picard_metrics", mode: 'copy', pattern:'*.sorted.metrics.txt*'
     publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
 
     script:
@@ -1229,43 +1229,10 @@ process Final_Mapping {
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
-    # HPV
-    elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
-    then
-    echo "< Accession found in respiratory virus multifasta file. hrv_ref_hpv.fa will be used for mapping."
-
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    # Influenza B
-    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
-    then
-    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
-
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    # Human Coronavirus
-    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
-    then
-    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
-
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    # HPIV3 - Human parainfluenza virus 3
-    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
-    then
-    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
-
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    else
-
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    fi
-
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
     samtools index ${base}.map3.sorted.bam
+
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1303,7 +1270,256 @@ process Final_Mapping {
     printf ",\$percent_n" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary.csv
 
-    # FINAL MAPPING: map4
+
+
+    # HPV
+    elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
+    then
+    echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam 
+    samtools index ${base}.map3.sorted.bam
+
+    picard MarkDuplicates -I ${base}.map3.sorted.bam -O ${base}.map3.sorted.deduplicated.bam -M ${base}.map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.map3.sorted.deduplicated.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.map3.sorted.deduplicated.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_final_summary.csv
+    printf ",\$percent_n" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.map3.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.map3.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_final_summary.csv
+    printf ",\$percent_n" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.map3.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.map3.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_final_summary.csv
+    printf ",\$percent_n" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.map3.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.map3.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_final_summary.csv
+    printf ",\$percent_n" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+
+    else
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.map3.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.map3.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_final_summary.csv
+    printf ",\$percent_n" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+    fi
+
+
+    # FINAL MAPPING:map4
 
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
@@ -1312,12 +1528,26 @@ process Final_Mapping {
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
+    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
+    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
+    samtools index ${base}.map4.sorted.bam
+
+
     # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
     then
     echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
+    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
+    samtools index ${base}.map4.sorted.bam
+
+    picard MarkDuplicates -I ${base}.map4.sorted.bam -O ${base}.map4.sorted.deduplicated.bam -M ${base}.map4.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+
+    cp ${base}.map4.sorted.deduplicated.bam ${base}.map4.sorted.bam
+
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
@@ -1326,12 +1556,22 @@ process Final_Mapping {
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
+    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
+    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
+    samtools index ${base}.map4.sorted.bam
+
+
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+
+    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
+    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
+    samtools index ${base}.map4.sorted.bam
+
 
     # HPIV3 - Human parainfluenza virus 3
     elif grep -q \$all_ref_id "${base}_hpiv3.txt";
@@ -1340,15 +1580,21 @@ process Final_Mapping {
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
+    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
+    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
+    samtools index ${base}.map4.sorted.bam
+
     else
 
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
 
-    fi
-
     samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
     samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
     samtools index ${base}.map4.sorted.bam
+
+    fi
+
+
 
     """  
 }
@@ -1628,8 +1874,7 @@ process Serotyping {
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Final_Processing_final_ch   
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt") into Serotype_ch
-    tuple val(base), file("${base}_vapid_metadata.csv") into Vapid_metadata_cat_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file("${base}_nomen.txt") into Serotype_ch
     tuple val(base), file("${base}_summary_final.csv") into Summary_cat_ch
 
     publishDir "${params.outdir}blast_serotype", mode: 'copy', pattern:'*_blast_db_vp1.txt*'
@@ -1638,8 +1883,7 @@ process Serotyping {
     publishDir "${params.outdir}sample_Stats", mode: 'copy', pattern:'*.txt*'       
     publishDir "${params.outdir}sample_Stats", mode: 'copy', pattern:'*_collection_year.txt*'
     publishDir "${params.outdir}sample_Stats", mode: 'copy', pattern:'*_country_collected.txt*'
-    publishDir "${params.outdir}sample_Stats", mode: 'copy', pattern:'*_nomenclature.txt*'
-    publishDir "${params.outdir}summary_vapid_metadata", mode: 'copy', pattern:'*_vapid_metadata.csv*'
+    publishDir "${params.outdir}sample_Stats", mode: 'copy', pattern:'*_nomen.txt*'
     publishDir "${params.outdir}summary_withserotype", mode: 'copy', pattern:'*_summary_final.csv*'
 
     script:
@@ -1673,29 +1917,29 @@ process Serotyping {
     blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
 
     serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
-    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
-    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
+    cut -d "-" -f2- <<< "\$serotype" > ${base}_serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_serotype-parse.txt)
     rv='Rv'
     serotype_parse="\${rv} \${serotype_parsed}" 
-    echo \$serotype_parse > sero.txt
-    cat sero.txt | tr -d " \t\n\r" > serot.txt
-    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
+    echo \$serotype_parse > ${base}_sero.txt
+    cat ${base}_sero.txt | tr -d " \t\n\r" > ${base}_serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' ${base}_serot.txt)
     space='/'
     nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
-    echo \$nomenclature > nomenclature.txt
-    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
-    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
-    echo \$serotype_parsed2 | xargs > serots.txt
-    echo \$nomenclature_parsed | xargs > nomen.txt
-    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
-    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
+    echo \$nomenclature > ${base}_nomenclature.txt
+    cat ${base}_nomenclature.txt | tr -d " \t\n\r" > ${base}_nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > ${base}_serots.txt
+    echo \$nomenclature_parsed | xargs > ${base}_nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
 
     blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
 
-    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
-    sed -i -e 's/<Hit_def>//g'  strain.txt
-    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
-    Reference_Name=\$(head -n 1 strain-parsed.txt)
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > ${base}_strain.txt
+    sed -i -e 's/<Hit_def>//g'  ${base}_strain.txt
+    awk -F'</Hit_def>' '{print \$1}' ${base}_strain.txt | xargs > ${base}_strain-parsed.txt
+    Reference_Name=\$(head -n 1 ${base}_strain-parsed.txt)
 
     biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
     biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
@@ -1722,32 +1966,32 @@ process Serotyping {
     collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
     country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
 
-    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
 
     serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
-    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
-    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
-    rv='HCoV_'
+    cut -d "-" -f2- <<< "\$serotype" > ${base}_serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_serotype-parse.txt)
+    rv='HPV-'
     serotype_parse="\${rv} \${serotype_parsed}" 
-    echo \$serotype_parse > sero.txt
-    cat sero.txt | tr -d " \t\n\r" > serot.txt
-    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
+    echo \$serotype_parse > ${base}_sero.txt
+    cat ${base}_sero.txt | tr -d " \t\n\r" > ${base}_serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' ${base}_serot.txt)
     space='/'
     nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
-    echo \$nomenclature > nomenclature.txt
-    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
-    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
-    echo \$serotype_parsed2 | xargs > serots.txt
-    echo \$nomenclature_parsed | xargs > nomen.txt
-    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
-    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
+    echo \$nomenclature > ${base}_nomenclature.txt
+    cat ${base}_nomenclature.txt | tr -d " \t\n\r" > ${base}_nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > ${base}_serots.txt
+    echo \$nomenclature_parsed | xargs > ${base}_nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
 
     blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
 
-    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
-    sed -i -e 's/<Hit_def>//g'  strain.txt
-    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
-    Reference_Name=\$(head -n 1 strain-parsed.txt)
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > ${base}_strain.txt
+    sed -i -e 's/<Hit_def>//g'  ${base}_strain.txt
+    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > ${base}_strain-parsed.txt
+    Reference_Name=\$(head -n 1 ${base}_strain-parsed.txt)
 
     biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
     biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
@@ -1760,156 +2004,14 @@ process Serotyping {
     then
     echo "< Accession found in Influenza B multifasta file."
 
-    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
-    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
-    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
-    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
-    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
-    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
-    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
-    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
 
-    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
-    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
-    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
-
-    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
-    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
-    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
-    rv='Influenza_'
-    serotype_parse="\${rv} \${serotype_parsed}" 
-    echo \$serotype_parse > sero.txt
-    cat sero.txt | tr -d " \t\n\r" > serot.txt
-    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
-    space='/'
-    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
-    echo \$nomenclature > nomenclature.txt
-    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
-    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
-    echo \$serotype_parsed2 | xargs > serots.txt
-    echo \$nomenclature_parsed | xargs > nomen.txt
-    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
-    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
-
-    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
-    sed -i -e 's/<Hit_def>//g'  strain.txt
-    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
-    Reference_Name=\$(head -n 1 strain-parsed.txt)
-
-    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
-    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
-    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
-    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
-    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
-
-    # Human Coronavirus
-    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
-    then
-    echo "Accession found in HCoVs multifasta file."
-
-    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
-    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
-    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
-    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
-    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
-    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
-    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
-    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
-
-    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
-    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
-    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
-
-    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
-    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
-    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
-    rv='HCoV_'
-    serotype_parse="\${rv} \${serotype_parsed}" 
-    echo \$serotype_parse > sero.txt
-    cat sero.txt | tr -d " \t\n\r" > serot.txt
-    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
-    space='/'
-    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
-    echo \$nomenclature > nomenclature.txt
-    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
-    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
-    echo \$serotype_parsed2 | xargs > serots.txt
-    echo \$nomenclature_parsed | xargs > nomen.txt
-    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
-    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
-
-    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
-    sed -i -e 's/<Hit_def>//g'  strain.txt
-    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
-    Reference_Name=\$(head -n 1 strain-parsed.txt)
-
-    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
-    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
-    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
-    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
-    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
 
     # HPIV3 - Human parainfluenza virus 3
     elif grep -q \$all_ref_id "${base}_hpiv3.txt";
     then
     echo "Accession found in HPIV3 multifasta file."
 
-    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
-    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
-    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
-    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
-    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
-    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
-    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
-    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
 
-    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
-    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
-    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
-
-    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
-    cut -d "-" -f2- <<< "\$serotype" > serotype-parse.txt
-    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' serotype-parse.txt)
-    rv='HCoV_'
-    serotype_parse="\${rv} \${serotype_parsed}" 
-    echo \$serotype_parse > sero.txt
-    cat sero.txt | tr -d " \t\n\r" > serot.txt
-    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' serot.txt)
-    space='/'
-    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
-    echo \$nomenclature > nomenclature.txt
-    cat nomenclature.txt | tr -d " \t\n\r" > nomenclature_parsed.txt
-    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' nomenclature_parsed.txt)	
-    echo \$serotype_parsed2 | xargs > serots.txt
-    echo \$nomenclature_parsed | xargs > nomen.txt
-    serots=\$(awk 'FNR==1{print val,\$1}' serots.txt)	
-    nomen=\$(awk 'FNR==1{print val,\$1}' nomen.txt)	
-
-    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    awk 'NR==31' ${base}_blast_db_all_ref.txt > strain.txt
-    sed -i -e 's/<Hit_def>//g'  strain.txt
-    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > strain-parsed.txt
-    Reference_Name=\$(head -n 1 strain-parsed.txt)
-
-    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
-    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
-    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
-    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
-    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
     
     else
 
@@ -1917,11 +2019,6 @@ process Serotyping {
     printf ",\$nomenclature" >> ${base}_final_summary.csv 
 
     fi
-   
-    coverage=""
-    echo strain, collection_date, country, coverage, full_name> ${base}_vapid_metadata.csv
-    name=${base}
-    printf "\$name, \$collection_year, \$country_collected, \$coverage, \$nomen" >> ${base}_vapid_metadata.csv
 
     printf ",\$serots" >> ${base}_final_summary.csv
     printf ",\$nomen" >> ${base}_final_summary.csv
@@ -2035,11 +2132,11 @@ process Serotyping_PE {
 if (params.withVapid) {
     if (params.singleEnd) {
 process Vapid_Annotation {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"
-    // container "docker.io/confurious/blastn:latest"     
+    // container "docker.io/paulrkcruz/hrv-pl:latest"  
+    // errorStrategy 'ignore'    
     // errorStrategy 'retry'
     // maxRetries 3
-
+    
     input:
     file VAPID_DB_ALL_1
     file VAPID_DB_ALL_2
@@ -2051,41 +2148,104 @@ process Vapid_Annotation {
     file VAPID_DB_ALL_8
     file tbl2asn
     file vapid_python_main from vapid_python
+    file vapid_python_main3 from vapid_python3
     file vapid_rhinovirus_sbt
-    file BLASTDB_ALL_1 from BLAST_DB_ALL_1
-    file BLASTDB_ALL_2 from BLAST_DB_ALL_2
-    file BLASTDB_ALL_3 from BLAST_DB_ALL_3
-    file BLASTDB_ALL_4 from BLAST_DB_ALL_4
-    file BLASTDB_ALL_5 from BLAST_DB_ALL_5
-    file BLASTDB_ALL_6 from BLAST_DB_ALL_6
-    file BLASTDB_ALL_7 from BLAST_DB_ALL_7
-    file BLASTDB_ALL_8 from BLAST_DB_ALL_8
-    file BLASTDB_ALL_9 from BLAST_DB_ALL_9
-    file BLASTDB_ALL_10 from BLAST_DB_ALL_10
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt") from Serotype_ch
-    tuple val(base), file("${base}_vapid_metadata.csv") from Vapid_metadata_cat_ch
-    // tuple val(base), file("${base}_summary_final.csv") from Summary_cat_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file("${base}_nomen.txt") from Serotype_ch
     file("Run_Summary_cat.csv") from final_summary_out
-    // file("vapid_metadata_cat.csv") from final_metadata_out
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt") into All_files_ch
-    tuple val(base), file("${base}_vapid_metadata.csv"), file("${base}.sqn") into Vapid_md_output_ch
-    tuple val(base), file("${base}_summary_final.csv") into Summary_outputs_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file ("${base}_vapid_metadata.csv") into All_files_ch
 
-    publishDir "${params.outdir}Summary_vapid_annotation_sqn", mode: 'copy', pattern:'*.sqn*'
-    publishDir "${params.outdir}Summary_merged", mode: 'copy', pattern:'*Run_Summary_Final.csv*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*_aligner.fasta*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*_ref.fasta*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.ali*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.blastresults*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.fasta*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.fsa*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.gbf*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.sqn*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.tbl*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.val*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.cmt*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*errorsummary.val*'
+    // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*_ref.gbk*'
+    publishDir "${params.outdir}summary_vapid_metadata", mode: 'copy', pattern:'*_vapid_metadata.csv*'       
 
     script:
 
     """
     #!/bin/bash
 
+    R1=${base}
+    NCBI_Name=\${R1:4:6}
+    SAMPLEName=\${R1:1:6}
+    all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
+
+    # VIRAL ANNOTATION
+
+    # Rhinovirus
+    if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
+    then
+    echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+    nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
+
+    coverage=""
+    echo strain, collection_date, country, coverage, full_name> ${base}_vapid_metadata.csv
+    name=${base}
+    printf "\$NCBI_Name, \$collection_year, \$country_collected, \$coverage, \$nomen" >> ${base}_vapid_metadata.csv
+
+    cp ${base}.consensus_final.fa \${NCBI_Name}.final_consensus.fa
+    
+    seqkit replace -p '.+' -r \$NCBI_Name \${NCBI_Name}.final_consensus.fa > \${NCBI_Name}.fa
+
     reference_name=\$(grep -e ">" ${base}_mapped_ref_genome.fa > ${base}_ref_name.txt)
     ref_name_edit=\$(sed 's/>//g' ${base}_ref_name.txt > ${base}_ref_name_edit.txt)
     ref=\$(awk 'FNR==1{print val,\$1}' ${base}_ref_name_edit.txt)
 
-    python3 ${vapid_python_main} ${base}.consensus_final.fa ${vapid_rhinovirus_sbt} --r \${ref} --metadata_loc ${base}_vapid_metadata.csv
+    python3 ${vapid_python_main3} \${NCBI_Name}.fa ${vapid_rhinovirus_sbt} --metadata_loc ${base}_vapid_metadata.csv --output_location ${params.outdir}
+
+    
+
+
+    # HPV
+    elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
+    then
+    echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
+
+
+
+
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
+
+
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+
+
+
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+
+
+    else
+
+    echo strain, collection_date, country, coverage, full_name> ${base}_vapid_metadata.csv
+
+    fi
 
 
 

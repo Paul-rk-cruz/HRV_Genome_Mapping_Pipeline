@@ -73,8 +73,8 @@ def spell_check(query_string):
     # Since this is based on NCBI's spell checking protein names are included and correct
     # However this won't correct SUPER messed up words or made up words
     if corrected_query != '':
-        print('Checking spelling on ' + query_string)
-        print(query_string + ' was corrected to: ' + corrected_query)
+        # print('Checking spelling on ' + query_string)
+        # print(query_string + ' was corrected to: ' + corrected_query)
         return corrected_query
     else:
         return query_string
@@ -95,7 +95,7 @@ def blast_n_stuff(strain, our_fasta_loc):
     # if the user provided a database to use print location and use database
     elif args.db:
         local_database_location = args.db
-        print('Searching local blast database at ' + local_database_location)
+        # print('Searching local blast database at ' + local_database_location)
         # blastn with word size of 28 because we're searching off a provided reference we're just going to pull the top
         local_blast_cmd = 'blastn -db ' + local_database_location + ' -query ' + our_fasta_loc + \
                           ' -num_alignments 1 -word_size 28 -outfmt 6 -out ' + strain + SLASH + strain \
@@ -164,11 +164,11 @@ def blast_n_stuff(strain, our_fasta_loc):
             local_database_location = 'ref_seq_vir'
         # print a helpful error message and exit
         else:
-            print('No local blast database found in this folder! Please install from the github releases page! '
-                '(https://github.com/rcs333/VAPiD/releases) Or use vapid with --online (not reccomended)')
-            print('Exiting...')
+            # print('No local blast database found in this folder! Please install from the github releases page! '
+            #     '(https://github.com/rcs333/VAPiD/releases) Or use vapid with --online (not reccomended)')
+            # print('Exiting...')
             exit(0)
-        print('Searching local blast database at ' + local_database_location)
+        # print('Searching local blast database at ' + local_database_location)
 
         # we're only going to save one because these our pretty decent reference databases
         local_blast_cmd = 'blastn -db ' + local_database_location + ' -query ' + our_fasta_loc + \
@@ -206,8 +206,8 @@ def blast_n_stuff(strain, our_fasta_loc):
                 # we also want to strip off specific strain and isolate names in order to tend towards being more general 
                 name_of_virus = ' '.join(line.split()[1:]).split('strain')[0].split('isolate')[0].split('complete')[0].split('partial')[0].split('genomic')[0].split('from')[0].strip()
     # let the user know 
-    print(ref_seq_gb + ' was the selected reference')
-    print(name_of_virus + ' was the parsed name of the virus')
+    # print(ref_seq_gb + ' was the selected reference')
+    # print(name_of_virus + ' was the parsed name of the virus')
 
 
     if args.f:
@@ -230,7 +230,7 @@ def blast_n_stuff(strain, our_fasta_loc):
         z.write(line)
     ge.close()
     z.close()
-    print('Aligning reference and query...')
+    # print('Aligning reference and query...')
     # Windows
     if SLASH == '\\':
         # since we include the windows installation of maaft with vapid we can hard code the path
@@ -242,8 +242,8 @@ def blast_n_stuff(strain, our_fasta_loc):
                     shell=True)
         # print a helpful error message and exit
         except:
-            print('Running on a non windows system, which means you need to install mafft and put it on the sys path '
-                  'yourself.\nI suggest using brew or apt')
+            # print('Running on a non windows system, which means you need to install mafft and put it on the sys path '
+            #       'yourself.\nI suggest using brew or apt')
             exit(0)
     
     ali_list, ali_genomes, dumy_var_never_used = read_fasta(strain + SLASH + strain + '.ali')
@@ -254,7 +254,7 @@ def blast_n_stuff(strain, our_fasta_loc):
         if ali_list[1][0:3] == '_R_':
             # we need to RC input query and redo 
             need_to_rc = True
-    print('Done alignment')
+    # print('Done alignment')
     # this is the reverse of what I expect but it works
     ref_seq = ali_genomes[1]
     our_seq = ali_genomes[0]
@@ -613,7 +613,7 @@ def find_end_stop(genome, start, end):
     while genome[end -3:end].upper() not in 'TGA,TAA,TAG,UGA,UAA,UAG' and end <= (old_end + 60):
         end += 3
     if end == old_end + 60:
-        print('WARNING no stop codon found, examine reference and original sequence')
+        # print('WARNING no stop codon found, examine reference and original sequence')
         return old_end
     else:
         return end
@@ -634,7 +634,7 @@ def annotate_a_virus(strain, genome, metadata, coverage, sbt_loc, full_name, nuc
     name_of_virus, our_seq, ref_seq, ref_accession, need_to_rc = blast_n_stuff(strain, strain + SLASH + strain + '.fasta')
 
     if need_to_rc:
-        print('Input sequence needed to be reverse complemented to align properly.')
+        # print('Input sequence needed to be reverse complemented to align properly.')
         new_seq = Seq(genome)
         # reverse complement input sequence and overwrite variable
         genome = str(new_seq.reverse_complement())
@@ -712,19 +712,26 @@ def annotate_a_virus(strain, genome, metadata, coverage, sbt_loc, full_name, nuc
         gene_of_interest = 'P protein'
         process_para(strain, genome, gene_loc_list, gene_product_list, gene_of_interest, 'HPIV2')
 
-    
-
-
+    # EDIT: output_location coding addition
+    output_location = args.output_location
+    # Path
+    directory = "summary_vapid_output"
+    path = os.path.join(output_location, directory)
+    # Create the directory
+    try:
+        os.mkdir(path)
+    except OSError:
+        pass
     write_tbl(strain, gene_product_list, gene_loc_list, genome, gene_of_interest, extra_stuff, name_of_virus, all_loc_list, all_product_list, full_name, name_of_the_feature_list)
 
-    cmd = 'tbl2asn -p ' + strain + SLASH + ' -t ' + sbt_loc + ' -Y ' + strain + SLASH + 'assembly.cmt -V vb '
+    cmd = 'tbl2asn -p ' + strain + SLASH + ' -t ' + sbt_loc + ' -Y ' + strain + SLASH + 'assembly.cmt -V vb -r ' + path
     try:
         subprocess.call(cmd, shell=True)
     except:
         print('tbl2asn not installed, go to https://www.ncbi.nlm.nih.gov/genbank/tbl2asn2/ and download the appropriate version')
-    print('Done with: ' + strain)
-    print('')
-    print('')
+    # print('Done with: ' + strain)
+    # print('')
+    # print('')
     return name_of_virus
 
 
@@ -883,7 +890,13 @@ def do_meta_data(strain, sheet_exists, full_name):
 # Now also returns if stop codons are in it or not so they'll be omitted during the packaging phase
 def check_for_stops(sample_name):
     stops = 0
-    for line in open(sample_name + SLASH + sample_name + '.gbf'):
+    # EDIT: output_location
+    output_location = args.output_location
+    # Path
+    directory = "summary_vapid_output"
+    path = os.path.join(output_location, directory)
+
+    for line in open(path + SLASH + sample_name + '.gbf'):
         if '*' in line:
             stops += 1
     if stops > 0:
@@ -930,6 +943,7 @@ if __name__ == '__main__':
                         'You can also submit names with slashes by specifying in the metadata sheet under the header full_name, if you do that '
                         'you do not need to use this flag')
     parser.add_argument('--dna', action='store_true', help='Make all files annotated by this run be marked as DNA instead of the default (RNA)')
+    parser.add_argument('--output_location', help='Specifies an output location for all files.')
 
     try:
         args = parser.parse_args()
@@ -976,4 +990,4 @@ if __name__ == '__main__':
             print('WARNING: ' + name + ' is over 23 characters, which means that your gbf file will be corrupted')
     time = str(timeit.default_timer() - start_time)
     newtime = time.split('.')[0] + '.' + time.split('.')[1][0:1]
-    print('Done, did  ' + str(len(virus_strain_list)) + ' viruses in ' + newtime + ' seconds')
+    # print('Done, did  ' + str(len(virus_strain_list)) + ' viruses in ' + newtime + ' seconds')
