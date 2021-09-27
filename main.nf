@@ -187,6 +187,17 @@ if(params.withSerotype != false) {
     BLAST_DB_VP1_6 = file("${baseDir}/blast_db/VP1_164_annotated_nospaces.fasta.nsq")
     BLAST_DB_VP1_7 = file("${baseDir}/blast_db/VP1_164_annotated_nospaces.fasta.ntf")
     BLAST_DB_VP1_8 = file("${baseDir}/blast_db/VP1_164_annotated_nospaces.fasta.nto")
+    // HPV database files
+    BLAST_DB_ALL_1hpv = file("${baseDir}/blast_db/hpv.fasta")
+    BLAST_DB_ALL_2hpv = file("${baseDir}/blast_db/hpv.fasta.ndb")
+    BLAST_DB_ALL_3hpv = file("${baseDir}/blast_db/hpv.fasta.nhr")
+    BLAST_DB_ALL_4hpv = file("${baseDir}/blast_db/hpv.fasta.nin")
+    BLAST_DB_ALL_5hpv = file("${baseDir}/blast_db/hpv.fasta.nog")
+    BLAST_DB_ALL_6hpv = file("${baseDir}/blast_db/hpv.fasta.nos")
+    BLAST_DB_ALL_7hpv = file("${baseDir}/blast_db/hpv.fasta.not")
+    BLAST_DB_ALL_8hpv = file("${baseDir}/blast_db/hpv.fasta.nsq")
+    BLAST_DB_ALL_9hpv = file("${baseDir}/blast_db/hpv.fasta.ntf")    
+    BLAST_DB_ALL_10hpv = file("${baseDir}/blast_db/hpv.fasta.nto")  
     // All BLAST db files for respiratory viruses recognized by this pipeline
     BLAST_DB_ALL_1 = file("${baseDir}/blast_db/all_ref.fasta")
     BLAST_DB_ALL_2 = file("${baseDir}/blast_db/all_ref.fasta.ndb")
@@ -510,6 +521,7 @@ process Mapping {
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
 
+
     # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
     then
@@ -541,6 +553,7 @@ process Mapping {
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
 
+
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
     then
@@ -571,6 +584,7 @@ process Mapping {
     printf ",\$id_ref_size" >> ${base}_summary2.csv
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
+
 
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
@@ -929,7 +943,7 @@ process Mapping_PE {
 if (params.singleEnd) {
 process Sort_Bam {
     container "docker.io/paulrkcruz/hrv-pipeline:latest"    
-	errorStrategy 'retry'
+	errorStrategy 'ignore'
     maxRetries 3
 
     input: 
@@ -1195,6 +1209,7 @@ process Final_Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
 	// errorStrategy 'retry'
     // maxRetries 3
+    errorStrategy 'ignore'
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Consensus_Fasta_ch
@@ -1284,7 +1299,7 @@ process Final_Mapping {
     samtools index ${base}.map3.sorted.bam
 
     picard MarkDuplicates -I ${base}.map3.sorted.bam -O ${base}.map3.sorted.deduplicated.bam -M ${base}.map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
-
+    
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1314,13 +1329,6 @@ process Final_Mapping {
     sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
     grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
     cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
-    
-    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
-    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
-    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_final_summary.csv
-    printf ",\$percent_n" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary.csv
 
 
     # Influenza B
@@ -1547,7 +1555,15 @@ process Final_Mapping {
     picard MarkDuplicates -I ${base}.map4.sorted.bam -O ${base}.map4.sorted.deduplicated.bam -M ${base}.map4.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
 
     cp ${base}.map4.sorted.deduplicated.bam ${base}.map4.sorted.bam
-
+    samtools view -c -F 260 ${base}.map4.sorted.deduplicated.bam > ${base}.map4.sorted.deduplicated.txt
+    deduplicated_reads=\$(awk 'FNR==1{print val,\$1}' ${base}.map4.sorted.deduplicated.txt)
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_final_summary.csv
+    printf ",\$percent_n" >> ${base}_final_summary.csv
+    printf ",\$deduplicated_reads" >> ${base}_final_summary.csv    
+    cp ${base}_final_summary.csv ${base}_summary.csv
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
@@ -1763,7 +1779,7 @@ if (params.withMetadata) {
     if (params.singleEnd) {
 process Summary_Generation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
-    errorStrategy 'retry'
+    errorStrategy 'ignore'
     maxRetries 3
 
     input:
@@ -1848,6 +1864,7 @@ process Serotyping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
     // errorStrategy 'retry'
     // maxRetries 3
+    errorStrategy 'ignore'
 
     input:
     file METADATA_INFO from METADATA
@@ -1859,6 +1876,17 @@ process Serotyping {
     file BLASTDB_VP1_6 from BLAST_DB_VP1_6
     file BLASTDB_VP1_7 from BLAST_DB_VP1_7
     file BLASTDB_VP1_8 from BLAST_DB_VP1_8
+
+    file hpv_db_1 from BLAST_DB_ALL_1hpv
+    file hpv_db_2 from BLAST_DB_ALL_2hpv
+    file hpv_db_3 from BLAST_DB_ALL_3hpv
+    file hpv_db_4 from BLAST_DB_ALL_4hpv
+    file hpv_db_5 from BLAST_DB_ALL_5hpv
+    file hpv_db_6 from BLAST_DB_ALL_6hpv
+    file hpv_db_7 from BLAST_DB_ALL_7hpv
+    file hpv_db_8 from BLAST_DB_ALL_8hpv
+    file hpv_db_9 from BLAST_DB_ALL_9hpv
+    file hpv_db_10 from BLAST_DB_ALL_10hpv
 
     file BLASTDB_ALL_1 from BLAST_DB_ALL_1
     file BLASTDB_ALL_2 from BLAST_DB_ALL_2
@@ -1892,7 +1920,7 @@ process Serotyping {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    SAMPLEName=\${R1:1:6}
+    SAMPLEName=\${R1:0:5}
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
 
     # Rhinovirus
@@ -1940,12 +1968,12 @@ process Serotyping {
     sed -i -e 's/<Hit_def>//g'  ${base}_strain.txt
     awk -F'</Hit_def>' '{print \$1}' ${base}_strain.txt | xargs > ${base}_strain-parsed.txt
     Reference_Name=\$(head -n 1 ${base}_strain-parsed.txt)
-
     biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
     biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
     sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
     release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
     bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
+    
     
     # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
@@ -1966,38 +1994,25 @@ process Serotyping {
     collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
     country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
 
-    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
-    cut -d "-" -f2- <<< "\$serotype" > ${base}_serotype-parse.txt
-    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_serotype-parse.txt)
-    rv='HPV-'
-    serotype_parse="\${rv} \${serotype_parsed}" 
-    echo \$serotype_parse > ${base}_sero.txt
-    cat ${base}_sero.txt | tr -d " \t\n\r" > ${base}_serot.txt
-    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' ${base}_serot.txt)
-    space='/'
-    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
-    echo \$nomenclature > ${base}_nomenclature.txt
-    cat ${base}_nomenclature.txt | tr -d " \t\n\r" > ${base}_nomenclature_parsed.txt
-    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_nomenclature_parsed.txt)	
-    echo \$serotype_parsed2 | xargs > ${base}_serots.txt
-    echo \$nomenclature_parsed | xargs > ${base}_nomen.txt
-    serots=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt)	
-    nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${hpv_db_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
 
     blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
 
-    awk 'NR==31' ${base}_blast_db_all_ref.txt > ${base}_strain.txt
-    sed -i -e 's/<Hit_def>//g'  ${base}_strain.txt
-    awk -F'</Hit_def>' '{print \$1}' strain.txt | xargs > ${base}_strain-parsed.txt
-    Reference_Name=\$(head -n 1 ${base}_strain-parsed.txt)
+    sed -n '30p' < ${base}_blast_db_vp1.txt > ${base}_ref.txt
+    Reference_Name=\$(cat ${base}_ref.txt | sed -n '1 p')
+
+    sed -n '31p' < ${base}_blast_db_vp1.txt > ${base}_type.txt
+    sed -n '31p' < ${base}_blast_db_vp1.txt > ${base}_nomen.txt
+    serots=\$(cat  ${base}_type.txt | sed -n '1 p')
 
     biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
     biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
     sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
     release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
     bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
+    
+
+
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
@@ -2046,7 +2061,7 @@ process Merge_run_summary {
 
     script:
     """
-    
+
     awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
 
     sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
@@ -2208,7 +2223,49 @@ process Vapid_Annotation {
 
     python3 ${vapid_python_main3} \${NCBI_Name}.fa ${vapid_rhinovirus_sbt} --metadata_loc ${base}_vapid_metadata.csv --output_location ${params.outdir}
 
+	serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
+    cut -d "-" -f2- <<< "\$serotype" > ${base}_serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_serotype-parse.txt)
+    serotype_parse="\${serotype_parsed}" 
+    echo \$serotype_parse > ${base}_sero.txt
+    cat ${base}_sero.txt | tr -d " \t\n\r" > ${base}_serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' ${base}_serot.txt)
+    space='/'
+    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
+    echo \$nomenclature > ${base}_nomenclature.txt
+    cat ${base}_nomenclature.txt | tr -d " \t\n\r" > ${base}_nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > ${base}_serots.txt
+    echo \$nomenclature_parsed | xargs > ${base}_nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt)	
+    serots_adj=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt  | xargs)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
+
+
+    cp ${params.outdir}/summary_vapid_output/\${NCBI_Name}.sqn ${params.outdir}/summary_vapid_output/\${NCBI_Name}.txt
+
+    # Edit Line:95 - taxname
+    quote='"'
+    rhino="rhinovirus \$serots_adj"
+    taxname="              taxname \$quote"\$rhino"\$quote ,"
+    sed "95s/.*/\$taxname/" ${params.outdir}/summary_vapid_output/\${NCBI_Name}.txt > ${params.outdir}/summary_vapid_output/\${NCBI_Name}_95.txt
     
+    # Edit Line:100 - subname
+    subname_1="\$quote\$nomen\$quote"
+    subname_2="                   subname \$subname_1 } ,"
+    sub=\$subname_2
+    sed "100s/.*/"\$sub"/" 4N6KGN_95.txt > 4N6KGN_100.txt
+    
+    # Edit Line:188 - str - replace nomenclature with ncbi_name
+    subname_1="\$quote\$nomen\$quote"
+    subname_2="                   subname \$subname_1 } ,"
+    sub=\$subname_2
+    sed "100s/.*/"\$sub"/" 4N6KGN_95.txt > 4N6KGN_100.txt
+
+
+
+
+
 
 
     # HPV
