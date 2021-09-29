@@ -2217,7 +2217,7 @@ process Vapid_Annotation {
     coverage=""
     echo strain, collection_date, country, coverage, full_name> ${base}_vapid_metadata.csv
     name=${base}
-    printf "\$NCBI_Name, \$collection_year, \$country_collected, \$coverage, \$nomen" >> ${base}_vapid_metadata.csv
+    printf "\$NCBI_Name, \$collection_year, \$country_collected, \$coverage, \$NCBI_Name" >> ${base}_vapid_metadata.csv
 
     cp ${base}.consensus_final.fa \${NCBI_Name}.final_consensus.fa
     
@@ -2266,6 +2266,7 @@ process Vapid_Annotation {
     subname_2="                   subname \$subname_1 } ,"
     sub=\$subname_2
     sed "100s/.*/"\$sub"/" 4N6KGN_95.txt > 4N6KGN_100.txt
+
 
 
 
