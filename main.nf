@@ -234,6 +234,8 @@ params.ref_hpv = false
 params.ref_inflb = false
 params.ref_hpiv3 = false
 // Setup MULTIFASTA Reference file paths for OPTIONAL-override of set file paths.
+params.hrv_ref_hpv_14 = file("${baseDir}/hrv_ref/hrv_ref_hpv_14.fa")
+hrv_ref_hpv_14 = file("${baseDir}/hrv_ref/hrv_ref_hpv_14.fa")
 // Rhinovirus
 if(params.ref_rv != false) {
     Reference_rv = file(params.ref_rv)
@@ -943,7 +945,7 @@ process Mapping_PE {
 if (params.singleEnd) {
 process Sort_Bam {
     container "docker.io/paulrkcruz/hrv-pipeline:latest"    
-	errorStrategy 'ignore'
+	errorStrategy 'retry'
     maxRetries 3
 
     input: 
@@ -1207,9 +1209,8 @@ if (params.singleEnd) {
 if (params.singleEnd) {
 process Final_Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
-	// errorStrategy 'retry'
+	errorStrategy 'retry'
     // maxRetries 3
-    errorStrategy 'ignore'
 
     input:
     tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Consensus_Fasta_ch
@@ -1554,16 +1555,29 @@ process Final_Mapping {
 
     picard MarkDuplicates -I ${base}.map4.sorted.bam -O ${base}.map4.sorted.deduplicated.bam -M ${base}.map4.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
 
-    cp ${base}.map4.sorted.deduplicated.bam ${base}.map4.sorted.bam
-    samtools view -c -F 260 ${base}.map4.sorted.deduplicated.bam > ${base}.map4.sorted.deduplicated.txt
-    deduplicated_reads=\$(awk 'FNR==1{print val,\$1}' ${base}.map4.sorted.deduplicated.txt)
+    samtools view -F 0x40 ${base}.map4.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}.map4.sorted.deduplicated.txt
+    samtools view -F 0x40 ${base}.map4.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}.map4.sorted.txt
+
+    deduplicated_reads=\$(head -n 1 ${base}.map4.sorted.deduplicated.txt)
+    non_deduplicated_reads=\$(head -n 1 ${base}.map4.sorted.txt)
+
+    num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
+    echo "\$deduplicated_reads/\$num_trimmed*100" | bc -l > reads-on-t_percent_dedup.txt
+    reads_on_target_dedup=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent_dedup.txt)
+    
+    mkdir ${params.outdir}/map4_bam_deduplicated/
+    mv ${base}.map4.sorted.deduplicated.bam ${params.outdir}/map4_bam_deduplicated/
+
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
     printf ",\$num_bases" >> ${base}_final_summary.csv
     printf ",\$percent_n" >> ${base}_final_summary.csv
-    printf ",\$deduplicated_reads" >> ${base}_final_summary.csv    
+    printf ",\$non_deduplicated_reads" >> ${base}_final_summary.csv
+    printf ",\$deduplicated_reads" >> ${base}_final_summary.csv
+    printf ",\$reads_on_target_dedup" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary.csv
+
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
@@ -1779,8 +1793,8 @@ if (params.withMetadata) {
     if (params.singleEnd) {
 process Summary_Generation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
-    errorStrategy 'ignore'
-    maxRetries 3
+    errorStrategy 'retry'
+    // maxRetries 3
 
     input:
     file SAMPLE_LIST from METADATA
@@ -1862,9 +1876,9 @@ if (params.withSerotype) {
     if (params.singleEnd) {
 process Serotyping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
-    // errorStrategy 'retry'
+    errorStrategy 'retry'
     // maxRetries 3
-    errorStrategy 'ignore'
+    // errorStrategy 'ignore'
 
     input:
     file METADATA_INFO from METADATA
@@ -1902,7 +1916,7 @@ process Serotyping {
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_final_summary.csv"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Final_Processing_final_ch   
 
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file("${base}_nomen.txt") into Serotype_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file("${base}_nomen.txt") into Serotype_ch, Summary_file_ch
     tuple val(base), file("${base}_summary_final.csv") into Summary_cat_ch
 
     publishDir "${params.outdir}blast_serotype", mode: 'copy', pattern:'*_blast_db_vp1.txt*'
@@ -1920,7 +1934,7 @@ process Serotyping {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    SAMPLEName=\${R1:0:5}
+    SAMPLEName=\${R1:2:5}
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
 
     # Rhinovirus
@@ -1974,6 +1988,16 @@ process Serotyping {
     release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
     bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
     
+    printf ",\$serots" >> ${base}_final_summary.csv
+    printf ",\$nomen" >> ${base}_final_summary.csv
+    printf ",\$Reference_Name" >> ${base}_final_summary.csv
+    printf ",\$biosample_name" >> ${base}_final_summary.csv
+    printf ",\$biosample_accession" >> ${base}_final_summary.csv
+    printf ",\$sra_accession" >> ${base}_final_summary.csv
+    printf ",\$release_date" >> ${base}_final_summary.csv
+    printf ",\$bioproject" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary_final.csv
+    
     
     # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
@@ -1987,8 +2011,8 @@ process Serotyping {
     csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
     csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
     csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
-    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
-    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_bioproject.txt
 
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
@@ -1998,20 +2022,36 @@ process Serotyping {
 
     blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
 
-    sed -n '30p' < ${base}_blast_db_vp1.txt > ${base}_ref.txt
-    Reference_Name=\$(cat ${base}_ref.txt | sed -n '1 p')
+    sed -n '31p' < ${base}_blast_db_vp1.txt > ${base}_genotype.txt
+    sed -n '32p' < ${base}_blast_db_vp1.txt > ${base}_ref_id.txt
 
-    sed -n '31p' < ${base}_blast_db_vp1.txt > ${base}_type.txt
-    sed -n '31p' < ${base}_blast_db_vp1.txt > ${base}_nomen.txt
-    serots=\$(cat  ${base}_type.txt | sed -n '1 p')
+    ref_id_hpv=\$(awk -F'<Hit_accession>' '{print \$2}' ${base}_ref_id.txt > ${base}_ref_id_parsed_1.txt)
+    ref_id_parse_1=\$(sed -n '1p' < ${base}_ref_id_parsed_1.txt) 
+    echo "\$ref_id_parse_1" | cut -f1 -d"<" > ${base}_ref_id_parsed_2.txt
+    ref_id_parsed=\$(sed -n '1p' < ${base}_ref_id_parsed_2.txt)
+
+    genotype_hpv=\$(awk -F'<Hit_def>' '{print \$2}' ${base}_genotype.txt > ${base}_genotype_parsed_1.txt) 
+    genotype_parse_1=\$(sed -n '1p' < ${base}_genotype_parsed_1.txt)
+    echo "\$genotype_parse_1" | cut -f1 -d"<" > ${base}_genotype_parsed_2.txt
+    genotype_parsed_2=\$(sed -n '1p' < ${base}_genotype_parsed_2.txt)
+
+    cp ${base}_genotype_parsed_2.txt ${base}_serots.txt
+    cp ${base}_ref_id_parsed_2.txt ${base}_nomen.txt
 
     biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
     biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
     sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
     release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
     bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
-    
 
+    printf ",\$ref_id_parsed" >> ${base}_final_summary.csv
+    printf ",\$genotype_parsed_2" >> ${base}_final_summary.csv
+    printf ",\$biosample_name" >> ${base}_final_summary.csv
+    printf ",\$biosample_accession" >> ${base}_final_summary.csv
+    printf ",\$sra_accession" >> ${base}_final_summary.csv
+    printf ",\$release_date" >> ${base}_final_summary.csv
+    printf ",\$bioproject" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary_final.csv
 
 
     # Influenza B
@@ -2019,21 +2059,6 @@ process Serotyping {
     then
     echo "< Accession found in Influenza B multifasta file."
 
-
-
-    # HPIV3 - Human parainfluenza virus 3
-    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
-    then
-    echo "Accession found in HPIV3 multifasta file."
-
-
-    
-    else
-
-    printf ",\$serotype" >> ${base}_final_summary.csv   
-    printf ",\$nomenclature" >> ${base}_final_summary.csv 
-
-    fi
 
     printf ",\$serots" >> ${base}_final_summary.csv
     printf ",\$nomen" >> ${base}_final_summary.csv
@@ -2045,59 +2070,40 @@ process Serotyping {
     printf ",\$bioproject" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary_final.csv
 
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file."
+
+
+    printf ",\$serots" >> ${base}_final_summary.csv
+    printf ",\$nomen" >> ${base}_final_summary.csv
+    printf ",\$Reference_Name" >> ${base}_final_summary.csv
+    printf ",\$biosample_name" >> ${base}_final_summary.csv
+    printf ",\$biosample_accession" >> ${base}_final_summary.csv
+    printf ",\$sra_accession" >> ${base}_final_summary.csv
+    printf ",\$release_date" >> ${base}_final_summary.csv
+    printf ",\$bioproject" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary_final.csv
+
+    else
+
+    printf ",\$serots" >> ${base}_final_summary.csv
+    printf ",\$nomen" >> ${base}_final_summary.csv
+    printf ",\$Reference_Name" >> ${base}_final_summary.csv
+    printf ",\$biosample_name" >> ${base}_final_summary.csv
+    printf ",\$biosample_accession" >> ${base}_final_summary.csv
+    printf ",\$sra_accession" >> ${base}_final_summary.csv
+    printf ",\$release_date" >> ${base}_final_summary.csv
+    printf ",\$bioproject" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary_final.csv
+
+    fi
+
+
+
     """
     }
-
-process Merge_run_summary {
-    echo true
-
-    input:
-        file '*.csv' from Summary_cat_ch.collect()
-
-    output:
-        file("Run_Summary_Final_cat.csv") into final_summary_out
-
-    publishDir "${params.outdir}summary_withserotype_cat", mode: 'copy', pattern:'*Run_Summary_Final_cat.csv*'
-
-    script:
-    """
-
-    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
-
-    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
-
-    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
-
-    """
-    }
-
-// process Merge_vapid_metadata {
-//     echo true
-
-//     input:
-//         file '*.csv' from Vapid_metadata_cat_ch.collect()
-
-//     output:
-//         file("vapid_metadata_cat.csv") into final_metadata_out
-
-//     publishDir "${params.outdir}summary_vapid_metadata_cat", mode: 'copy', pattern:'*vapid_metadata_cat.csv*'    
-
-//     script:
-//     """
-
-//     awk '(NR == 1) || (FNR > 1)' *.csv >  vapid_metadata_cat.csv
-
-
-//     """
-//     }
-
-    // echo strain, collection_date, country, coverage, full_name> vapid_metadata_cat.csv
-    // echo Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject> Run_Summary_cat.csv
-
-    // sed -i '1s/^/strain, collection_date, country, coverage, full_name\n/' vapid_metadata_cat.csv
-
-    // sed -i '1s/^/Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject\n/' Run_Summary_cat.csv
-
     } else {
 process Serotyping_PE {
     container "docker.io/paulrkcruz/hrv-pipeline:latest"        
@@ -2170,7 +2176,6 @@ process Vapid_Annotation {
 
     output:
     tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file ("${base}_vapid_metadata.csv") into All_files_ch
-
     // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*_aligner.fasta*'
     // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*_ref.fasta*'
     // publishDir "${params.outdir}summary_vapid_annotation", mode: 'copy', pattern:'*.ali*'
@@ -2195,6 +2200,7 @@ process Vapid_Annotation {
     NCBI_Name=\${R1:4:6}
     SAMPLEName=\${R1:1:6}
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
+
 
     # VIRAL ANNOTATION
 
@@ -2241,7 +2247,6 @@ process Vapid_Annotation {
     serots_adj=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt  | xargs)	
     nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
 
-
     cp ${params.outdir}/summary_vapid_output/\${NCBI_Name}.sqn ${params.outdir}/summary_vapid_output/\${NCBI_Name}.txt
 
     # Edit Line:95 - taxname
@@ -2261,10 +2266,6 @@ process Vapid_Annotation {
     subname_2="                   subname \$subname_1 } ,"
     sub=\$subname_2
     sed "100s/.*/"\$sub"/" 4N6KGN_95.txt > 4N6KGN_100.txt
-
-
-
-
 
 
 
@@ -2329,7 +2330,103 @@ process Vapid_Annotation_PE {
     }
     }
     }
+process Merge_run_summary {
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
+    errorStrategy 'retry'
+    // maxRetries 3
+    // errorStrategy 'ignore'
 
+    input:
+        file '*.csv' from Summary_cat_ch.collect()
+        tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file("${base}_nomen.txt") from Summary_file_ch
+
+    output:
+        file("Run_Summary_Final_cat.csv") into final_summary_out
+        tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file("${base}_nomen.txt") into Viral_annot_ch
+
+    publishDir "${params.outdir}summary_withserotype_cat", mode: 'copy', pattern:'*Run_Summary_Final_cat.csv*'
+
+    script:
+    """
+    #!/bin/bash
+    R1=${base}
+    NCBI_Name=\${R1:4:6}
+    SAMPLEName=\${R1:2:5}
+    all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
+
+    # Rhinovirus
+    if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
+    then
+    echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
+
+    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
+
+    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
+
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+
+
+    # HPV
+    elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
+    then
+    echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
+
+    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
+
+    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
+
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N, Mapped_Reads_non-deduplicated, Mapped_Reads_Deduplicated, %_Reads_On_Target_non-deduplicated, %_Reads_On_Target_deduplicated, PCR_CT,Method, NCBI_Name, Reference_Name, Genotype, Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+
+
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
+
+    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
+
+    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
+
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
+
+    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
+
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+
+
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
+
+    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
+
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+
+    else
+
+
+    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
+
+    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
+
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+
+    fi
+
+
+    """
+    }
 if (params.withFastQC) {
     if (params.singleEnd) {
  /* FastQC
