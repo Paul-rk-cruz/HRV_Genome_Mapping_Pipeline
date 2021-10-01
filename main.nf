@@ -210,11 +210,7 @@ if(params.withSerotype != false) {
     BLAST_DB_ALL_9 = file("${baseDir}/blast_db/all_ref.fasta.ntf")    
     BLAST_DB_ALL_10 = file("${baseDir}/blast_db/all_ref.fasta.nto")  
 }
-// Script paths
-TRIM_ENDS=file("${baseDir}/scripts/trim_ends.py")
-VCFUTILS=file("${baseDir}/scripts/vcfutils.pl")
-SPLITCHR=file("${baseDir}/scripts/splitchr.txt")
-FIX_COVERAGE = file("${baseDir}/scripts/fix_coverage.py")
+// File paths
 BLAST_DB_VP1 = file("${baseDir}/blast_db/VP1_164_annotated_nospaces.fasta")
 BLAST_DB_ALL = file("${baseDir}/blast_db/allref.fasta")
 BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
@@ -234,8 +230,7 @@ params.ref_hpv = false
 params.ref_inflb = false
 params.ref_hpiv3 = false
 // Setup MULTIFASTA Reference file paths for OPTIONAL-override of set file paths.
-params.hrv_ref_hpv_14 = file("${baseDir}/hrv_ref/hrv_ref_hpv_14.fa")
-hrv_ref_hpv_14 = file("${baseDir}/hrv_ref/hrv_ref_hpv_14.fa")
+Reference_hpv_14 = file("${baseDir}/hrv_ref/hrv_ref_hpv_14.fa")
 // Rhinovirus
 if(params.ref_rv != false) {
     Reference_rv = file(params.ref_rv)
@@ -321,6 +316,7 @@ log.info "______________________________________________________________________
 log.info " Human Respiratory Virus Pipeline :  v${version}"
 log.info "_______________________________________________________________________________"
 def summary = [:]
+summary['Configuration Profile:'] = workflow.profile
 summary['Current directory path:']        = "$PWD"
 summary['HRV Pipeline directory path:']          = workflow.projectDir
 summary['Input directory path:']               = params.reads
@@ -340,7 +336,6 @@ summary["Trimmomatic Setting:"] = params.SETTING
 summary["Trimmomatic Sliding Window:"] = params.SWINDOW
 summary["Trimmomatic Leading:"] = params.LEADING
 summary["Trimmomatic Trailing:"] = params.TRAILING
-summary['Configuration Profile:'] = workflow.profile
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "_______________________________________________________________________________"
 ////////////////////////////////////////////////////////
@@ -440,12 +435,14 @@ process Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest" 
     errorStrategy 'retry'
     maxRetries 3
+    echo true
 
     input: 
         tuple val(base), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_summary.csv") from Trim_out_SE
         file Reference_rv
         file Reference_hcov
         file Reference_hpv
+        file Reference_hpv_14        
         file Reference_inflb
         file Reference_hpiv3
 
@@ -529,6 +526,137 @@ process Mapping {
     then
     echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
 
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_hpv_all_map1.sam ref=${Reference_hpv} threads=${task.cpus} covstats=${base}_hpv_all_map1_bbmap_out.txt covhist=${base}_hpv_all_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_hpv_all_map1_stats.txt 2>&1
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_hpv_14_map1.sam ref=${Reference_hpv_14} threads=${task.cpus} covstats=${base}_hpv_14_map1_bbmap_out.txt covhist=${base}_hpv_14_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_hpv_14_map1_stats.txt 2>&1
+
+    awk '{print \$5, \$1}' ${base}_hpv_all_map1_bbmap_out.txt  | sort -rn | head -n 2 > ${base}_most_mapped_ref.txt
+    sed -n '2p' < ${base}_most_mapped_ref.txt > ${base}_ref2_percent.txt
+    awk 'FNR == 1 {print \$1}' ${base}_ref2_percent.txt > ${base}_ref2_percent_num_parse.txt
+    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
+    mixed_inf_cov=40
+
+    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
+    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
+
+    echo 'MIXED INFECTION - Mapping TOP TWO Genome References.'
+
+    sed -n '1p' < ${base}_most_mapped_ref.txt > ${base}_ref1_name.txt
+    sed -n '2p' < ${base}_most_mapped_ref.txt > ${base}_ref2_name.txt
+
+    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
+    id_ref_1=\$(awk 'FNR==1{print val,\$2}' ${base}_ref1_name.txt | xargs)
+    id_ref_2=\$(awk 'FNR==1{print val,\$2}'  ${base}_ref2_name.txt | xargs)
+
+    ref_coverage_ref1=\$(awk '{print \$1; exit}' ${base}_ref1_name.txt)
+    ref_coverage_ref2=\$(awk '{print \$1; exit}' ${base}_ref2_name.txt)
+
+    samtools faidx ${Reference_hpv} \$id_ref_1 > ${base}_mapped_ref1_genome.fa
+    samtools faidx ${Reference_hpv} \$id_ref_2 > ${base}_mapped_ref2_genome.fa
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_ref1_map2.sam ref=${base}_mapped_ref1_genome.fa threads=${task.cpus} covstats=${base}_ref1_map2_bbmap_out.txt covhist=${base}_ref1_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_ref1_map2_stats.txt 2>&1
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_ref2_map2.sam ref=${base}_mapped_ref2_genome.fa threads=${task.cpus} covstats=${base}_ref2_map2_bbmap_out.txt covhist=${base}_ref2_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_ref2_map2_stats.txt 2>&1
+
+    samtools view -S -b ${base}_ref1_map2.sam > ${base}_ref1_map2.bam
+    samtools view -S -b ${base}_ref2_map2.sam > ${base}_ref2_map2.bam
+
+    samtools sort -@ 4 ${base}_ref1_map2.bam > ${base}_ref1_map2.sorted.bam
+    samtools sort -@ 4 ${base}_ref2_map2.bam > ${base}_ref2_map2.sorted.bam
+
+    samtools index ${base}_ref1_map2.sorted.bam
+    samtools index ${base}_ref2_map2.sorted.bam
+
+    samtools idxstats ${base}_ref1_map2.sorted.bam > ${base}_ref1_map2_idxstats.txt
+    samtools idxstats ${base}_ref2_map2.sorted.bam > ${base}_ref2_map2_idxstats.txt
+
+    head -n 1 ${base}_mapped_ref1_genome.fa > ${base}_mapped_ref1_edited_genome.fa
+    head -n 1 ${base}_mapped_ref2_genome.fa > ${base}_mapped_ref2_edited_genome.fa
+
+    grep -v ">" ${base}_mapped_ref1_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref1_edited_genome.fa
+    grep -v ">" ${base}_mapped_ref2_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref2_edited_genome.fa
+
+    mv ${base}_mapped_ref1_edited_genome.fa ${base}_mapped_ref1_genome.fa
+    mv ${base}_mapped_ref2_edited_genome.fa ${base}_mapped_ref2_genome.fa
+
+    samtools faidx ${base}_mapped_ref1_genome.fa
+    samtools faidx ${base}_mapped_ref2_genome.fa
+    cp ${base}_mapped_ref1_genome.fa ${base}_mapped_ref_genome.fa
+    samtools faidx ${base}_mapped_ref_genome.fa
+
+    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_ref1_map2_bbmap_out.txt >  ${base}_ref1_most_mapped_ref_size_out.txt
+    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_ref2_map2_bbmap_out.txt >  ${base}_ref2_most_mapped_ref_size_out.txt
+
+    id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_ref1_most_mapped_ref_size_out.txt | xargs)
+    id_ref2_size=\$(awk 'FNR==1{print val,\$1}' ${base}_ref2_most_mapped_ref_size_out.txt | xargs)    
+
+    echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
+    echo \$id_ref2_size >> ${base}_most_mapped_ref2_size.txt
+
+    reads_mapped=\$(cat ${base}_ref1_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+    reads_mapped_ref2=\$(cat ${base}_ref2_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
+
+    printf "\$reads_mapped" >> ${base}_num_mapped.txt
+
+    cp ${base}_most_mapped_ref.txt ${base}_most_mapped_ref.txt
+    cp ${base}_mapped_ref1_genome.fa ${base}_mapped_ref_genome.fa
+    cp ${base}_ref1_map1.sam ${base}_map1.sam
+    cp ${base}_ref1_map2.sam ${base}_map2.sam
+    cp ${base}_ref1_map2.sorted.bam ${base}.sorted.bam
+    cp ${base}_ref1_map2_idxstats.txt ${base}_idxstats.txt
+    cp ${base}_ref1_most_mapped_ref_size_out.txt ${base}_most_mapped_ref_size_out.txt
+    cp ${base}_hpv_all_map1_bbmap_out.txt ${base}_map1_bbmap_out.txt
+    cp ${base}_ref1_map2_bbmap_out.txt ${base}_map2_bbmap_out.txt
+    cp ${base}_hpv_all_map1_stats.txt ${base}_map1_stats.txt
+    cp ${base}_ref1_map2_stats.txt ${base}_map2_stats.txt
+    cp ${base}_hpv_all_map1_histogram.txt ${base}_map1_histogram.txt   
+    cp ${base}_ref1_map2_histogram.txt ${base}_map2_histogram.txt
+
+    mkdir ${params.outdir}/bam_map2_mixed_infection/
+    mkdir ${params.outdir}/sam_map2_mixed_infection/
+    mkdir ${params.outdir}/txt_bbmap_map1_stats_mixed_infection/
+    mkdir ${params.outdir}/txt_bbmap_map2_stats_mixed_infection/
+    mkdir ${params.outdir}/txt_indxstats_mapped_refs_mixed_infection/
+    mkdir ${params.outdir}/ref_id_mixed_infection/
+    mkdir ${params.outdir}/ref_fasta_mixed_infection/
+    mkdir ${params.outdir}/ref_size_mixed_infection/
+    mkdir ${params.outdir}/ref_fai_index_mixed_infection/
+    mkdir ${params.outdir}/hpv_ref_all/
+    mkdir ${params.outdir}/hpv_ref_14/
+
+    mv ${base}_ref1_map2_bbmap_out.txt ${params.outdir}/txt_bbmap_map1_stats_mixed_infection/
+    mv ${base}_most_mapped_ref2_size.txt ${params.outdir}/ref_size_mixed_infection/
+    mv ${base}_ref2_map2.sam ${params.outdir}/sam_map2_mixed_infection/
+    mv ${base}_mapped_ref2_genome.fa ${params.outdir}/ref_fasta_mixed_infection/
+    mv ${base}_ref2_map2.sorted.bam ${params.outdir}/bam_map2_mixed_infection/
+    mv ${base}_ref2_map2_idxstats.txt ${params.outdir}/txt_indxstats_mapped_refs_mixed_infection/
+    mv ${base}_hpv_all_map1_stats.txt ${params.outdir}/hpv_ref_all/
+    mv ${base}_hpv_14_map1_stats.txt ${params.outdir}/hpv_ref_14/
+    mv ${base}_hpv_all_map2_stats.txt ${params.outdir}/hpv_ref_all/
+    mv ${base}_hpv_14_map2_stats.txt ${params.outdir}/hpv_ref_14/
+    mv ${base}_ref2_map2_bbmap_out.txt ${params.outdir}/txt_bbmap_map2_stats_mixed_infection/
+    mv ${base}_ref2_map2_stats.txt ${params.outdir}/txt_bbmap_map2_stats_mixed_infection/
+    mv ${base}_hpv_all_map1.sam ${params.outdir}/hpv_ref_all/
+    mv ${base}_hpv_14_map1.sam ${params.outdir}/hpv_ref_14/
+    cp ${base}_most_mapped_ref.txt ${params.outdir}/ref_id_mixed_infection/
+    cp ${base}_mapped_ref2_genome.fai ${params.outdir}/ref_fai_index_mixed_infection/
+    cp ${base}_ref2_percent_num_parse.txt ${params.outdir}/hpv_ref_all/
+
+    # Summary Statistics
+    cp ${base}_summary.csv ${base}_summary2.csv
+    printf ",\$id_ref_1" >> ${base}_summary2.csv
+    printf ",\$id_ref_2" >> ${base}_summary2.csv
+    printf ",\$id_ref_size" >> ${base}_summary2.csv
+    printf ",\$id_ref2_size" >> ${base}_summary2.csv
+    printf ",\$reads_mapped" >> ${base}_summary2.csv
+    printf ",\$reads_mapped_ref2" >> ${base}_summary2.csv
+    printf ",\$ref_coverage_ref1" >> ${base}_summary2.csv
+    printf ",\$ref_coverage_ref2" >> ${base}_summary2.csv
+
+    else
+
+    echo 'NOT A MIXED INFECTION - Mapping TOP Genome Reference.'
+
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hpv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
     samtools sort -@ 4 ${base}_map1.bam > ${base}.sorted.bam
@@ -554,6 +682,8 @@ process Mapping {
     printf ",\$id_ref_size" >> ${base}_summary2.csv
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
+
+    fi
 
 
     # Influenza B
@@ -1019,220 +1149,22 @@ process Sort_Bam_PE {
     """
 }
 }
-/*
- * Call variants & Generate Consensus
-  */
-if (params.singleEnd) {
- process Generate_Consensus {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"
-    errorStrategy 'retry'
-    maxRetries 3
 
+if (params.singleEnd) {
+process Generate_Consensus {
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"     
+	errorStrategy 'retry'
+    // maxRetries 3
     input:
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Consensus_ch
     
-    file VCFUTILS
-    file SPLITCHR
-    file TRIM_ENDS
-
     output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") into Consensus_Fasta_ch
-    tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_ch
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"),file("${base}.consensus_final.fa") into Consensus_Fasta_ch
 
-    publishDir "${params.outdir}consensus-unmasked", mode: 'copy', pattern:'*.consensus.fa*' 
-    publishDir "${params.outdir}vcf-map2", mode: 'copy', pattern:'*_bcftools.vcf*' 
-    publishDir "${params.outdir}vcf_pre-map2", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
-
-    shell:
-    '''
-    #!/bin/bash
-    ls -latr
-    R1=!{base}
-    echo "bamsize: !{bamsize}"
-    #if [ -s !{} ]
-    # More reliable way of checking bam size, because of aliases
-    if (( !{bamsize} > 92 ))
-    then
-        # Parallelize pileup based on number of cores
-        splitnum=$(($((!{id_ref_size}/!{task.cpus}))+1))
-        perl !{VCFUTILS} splitchr -l $splitnum !{base}_mapped_ref_genome.fa.fai | \\
-        #cat !{SPLITCHR} | \\
-            xargs -I {} -n 1 -P !{task.cpus} sh -c \\
-                "/usr/local/miniconda/bin/bcftools mpileup \\
-                    -f !{base}_mapped_ref_genome.fa -r {} \\
-                    --count-orphans \\
-                    --no-BAQ \\
-                    --max-depth 50000 \\
-                    --max-idepth 500000 \\
-                    --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
-                !{base}.sorted.bam | /usr/local/miniconda/bin/bcftools call -A -m -M -Oz - > tmp.{}.vcf.gz"
-        
-        # Concatenate parallelized vcfs back together
-        gunzip tmp*vcf.gz
-        mv tmp.*:1-* \${R1}_catted.vcf
-        for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
-        cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > \${R1}_pre_bcftools.vcf
-        
-        # Make sure variants are majority variants for consensus calling
-        /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0) | (IMF > 0.5)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}.vcf
-       # /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
-        # Index and generate consensus from vcf with majority variants
-        /usr/local/miniconda/bin/bgzip \${R1}.vcf
-        /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
-        
-        cat !{base}_mapped_ref_genome.fa | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
-        
-        # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
-        # to be masked later
-        /usr/local/miniconda/bin/bedtools genomecov \\
-            -bga \\
-            -ibam !{base}.sorted.bam \\
-            -g !{base}_mapped_ref_genome.fa  \\
-            | awk '\$4 < 6' | /usr/local/miniconda/bin/bedtools merge > \${R1}.mask.bed
-        # Get rid of anything outside of the genome we care about, to prevent some sgrnas from screwing with masking
-        awk '{ if(\$3 > 200 && \$2 < 29742) {print}}' \${R1}.mask.bed > a.tmp && mv a.tmp \${R1}.mask.bed
-        # Mask refseq fasta for low coverage areas based on bed file
-        /usr/local/miniconda/bin/bedtools maskfasta \\
-            -fi !{base}_mapped_ref_genome.fa  \\
-            -bed \${R1}.mask.bed \\
-            -fo ref.mask.fasta
-        
-        # Align to refseq and unwrap fasta
-        cat ref.mask.fasta \${R1}.consensus.fa > align_input.fasta
-        /usr/local/miniconda/bin/mafft --auto --thread !{task.cpus} align_input.fasta > repositioned.fasta
-        awk '/^>/ { print (NR==1 ? "" : RS) $0; next } { printf "%s", $0 } END { printf RS }' repositioned.fasta > repositioned_unwrap.fasta
-        # Trim ends and aligns masking of refseq to our consensus
-        python3 !{TRIM_ENDS} \${R1}
-        gunzip \${R1}.vcf.gz
-        mv \${R1}.vcf \${R1}_bcftools.vcf
-        sed -i 's/>.*/>!{base}.consensus/' \${R1}.consensus.fa
-    else
-       echo "Empty bam detected. Generating empty consensus fasta file..."
-       touch \${R1}_bcftools.vcf
-       touch \${R1}_pre_bcftools.vcf
-    fi
-    cp \${R1}_summary.csv \${R1}_final_summary.csv
-    '''
-}
-} else {
- process Generate_Consensus_PE {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"
-    errorStrategy 'retry'
-    maxRetries 3
-
-    input:
-    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Consensus_PE_ch
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus_final.fa*' 
+    publishDir "${params.outdir}consensus_mpileup", mode: 'copy', pattern:'*.mpileup*' 
     
-    file VCFUTILS
-    file SPLITCHR
-    file TRIM_ENDS
-
-    output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") into Consensus_Fasta_PE_ch
-    tuple val(base), file("${base}_pre_bcftools.vcf"), file("${base}_bcftools.vcf") into Consensus_Vcf_PE_ch
-
-    publishDir "${params.outdir}consensus-unmasked", mode: 'copy', pattern:'*.consensus.fa*' 
-    publishDir "${params.outdir}vcf-map2", mode: 'copy', pattern:'*_bcftools.vcf*' 
-    publishDir "${params.outdir}vcf_pre-map2", mode: 'copy', pattern:'*_pre_bcftools.vcf*' 
-
-    shell:
-    '''
-    #!/bin/bash
-    ls -latr
-    R1=!{base}
-    echo "bamsize: !{bamsize}"
-    #if [ -s !{} ]
-    # More reliable way of checking bam size, because of aliases
-    if (( !{bamsize} > 92 ))
-    then
-        # Parallelize pileup based on number of cores
-        splitnum=$(($((!{id_ref_size}/!{task.cpus}))+1))
-        perl !{VCFUTILS} splitchr -l $splitnum !{base}_mapped_ref_genome.fa.fai | \\
-        #cat !{SPLITCHR} | \\
-            xargs -I {} -n 1 -P !{task.cpus} sh -c \\
-                "/usr/local/miniconda/bin/bcftools mpileup \\
-                    -f !{base}_mapped_ref_genome.fa -r {} \\
-                    --count-orphans \\
-                    --no-BAQ \\
-                    --max-depth 50000 \\
-                    --max-idepth 500000 \\
-                    --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
-                !{base}.sorted.bam | /usr/local/miniconda/bin/bcftools call -A -m -M -Oz - > tmp.{}.vcf.gz"
-        
-        # Concatenate parallelized vcfs back together
-        gunzip tmp*vcf.gz
-        mv tmp.*:1-* \${R1}_catted.vcf
-        for file in tmp*.vcf; do grep -v "#" $file >> \${R1}_catted.vcf; done
-        cat \${R1}_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > \${R1}_pre_bcftools.vcf
-        
-        # Make sure variants are majority variants for consensus calling
-        /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0) | (IMF > 0.5)' --threads !{task.cpus} \${R1}_pre_bcftools.vcf -o \${R1}.vcf
-       # /usr/local/miniconda/bin/bcftools filter -e 'IMF < 0.5' \${R1}_pre2.vcf -o \${R1}.vcf
-        # Index and generate consensus from vcf with majority variants
-        /usr/local/miniconda/bin/bgzip \${R1}.vcf
-        /usr/local/miniconda/bin/tabix \${R1}.vcf.gz 
-        cat !{base}_mapped_ref_genome.fa | /usr/local/miniconda/bin/bcftools consensus \${R1}.vcf.gz > \${R1}.consensus.fa
-        
-        # Create coverage file from bam for whole genome, then pipe anything that has less than 6 coverage to bed file,
-        # to be masked later
-        /usr/local/miniconda/bin/bedtools genomecov \\
-            -bga \\
-            -ibam !{base}.sorted.bam \\
-            -g !{base}_mapped_ref_genome.fa  \\
-            | awk '\$4 < 6' | /usr/local/miniconda/bin/bedtools merge > \${R1}.mask.bed
-        # Get rid of anything outside of the genome we care about, to prevent some sgrnas from screwing with masking
-        awk '{ if(\$3 > 200 && \$2 < 29742) {print}}' \${R1}.mask.bed > a.tmp && mv a.tmp \${R1}.mask.bed
-        # Mask refseq fasta for low coverage areas based on bed file
-        /usr/local/miniconda/bin/bedtools maskfasta \\
-            -fi !{base}_mapped_ref_genome.fa  \\
-            -bed \${R1}.mask.bed \\
-            -fo ref.mask.fasta
-        
-        # Align to refseq and unwrap fasta
-        cat ref.mask.fasta \${R1}.consensus.fa > align_input.fasta
-        /usr/local/miniconda/bin/mafft --auto --thread !{task.cpus} align_input.fasta > repositioned.fasta
-        awk '/^>/ { print (NR==1 ? "" : RS) $0; next } { printf "%s", $0 } END { printf RS }' repositioned.fasta > repositioned_unwrap.fasta
-        # Trim ends and aligns masking of refseq to our consensus
-        python3 !{TRIM_ENDS} \${R1}
-        gunzip \${R1}.vcf.gz
-        mv \${R1}.vcf \${R1}_bcftools.vcf
-        sed -i 's/>.*/>!{base}.consensus/' \${R1}.consensus.fa
-    else
-       echo "Empty bam detected. Generating empty consensus fasta file..."
-       touch \${R1}_bcftools.vcf
-       touch \${R1}_pre_bcftools.vcf
-    fi
-    cp \${R1}_summary.csv \${R1}_final_summary.csv
-    '''
-}
-}
-if (params.singleEnd) {
-process Final_Mapping {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
-	errorStrategy 'retry'
-    // maxRetries 3
-
-    input:
-    tuple val(base), file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus.fa"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Consensus_Fasta_ch
-
-    output:
-    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}.consensus_final.fa"), file("${base}.consensus.masked.fa"), file("${base}_map3.sam"), file("${base}_map3.bam"), file("${base}.map3.sorted.bam"), file("${base}.map3.sorted.bam.bai"), file("${base}_map4.sam"), file("${base}_map4.bam"), file("${base}.map4.sorted.bam"), file("${base}.map4.sorted.bam.bai"), file("${base}_final_mapping_stats.txt"), file("${base}_final_mapping_stats_map4.txt"), file("${base}.mpileup"), file("${base}_summary.csv"), file("${base}.trimmed.fastq.gz"), val(bamsize), val(id), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") into Mapping_Final_ch
-
-    publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
-    publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.map3.sorted.bam*'
-    publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
-    publishDir "${params.outdir}bam_map4", mode: 'copy', pattern:'*.map4.sorted.bam*'
-    publishDir "${params.outdir}sam_map4", mode: 'copy', pattern:'*_map4.sam*'
-    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*consensus_final.fa*'
-    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*consensus_final.fa*'
-    // publishDir "${params.outdir}consensus-ivar-masked", mode: 'copy', pattern:'*.consensus.masked.fa*'
-    publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map3", mode: 'copy', pattern:'*_final_mapping_stats.txt*'
-    publishDir "${params.outdir}txt_bbmap_final_mapping_stats_map4", mode: 'copy', pattern:'*_final_mapping_stats_map4.txt*'
-    // publishDir "${params.outdir}picard_metrics", mode: 'copy', pattern:'*.sorted.metrics.txt*'
-    publishDir "${params.outdir}summary", mode: 'copy', pattern:'*_summary.csv*'
-
     script:
-
     """
     #!/bin/bash
 
@@ -1243,12 +1175,6 @@ process Final_Mapping {
     then
     echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    samtools index ${base}.map3.sorted.bam
-
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1256,11 +1182,11 @@ process Final_Mapping {
         --fasta-ref ${base}.consensus.fa \\
         --min-BQ 15 \\
         --output ${base}.mpileup \\
-        ${base}.map3.sorted.bam
+        ${base}.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
     bedtools genomecov \\
         -bga \\
-        -ibam ${base}.map3.sorted.bam \\
+        -ibam ${base}.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
@@ -1282,10 +1208,9 @@ process Final_Mapping {
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_final_summary.csv
-    printf ",\$percent_n" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary.csv
-
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
 
     # HPV
@@ -1293,14 +1218,25 @@ process Final_Mapping {
     then
     echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
 
-    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam 
-    samtools index ${base}.map3.sorted.bam
+    cp ${base}_ref2_percent_num_parse.txt ${params.outdir}/hpv_ref_all/
+    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
+    mixed_inf_cov=40
 
-    picard MarkDuplicates -I ${base}.map3.sorted.bam -O ${base}.map3.sorted.deduplicated.bam -M ${base}.map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
+    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
+
+    echo 'MIXED INFECTION - Mapping 2 Genomes'
     
+    else
+
+    echo 'NOT A MIXED INFECTION - Mapping 1 Genome'
+
+    fi
+
+
+cp ${params.outdir}/consensus_final_mixed_infection/${base}.consensus_final_mi.fa ${base}.consensus_final_ref2.fa
+
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1308,11 +1244,11 @@ process Final_Mapping {
         --fasta-ref ${base}.consensus.fa \\
         --min-BQ 15 \\
         --output ${base}.mpileup \\
-        ${base}.map3.sorted.deduplicated.bam
+        ${base}.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
     bedtools genomecov \\
         -bga \\
-        -ibam ${base}.map3.sorted.deduplicated.bam \\
+        -ibam ${base}.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
@@ -1330,6 +1266,13 @@ process Final_Mapping {
     sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
     grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
     cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
 
     # Influenza B
@@ -1337,12 +1280,6 @@ process Final_Mapping {
     then
     echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    samtools index ${base}.map3.sorted.bam
-
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1350,11 +1287,11 @@ process Final_Mapping {
         --fasta-ref ${base}.consensus.fa \\
         --min-BQ 15 \\
         --output ${base}.mpileup \\
-        ${base}.map3.sorted.bam
+        ${base}.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
     bedtools genomecov \\
         -bga \\
-        -ibam ${base}.map3.sorted.bam \\
+        -ibam ${base}.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
@@ -1376,9 +1313,9 @@ process Final_Mapping {
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_final_summary.csv
-    printf ",\$percent_n" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary.csv
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
 
     # Human Coronavirus
@@ -1386,12 +1323,6 @@ process Final_Mapping {
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    samtools index ${base}.map3.sorted.bam
-
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1399,11 +1330,11 @@ process Final_Mapping {
         --fasta-ref ${base}.consensus.fa \\
         --min-BQ 15 \\
         --output ${base}.mpileup \\
-        ${base}.map3.sorted.bam
+        ${base}.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
     bedtools genomecov \\
         -bga \\
-        -ibam ${base}.map3.sorted.bam \\
+        -ibam ${base}.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
@@ -1425,9 +1356,9 @@ process Final_Mapping {
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_final_summary.csv
-    printf ",\$percent_n" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary.csv
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
 
     # HPIV3 - Human parainfluenza virus 3
@@ -1435,12 +1366,6 @@ process Final_Mapping {
     then
     echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    samtools index ${base}.map3.sorted.bam
-
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1448,11 +1373,11 @@ process Final_Mapping {
         --fasta-ref ${base}.consensus.fa \\
         --min-BQ 15 \\
         --output ${base}.mpileup \\
-        ${base}.map3.sorted.bam
+        ${base}.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
     bedtools genomecov \\
         -bga \\
-        -ibam ${base}.map3.sorted.bam \\
+        -ibam ${base}.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
@@ -1474,20 +1399,12 @@ process Final_Mapping {
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_final_summary.csv
-    printf ",\$percent_n" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary.csv
-
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
     else
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats.txt 2>&1
-
-    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    samtools index ${base}.map3.sorted.bam
-
-
     samtools mpileup \\
         --count-orphans \\
         --no-BAQ \\
@@ -1495,11 +1412,11 @@ process Final_Mapping {
         --fasta-ref ${base}.consensus.fa \\
         --min-BQ 15 \\
         --output ${base}.mpileup \\
-        ${base}.map3.sorted.bam
+        ${base}.sorted.bam
     cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
     bedtools genomecov \\
         -bga \\
-        -ibam ${base}.map3.sorted.bam \\
+        -ibam ${base}.sorted.bam \\
         -g ${base}_mapped_ref_genome.fa \\
         | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
     
@@ -1521,25 +1438,76 @@ process Final_Mapping {
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
     percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_final_summary.csv
-    printf ",\$percent_n" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary.csv
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
     fi
 
+    """
 
-    # FINAL MAPPING:map4
+}
+} else {
+process Generate_Consensus_PE {
+    container "docker.io/paulrkcruz/hrv-pipeline:latest"     
+	errorStrategy 'retry'
+    // maxRetries 3
+    input:
+    tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Consensus_ch_PE
+    
+    output:
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"),file("${base}.consensus_final.fa") into Consensus_Fasta_ch_PE
+
+    publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus_final.fa*' 
+    publishDir "${params.outdir}consensus_mpileup", mode: 'copy', pattern:'*.mpileup*'
+    
+    script:
+    """
+    #!/bin/bash
+
+    all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
 
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
     then
     echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
 
-    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
-    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
-    samtools index ${base}.map4.sorted.bam
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
 
     # HPV
@@ -1547,26 +1515,295 @@ process Final_Mapping {
     then
     echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
 
-    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
-    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
-    samtools index ${base}.map4.sorted.bam
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
 
-    picard MarkDuplicates -I ${base}.map4.sorted.bam -O ${base}.map4.sorted.deduplicated.bam -M ${base}.map4.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
 
-    samtools view -F 0x40 ${base}.map4.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}.map4.sorted.deduplicated.txt
-    samtools view -F 0x40 ${base}.map4.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}.map4.sorted.txt
 
-    deduplicated_reads=\$(head -n 1 ${base}.map4.sorted.deduplicated.txt)
-    non_deduplicated_reads=\$(head -n 1 ${base}.map4.sorted.txt)
+    # Influenza B
+    elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
+    then
+    echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
+
+
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
+
+
+    # HPIV3 - Human parainfluenza virus 3
+    elif grep -q \$all_ref_id "${base}_hpiv3.txt";
+    then
+    echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
+
+
+    else
+
+    samtools mpileup \\
+        --count-orphans \\
+        --no-BAQ \\
+        --max-depth 50000 \\
+        --fasta-ref ${base}.consensus.fa \\
+        --min-BQ 15 \\
+        --output ${base}.mpileup \\
+        ${base}.sorted.bam
+    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
+    bedtools genomecov \\
+        -bga \\
+        -ibam ${base}.sorted.bam \\
+        -g ${base}_mapped_ref_genome.fa \\
+        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
+    
+    bedtools maskfasta \\
+        -fi ${base}.consensus_final.fa \\
+        -bed ${base}.mask.bed \\
+        -fo ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
+    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
+
+    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
+    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
+    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
+
+    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
+    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
+    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
+    
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_summary.csv
+    printf ",\$percent_n" >> ${base}_summary.csv
+    cp ${base}_summary.csv ${base}_final_summary.csv
+
+    fi
+
+    """
+}
+}
+
+if (params.singleEnd) {
+process Final_Mapping {
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
+	errorStrategy 'retry'
+    // maxRetries 3
+
+    input:
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}_final_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"),file("${base}.consensus_final.fa") from Consensus_Fasta_ch
+
+    output:
+    tuple val(base),file("${base}_mapped_ref_genome.fa"), file("${base}_most_mapped_ref.txt"), file("${base}_summary.csv"), val(bamsize), val(id),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"),file("${base}.consensus_final.fa"),file("${base}_map3.sam") from into Mapping_Final_ch
+
+    publishDir "${params.outdir}mpileup_map3", mode: 'copy', pattern:'*.mpileup*'
+    publishDir "${params.outdir}bam_map3", mode: 'copy', pattern:'*.mpileup*'
+
+    script:
+
+    """
+    #!/bin/bash
+    
+    # FINAL MAPPING - Map3
+
+    # Rhinovirus
+    if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
+    then
+    echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
+    samtools index ${base}_map3.sorted.bam
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+
+    # HPV
+    elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
+    then
+    echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
+
+    cp ${params.outdir}/hpv_ref_all/${base}_ref2_percent_num_parse.txt ${base}_ref2_percent_num_parse.txt
+    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
+    mixed_inf_cov=40
+
+    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
+    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
+
+    echo 'MIXED INFECTION - Mapping 2 Genomes'
+
+    # REF 1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
+    
+    cp ${params.outdir}/consensus_final_mixed_infection/${base}.consensus_final_mi.fa ${base}.consensus_final_ref2.fa
+    # REF 2
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final_ref2.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
+
+
+
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+
+    picard MarkDuplicates -I ${base}.map3.sorted.bam -O ${base}.map3.sorted.deduplicated.bam -M ${base}.map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+
+    samtools view -F 0x40 ${base}.map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.deduplicated.txt
+    samtools view -F 0x40 ${base}.map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.txt
+
+    deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.deduplicated.txt)
+    non_deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.txt)
 
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$deduplicated_reads/\$num_trimmed*100" | bc -l > reads-on-t_percent_dedup.txt
     reads_on_target_dedup=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent_dedup.txt)
     
-    mkdir ${params.outdir}/map4_bam_deduplicated/
-    mv ${base}.map4.sorted.deduplicated.bam ${params.outdir}/map4_bam_deduplicated/
+    mkdir ${params.outdir}/map3_bam_deduplicated/
+    mv ${base}.map3.sorted.deduplicated.bam ${params.outdir}/map3_bam_deduplicated/
 
     num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
     echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
@@ -1579,16 +1816,58 @@ process Final_Mapping {
     cp ${base}_final_summary.csv ${base}_summary.csv
 
 
+
+
+
+    else
+
+    echo 'NOT A MIXED INFECTION - Mapping 1 Genome'
+
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
+
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
+    samtools index ${base}.map3.sorted.bam
+
+    picard MarkDuplicates -I ${base}.map3.sorted.bam -O ${base}.map3.sorted.deduplicated.bam -M ${base}.map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+
+    samtools view -F 0x40 ${base}.map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.deduplicated.txt
+    samtools view -F 0x40 ${base}.map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.txt
+
+    deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.deduplicated.txt)
+    non_deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.txt)
+
+    num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
+    echo "\$deduplicated_reads/\$num_trimmed*100" | bc -l > reads-on-t_percent_dedup.txt
+    reads_on_target_dedup=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent_dedup.txt)
+    
+    mkdir ${params.outdir}/map3_bam_deduplicated/
+    mv ${base}.map3.sorted.deduplicated.bam ${params.outdir}/map3_bam_deduplicated/
+
+    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
+    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
+    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
+    printf ",\$num_bases" >> ${base}_final_summary.csv
+    printf ",\$percent_n" >> ${base}_final_summary.csv
+    printf ",\$non_deduplicated_reads" >> ${base}_final_summary.csv
+    printf ",\$deduplicated_reads" >> ${base}_final_summary.csv
+    printf ",\$reads_on_target_dedup" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary.csv
+
+    fi
+
+
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
     then
     echo "< Accession found in Influenza B multifasta file. hrv_ref_Influenza_b.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
 
-    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
-    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
-    samtools index ${base}.map4.sorted.bam
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
+    samtools index ${base}_map3.sorted.bam
+    cp ${base}_final_summary.csv ${base}_summary.csv
 
 
     # Human Coronavirus
@@ -1596,11 +1875,12 @@ process Final_Mapping {
     then
     echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
 
-    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
-    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
-    samtools index ${base}.map4.sorted.bam
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
+    samtools index ${base}_map3.sorted.bam
+    cp ${base}_final_summary.csv ${base}_summary.csv
 
 
     # HPIV3 - Human parainfluenza virus 3
@@ -1608,22 +1888,23 @@ process Final_Mapping {
     then
     echo "Accession found in HPIV3 multifasta file. hrv_ref_hpiv3.fa will be used for mapping."
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=20 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
 
-    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
-    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
-    samtools index ${base}.map4.sorted.bam
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
+    samtools index ${base}_map3.sorted.bam
+    cp ${base}_final_summary.csv ${base}_summary.csv
 
     else
 
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map4.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map4.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
 
-    samtools view -S -b ${base}_map4.sam > ${base}_map4.bam
-    samtools sort -@ 4 ${base}_map4.bam > ${base}.map4.sorted.bam
-    samtools index ${base}.map4.sorted.bam
+    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
+    samtools index ${base}_map3.sorted.bam
+    cp ${base}_final_summary.csv ${base}_summary.csv
 
     fi
-
 
 
     """  
@@ -2376,7 +2657,7 @@ process Merge_run_summary {
 
     sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
 
-    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N, Mapped_Reads_non-deduplicated, Mapped_Reads_Deduplicated, %_Reads_On_Target_non-deduplicated, %_Reads_On_Target_deduplicated, PCR_CT,Method, NCBI_Name, Reference_Name, Genotype, Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N, Mapped_Reads_non-deduplicated, Mapped_Reads_Deduplicated, %_Reads_On_Target_deduplicated, %_Reads_On_Target_non-deduplicated, PCR_CT,Method, NCBI_Name, Reference_Name, Genotype, Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
 
 
     # Influenza B
