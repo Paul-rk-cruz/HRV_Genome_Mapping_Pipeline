@@ -542,6 +542,7 @@ process Mapping {
 
     samtools faidx ${base}_mapped_ref1_genome.fa
     samtools faidx ${base}_mapped_ref2_genome.fa
+    cp ${base}_mapped_ref2_genome.fai ${base}_mapped_ref2_genome.fai
     cp ${base}_mapped_ref1_genome.fa ${base}_mapped_ref_genome.fa
     samtools faidx ${base}_mapped_ref_genome.fa
 
@@ -816,11 +817,12 @@ process Sort_Bam {
     mincoverage=\$(awk 'FNR==1{print val,\$1}' ${base}_min_coverage.txt)
     maxcoverage=\$(awk 'FNR==1{print val,\$2}' ${base}_max_coverage.txt)
     bamsize=\$((\$(wc -c ${base}.sorted.bam | awk '{print \$1'})+0))
-    cp ${base}_summary2.csv ${base}_summary.csv
-    printf ",\$mincoverage" >> ${base}_summary.csv
-    printf ",\$meancoverage" >> ${base}_summary.csv
-    printf ",\$maxcoverage" >> ${base}_summary.csv
-    printf ",\$bamsize" >> ${base}_summary.csv
+    cp ${base}_summary2.csv ${base}_summary3.csv
+    printf ",\$mincoverage" >> ${base}_summary3.csv
+    printf ",\$meancoverage" >> ${base}_summary3.csv
+    printf ",\$maxcoverage" >> ${base}_summary3.csv
+    printf ",\$bamsize" >> ${base}_summary3.csv
+    cp ${base}_summary3.csv ${base}_summary.csv
     """
 }
 }
@@ -840,6 +842,8 @@ process Generate_Consensus {
     
     output:
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}_final_summary.csv"),file("${base}.consensus_final.fa") into Consensus_Fasta_ch
+
+    tuple val(base), file("${base}.mpileup") into Consensus_mpileup_Ch
 
     publishDir "${params.outdir}consensus-final", mode: 'copy', pattern:'*.consensus_final.fa*' 
     publishDir "${params.outdir}consensus_mpileup", mode: 'copy', pattern:'*.mpileup*' 
@@ -1201,6 +1205,9 @@ process Generate_Consensus {
 
     fi
 
+    cp ${base}_mapped_ref_genome.fa ${base}_mapped_ref_genome2.fa
+    cp ${base}_most_mapped_ref.txt ${base}_most_mapped_ref2.txt
+
     """
 }
 }
@@ -1211,8 +1218,8 @@ process Generate_Consensus {
 if (params.singleEnd) {
 process Final_Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
-	// errorStrategy 'retry'
-    // maxRetries 3
+	errorStrategy 'retry'
+    maxRetries 3
     echo true
 
     input:
@@ -1225,12 +1232,12 @@ process Final_Mapping {
     publishDir "${params.outdir}sam_map3", mode: 'copy', pattern:'*_map3.sam*'
 
     script:
-
     """
     #!/bin/bash
-
     # FINAL MAPPING - MAP3
 
+    all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
+    
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
     then
