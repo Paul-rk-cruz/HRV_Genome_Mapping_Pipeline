@@ -1608,6 +1608,105 @@ process Serotyping {
     then
     echo "< Accession found in respiratory virus multifasta file."
     
+
+    cp ${params.outdir}/hpv_ref_all/${base}_ref2_percent_num_parse.txt ${base}_ref2_percent_num_parse.txt
+    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
+    mixed_inf_cov=40
+
+    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
+    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
+
+    echo 'MIXED INFECTION - Typing 2 Genomes'
+    
+    REF 1
+    csvgrep -c sample_id -r \$SAMPLEName ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
+    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
+    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_bioproject.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out ${base}_blast_result_ref1.txt -query ${base}.consensus_final.fa -db ${hpv_db_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    sed -n '31p' < ${base}_blast_result_ref1.txt > ${base}_genotype.txt
+    sed -n '32p' < ${base}_blast_result_ref1.txt > ${base}_ref_id.txt
+
+    ref_id_hpv=\$(awk -F'<Hit_accession>' '{print \$2}' ${base}_ref_id.txt > ${base}_ref_id_parsed_1.txt)
+    ref_id_parse_1=\$(sed -n '1p' < ${base}_ref_id_parsed_1.txt) 
+    echo "\$ref_id_parse_1" | cut -f1 -d"<" > ${base}_ref_id_parsed_2.txt
+    ref_id_parsed=\$(sed -n '1p' < ${base}_ref_id_parsed_2.txt)
+
+    genotype_hpv=\$(awk -F'<Hit_def>' '{print \$2}' ${base}_genotype.txt > ${base}_genotype_parsed_1.txt) 
+    genotype_parse_1=\$(sed -n '1p' < ${base}_genotype_parsed_1.txt)
+    echo "\$genotype_parse_1" | cut -f1 -d"<" > ${base}_genotype_parsed_2.txt
+    genotype_parsed_2=\$(sed -n '1p' < ${base}_genotype_parsed_2.txt)
+
+
+    cp ${base}_genotype_parsed_2.txt ${base}_serots.txt
+    cp ${base}_ref_id_parsed_2.txt ${base}_nomen.txt
+    cp ${base}_blast_result_ref1.txt ${base}_blast_db_vp1.txt
+
+    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
+    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
+    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
+    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
+    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
+
+    REF 2
+
+    cp ${params.outdir}/consensus-final_mixed_infection/${base}.consensusfinal_ref2.fa ${base}.consensus_final_ref2.fa
+
+    blastn -out ${base}_blast_result_ref2.txt -query ${base}.consensus_final_ref2.fa -db ${hpv_db_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    sed -n '31p' < ${base}_blast_result_ref2.txt > ${base}_genotype_ref2.txt
+    sed -n '32p' < ${base}_blast_result_ref2.txt > ${base}_ref_id_ref2.txt
+
+    ref_id_hpv_ref2=\$(awk -F'<Hit_accession>' '{print \$2}' ${base}_ref_id_ref2.txt > ${base}_ref_id_parsed_1_ref2.txt)
+    ref_id_parse_1_ref2=\$(sed -n '1p' < ${base}_ref_id_parsed_1_ref2.txt) 
+    echo "\$ref_id_parse_1_ref2" | cut -f1 -d"<" > ${base}_ref_id_parsed_2_ref2.txt
+    ref_id_parsed_ref2=\$(sed -n '1p' < ${base}_ref_id_parsed_2_ref2.txt)
+
+    genotype_hpv_ref2=\$(awk -F'<Hit_def>' '{print \$2}' ${base}_genotype_ref2.txt > ${base}_genotype_parsed_1_ref2.txt) 
+    genotype_parse_1_ref2=\$(sed -n '1p' < ${base}_genotype_parsed_1_ref2.txt)
+    echo "\$genotype_parse_1_ref2" | cut -f1 -d"<" > ${base}_genotype_parsed_2_ref2.txt
+    genotype_parsed_2_ref2=\$(sed -n '1p' < ${base}_genotype_parsed_2_ref2.txt)
+
+    # Create new directories for REF 2 files
+    mkdir ${params.outdir}/genotyping_mixed_infection/
+
+    # Move files to respective directories
+    mv ${base}_blast_result_ref2.txt ${params.outdir}/genotyping_mixed_infection/
+    mv ${base}_genotype_parsed_2_ref2.txt ${params.outdir}/genotyping_mixed_infection/
+    mv ${base}_ref_id_parsed_2_ref2.txt ${params.outdir}/genotyping_mixed_infection/
+    cp ${base}_blast_result_ref1.txt ${params.outdir}/genotyping_mixed_infection/
+    cp ${base}_genotype_parsed_2.txt ${params.outdir}/genotyping_mixed_infection/
+    cp ${base}_ref_id_parsed.txt ${params.outdir}/genotyping_mixed_infection/
+    
+    printf ",\$ref_id_parsed" >> ${base}_final_summary.csv
+    printf ",\$genotype_parsed_2" >> ${base}_final_summary.csv
+    printf ",\$ref_id_parsed_ref2" >> ${base}_final_summary.csv
+    printf ",\$genotype_parsed_2_ref2" >> ${base}_final_summary.csv    
+    printf ",\$biosample_name" >> ${base}_final_summary.csv
+    printf ",\$biosample_accession" >> ${base}_final_summary.csv
+    printf ",\$sra_accession" >> ${base}_final_summary.csv
+    printf ",\$release_date" >> ${base}_final_summary.csv
+    printf ",\$bioproject" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary_final.csv
+
+
+    else
+
+    echo 'NOT A MIXED INFECTION - Genotyping 1 Genome'
+
     csvgrep -c sample_id -r \$SAMPLEName ${METADATA_INFO} > ${base}_sample_stats.csv
     csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
     csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
@@ -1656,6 +1755,8 @@ process Serotyping {
     printf ",\$release_date" >> ${base}_final_summary.csv
     printf ",\$bioproject" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary_final.csv
+
+    fi
 
 
     # Influenza B
@@ -1937,7 +2038,7 @@ process Final_Processing {
 
     sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
 
-    echo -e "Sample_Name, Raw_Reads, Trimmed_Reads, Percent_Trimmed, Reference_Genome_Ref1, Reference_Genome_Ref2, Reference_Length_Ref1, Reference_Length_Ref2, Mapped_Reads_Ref1, Mapped_Reads_Ref2, Percent_Ref_Coverage_Ref1, Percent_Ref_Coverage_Ref2, Min_Coverage, Mean_Coverage,Max_Coverage, Bam_Size, Consensus_Length, Percent_N, Mapped_Reads_non-deduplicated_Ref1, Mapped_Reads_Deduplicated_Ref1, %_Reads_On_Target_nondeduplicated_Ref1, %_Reads_On_Target_deduplicated_Ref1, Mapped_Reads_non-deduplicated_Ref2, Mapped_Reads_Deduplicated_Ref2, %_Reads_On_Target_nondeduplicated_Ref2, %_Reads_On_Target_deduplicated_Ref2, %_Reads_On_Target, PCR_CT,Method, NCBI_Name, Reference_Name, Genotype, Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+    echo -e "Sample_Name, Raw_Reads, Trimmed_Reads, Percent_Trimmed, Reference_Genome_Ref1, Reference_Genome_Ref2, Reference_Length_Ref1, Reference_Length_Ref2, Mapped_Reads_Ref1, Mapped_Reads_Ref2, Percent_Ref_Coverage_Ref1, Percent_Ref_Coverage_Ref2, Min_Coverage, Mean_Coverage,Max_Coverage, Bam_Size, Consensus_Length, Percent_N, Mapped_Reads_non-deduplicated_Ref1, Mapped_Reads_Deduplicated_Ref1, %_Reads_On_Target_nondeduplicated_Ref1, %_Reads_On_Target_deduplicated_Ref1, Mapped_Reads_non-deduplicated_Ref2, Mapped_Reads_Deduplicated_Ref2, %_Reads_On_Target_nondeduplicated_Ref2, %_Reads_On_Target_deduplicated_Ref2, %_Reads_On_Target, PCR_CT,Method, NCBI_Name, Reference_Name_Ref1, Genotype_Ref1, Genome_Ref1, Reference_Name_Ref2, Genotype_Ref2, Genome_Ref2, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
 
     else
 
