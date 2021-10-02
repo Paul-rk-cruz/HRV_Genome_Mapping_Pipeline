@@ -1829,8 +1829,6 @@ process Serotyping {
 
     fi
 
-
-
     """
     }
     }
@@ -2004,7 +2002,7 @@ process Vapid_Annotation {
     }
 }
 /*
- * Final_Processing
+ * STEP 5: Final_Processing
  * Final data summary statistic data processing.
  */
 process Final_Processing {
