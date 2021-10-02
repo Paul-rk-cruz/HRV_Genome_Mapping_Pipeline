@@ -1220,7 +1220,7 @@ process Final_Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
 	errorStrategy 'retry'
     maxRetries 3
-    echo true
+    // echo true
 
     input:
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}_final_summary.csv"),file("${base}.consensus_final.fa") from Consensus_Fasta_ch
@@ -1237,7 +1237,7 @@ process Final_Mapping {
     # FINAL MAPPING - MAP3
 
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
-    
+
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
     then
@@ -1270,23 +1270,23 @@ process Final_Mapping {
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
 
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    samtools index ${base}.map3.sorted.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
+    samtools index ${base}_map3.sorted.bam
 
-    picard MarkDuplicates -I ${base}.map3.sorted.bam -O ${base}.map3.sorted.deduplicated.bam -M ${base}.map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+    picard MarkDuplicates -I ${base}_map3.sorted.bam -O ${base}_map3.sorted.deduplicated.bam -M ${base}_map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
 
-    samtools view -F 0x40 ${base}.map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.deduplicated.txt
-    samtools view -F 0x40 ${base}.map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.txt
+    samtools view -F 0x40 ${base}_map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.deduplicated.txt
+    samtools view -F 0x40 ${base}_map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.txt
 
-    deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.deduplicated.txt)
-    non_deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.txt)
-
+    deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.deduplicated.txt)
+    non_deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.txt)
+    
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$non_deduplicated_reads/\$num_trimmed*100" | bc -l > reads-on-t_percent_nondedup.txt
     reads_on_target_nondedup=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent_nondedup.txt)
     
     mkdir ${params.outdir}/bam_map3_deduplicated/
-    mv ${base}.map3.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated/
+    cp ${base}_map3.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated/
 
     printf ",\$non_deduplicated_reads" >> ${base}_final_summary.csv
     printf ",\$deduplicated_reads" >> ${base}_final_summary.csv
@@ -1326,9 +1326,9 @@ process Final_Mapping {
     mkdir ${params.outdir}/sam_map3_mixed_infection/
 
     # Move files to respective directories
-    mv ${base}_map3_ref2.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated_mixed_infection/
-    mv ${base}_map3_ref2.sorted.bam ${params.outdir}/bam_map3_mixed_infection/
-    mv ${base}_map3_ref2.sam ${params.outdir}/sam_map3_mixed_infection/
+    cp ${base}_map3_ref2.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated_mixed_infection/
+    cp ${base}_map3_ref2.sorted.bam ${params.outdir}/bam_map3_mixed_infection/
+    cp ${base}_map3_ref2.sam ${params.outdir}/sam_map3_mixed_infection/
 
     # Print statistics to summary file
     printf ",\$non_deduplicated_reads_ref2" >> ${base}_final_summary.csv
@@ -1346,23 +1346,23 @@ process Final_Mapping {
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
 
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}.map3.sorted.bam
-    samtools index ${base}.map3.sorted.bam
+    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
+    samtools index ${base}_map3.sorted.bam
 
-    picard MarkDuplicates -I ${base}.map3.sorted.bam -O ${base}.map3.sorted.deduplicated.bam -M ${base}.map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
+    picard MarkDuplicates -I ${base}_map3.sorted.bam -O ${base}_map3.sorted.deduplicated.bam -M ${base}_map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
 
-    samtools view -F 0x40 ${base}.map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.deduplicated.txt
-    samtools view -F 0x40 ${base}.map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}.map3.sorted.txt
+    samtools view -F 0x40 ${base}_map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.deduplicated.txt
+    samtools view -F 0x40 ${base}_map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.txt
 
-    deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.deduplicated.txt)
-    non_deduplicated_reads=\$(head -n 1 ${base}.map3.sorted.txt)
+    deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.deduplicated.txt)
+    non_deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.txt)
 
     num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
     echo "\$non_deduplicated_reads/\$num_trimmed*100" | bc -l > reads-on-t_percent_nondedup.txt
     reads_on_target_nondedup=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent_nondedup.txt)
     
     mkdir ${params.outdir}/bam_map3_deduplicated/
-    mv ${base}.map3.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated/
+    mv ${base}_map3.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated/
 
     printf ",\$non_deduplicated_reads" >> ${base}_final_summary.csv
     printf ",\$deduplicated_reads" >> ${base}_final_summary.csv
