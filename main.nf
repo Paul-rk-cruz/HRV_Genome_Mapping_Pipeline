@@ -1547,7 +1547,8 @@ process Serotyping {
     #!/bin/bash
     R1=${base}
     NCBI_Name=\${R1:4:6}
-    SAMPLEName=\${R1:2:5}
+    SAMPLEName=\${R1:2:14}
+    char_edit=\$(echo "\${R1//_R1}")
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
 
     # Rhinovirus
@@ -1628,8 +1629,10 @@ process Serotyping {
     echo 'MIXED INFECTION - Typing 2 Files.'
     
     REF 1
-    csvgrep -c sample_id -r \$SAMPLEName ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvgrep -c sample_id -r \$char_edit ${METADATA_INFO} > ${base}_sample_stats.csv
     csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
     csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
     csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
     csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
@@ -1638,6 +1641,8 @@ process Serotyping {
     csvcut -c 9 ${base}_sample_stats.csv > ${base}_release_date.txt
     csvcut -c 10 ${base}_sample_stats.csv > ${base}_bioproject.txt
 
+    ct=\$(cat ${base}_ct.txt | sed -n '2 p')
+    method=\$(cat ${base}_method.txt | sed -n '2 p')
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
     country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
@@ -1700,10 +1705,12 @@ process Serotyping {
     cp ${base}_genotype_parsed_2.txt ${params.outdir}/genotyping_mixed_infection/
     cp ${base}_ref_id_parsed.txt ${params.outdir}/genotyping_mixed_infection/
     
+    printf ",\$ct" >> ${base}_final_summary.csv
+    printf ",\$method" >> ${base}_final_summary.csv
     printf ",\$ref_id_parsed" >> ${base}_final_summary.csv
     printf ",\$genotype_parsed_2" >> ${base}_final_summary.csv
     printf ",\$ref_id_parsed_ref2" >> ${base}_final_summary.csv
-    printf ",\$genotype_parsed_2_ref2" >> ${base}_final_summary.csv    
+    printf ",\$genotype_parsed_2_ref2" >> ${base}_final_summary.csv
     printf ",\$biosample_name" >> ${base}_final_summary.csv
     printf ",\$biosample_accession" >> ${base}_final_summary.csv
     printf ",\$sra_accession" >> ${base}_final_summary.csv
@@ -1719,6 +1726,8 @@ process Serotyping {
     csvgrep -c sample_id -r \$SAMPLEName ${METADATA_INFO} > ${base}_sample_stats.csv
     csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
     csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 2 ${base}_sample_stats.csv > ${base}_ct.txt
+    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt    
     csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
     csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
     csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
@@ -1726,6 +1735,8 @@ process Serotyping {
     csvcut -c 9 ${base}_sample_stats.csv > ${base}_release_date.txt
     csvcut -c 10 ${base}_sample_stats.csv > ${base}_bioproject.txt
 
+    ct=\$(cat ${base}_ct.txt | sed -n '2 p')
+    method=\$(cat ${base}_method.txt | sed -n '2 p')
     sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
     collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
     country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
@@ -1756,6 +1767,8 @@ process Serotyping {
     release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
     bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
 
+    printf ",\$ct" >> ${base}_final_summary.csv
+    printf ",\$method" >> ${base}_final_summary.csv
     printf ",\$ref_id_parsed" >> ${base}_final_summary.csv
     printf ",\$genotype_parsed_2" >> ${base}_final_summary.csv
     printf ",\$biosample_name" >> ${base}_final_summary.csv
@@ -2056,7 +2069,7 @@ process Final_Processing {
 
     sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
 
-    echo -e "Sample_Name, Raw_Reads, Trimmed_Reads, Percent_Trimmed, Reference_Genome_Ref1, Reference_Genome_Ref2, Reference_Length_Ref1, Reference_Length_Ref2, Mapped_Reads_Ref1, Mapped_Reads_Ref2, Percent_Ref_Coverage_Ref1, Percent_Ref_Coverage_Ref2, Min_Coverage, Mean_Coverage,Max_Coverage, Bam_Size, Consensus_Length, Percent_N, Mapped_Reads_non-deduplicated_Ref1, Mapped_Reads_Deduplicated_Ref1, %_Reads_On_Target_nondeduplicated_Ref1, %_Reads_On_Target_deduplicated_Ref1, Mapped_Reads_non-deduplicated_Ref2, Mapped_Reads_Deduplicated_Ref2, %_Reads_On_Target_nondeduplicated_Ref2, %_Reads_On_Target_deduplicated_Ref2, %_Reads_On_Target, PCR_CT,Method, NCBI_Name, Reference_Name_Ref1, Genotype_Ref1, Genome_Ref1, Reference_Name_Ref2, Genotype_Ref2, Genome_Ref2, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+    echo -e "Sample_Name, Raw_Reads, Trimmed_Reads, Percent_Trimmed, Reference_Genome_Ref1, Reference_Genome_Ref2, Reference_Length_Ref1, Reference_Length_Ref2, Mapped_Reads_Ref1, Mapped_Reads_Ref2, Percent_Ref_Coverage_Ref1, Percent_Ref_Coverage_Ref2, Min_Coverage, Mean_Coverage,Max_Coverage, Bam_Size, Consensus_Length, Percent_N, Mapped_Reads_non-deduplicated_Ref1, Mapped_Reads_Deduplicated_Ref1, %_Reads_On_Target_nondeduplicated_Ref1, %_Reads_On_Target_deduplicated_Ref1, Mapped_Reads_non-deduplicated_Ref2, Mapped_Reads_Deduplicated_Ref2, %_Reads_On_Target_nondeduplicated_Ref2, %_Reads_On_Target_deduplicated_Ref2, %_Reads_On_Target, PCR_CT, Method, Reference_Name_Ref1, Genotype_Ref1, Genome_Ref1, Reference_Name_Ref2, Genotype_Ref2, Genome_Ref2, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
 
     else
 
