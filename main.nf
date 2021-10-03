@@ -788,9 +788,10 @@ process Mapping {
  */
 if (params.singleEnd) {
 process Sort_Bam {
-    container "docker.io/paulrkcruz/hrv-pipeline:latest"    
-	errorStrategy 'retry'
-    maxRetries 3
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"
+    // errorStrategy 'retry'        
+	errorStrategy 'ignore'
+    // maxRetries 3
 
     input: 
     tuple val(base), file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"), file("${base}_summary2.csv"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") from Everything_ch
@@ -799,16 +800,17 @@ process Sort_Bam {
     tuple val(base), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),env(bamsize),file("${base}.sorted.bam.bai"),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"), file("${base}_summary.csv"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt") into Consensus_ch
 
     publishDir "${params.outdir}bam_map2", mode: 'copy', pattern:'*.sorted.bam*'  
+    publishDir "${params.outdir}bam_map2", mode: 'copy', pattern:'*.sorted.bam.bai*'  
     publishDir "${params.outdir}txt_bam_flagstats-map2", mode: 'copy', pattern:'*_flagstats.txt*'  
 
     script:
     """
     #!/bin/bash
-    /usr/local/miniconda/bin/samtools view -S -b ${base}_map2.sam > ${base}.bam
-    /usr/local/miniconda/bin/samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
-    /usr/local/miniconda/bin/samtools index ${base}.sorted.bam
-    /usr/local/miniconda/bin/samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
-    /usr/local/miniconda/bin/bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
+    samtools view -S -b ${base}_map2.sam > ${base}.bam
+    samtools sort -@ ${task.cpus} ${base}.bam > ${base}.sorted.bam
+    samtools index ${base}.sorted.bam
+    samtools flagstat ${base}.sorted.bam > ${base}_flagstats.txt
+    bedtools genomecov -d -ibam ${base}.sorted.bam > ${base}_coverage.txt
     
     awk 'NR == 3 || \$3 > max {number = \$3; max = \$1} END {if (NR) print number, max}' < ${base}_coverage.txt > ${base}_min_coverage.txt
     awk 'NR == 2 || \$3 > min {number = \$1; min = \$3} END {if (NR) print number, min}' < ${base}_coverage.txt > ${base}_max_coverage.txt
@@ -833,7 +835,8 @@ process Sort_Bam {
 if (params.singleEnd) {
 process Generate_Consensus {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
-	errorStrategy 'retry'
+    // errorStrategy 'retry'
+	errorStrategy 'ignore'
     // maxRetries 3
     // echo true
 
@@ -1218,8 +1221,9 @@ process Generate_Consensus {
 if (params.singleEnd) {
 process Final_Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
-	errorStrategy 'retry'
-    maxRetries 3
+    // errorStrategy 'retry'	
+    errorStrategy 'ignore'
+    // maxRetries 3
     // echo true
 
     input:
@@ -1439,8 +1443,9 @@ process Final_Mapping {
 if (params.withMetadata) {
     if (params.singleEnd) {
 process Summary_Generation {
-    // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
-    errorStrategy 'retry'
+    // container "docker.io/paulrkcruz/hrv-pipeline:latest"
+    // errorStrategy 'retry'        
+    errorStrategy 'ignore'
     // maxRetries 3
     // echo true
 
@@ -1488,9 +1493,9 @@ if (params.withSerotype) {
     if (params.singleEnd) {
 process Serotyping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
-    errorStrategy 'retry'
+    // errorStrategy 'retry'
+    errorStrategy 'ignore'    
     // maxRetries 3
-    // errorStrategy 'ignore'
     // echo true
 
     input:
@@ -2008,8 +2013,8 @@ process Vapid_Annotation {
 process Final_Processing {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"        
     // errorStrategy 'retry'
+    errorStrategy 'ignore'
     // maxRetries 3
-    // errorStrategy 'ignore'
     // echo true
 
     input:
