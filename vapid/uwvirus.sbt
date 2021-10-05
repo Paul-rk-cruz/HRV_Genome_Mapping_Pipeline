@@ -26,19 +26,19 @@ Submit-block ::= {
       names std {
         {
           name name {
-            last "Lin",
-            first "Michelle",
+            last "Greninger",
+            first "Alex",
             middle "",
-            initials "J.",
+            initials "L.",
             suffix "",
-            title ""
+            title ""            
           }
         },
         {
           name name {
-            last "Tait",
-            first "Alex",
-            middle "",
+            last "Phung",
+            first "Quynh",
+            middle "T",
             initials "",
             suffix "",
             title ""
@@ -46,10 +46,10 @@ Submit-block ::= {
         },
         {
           name name {
-            last "Greninger",
-            first "Alex",
+            last "Cruz",
+            first "Paul",
             middle "",
-            initials "L.",
+            initials "RK",
             suffix "",
             title ""
           }

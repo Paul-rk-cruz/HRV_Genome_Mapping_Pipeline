@@ -628,7 +628,7 @@ def annotate_a_virus(strain, genome, metadata, coverage, sbt_loc, full_name, nuc
 
     if '_R_' in strain:
         if strain[0:3] == '_R_':
-            print('WARNING: ' + strain + ' has _R_ as the first part of the sequence charachters YOU HAVE TO CHANGE THIS')
+            print('WARNING: ' + strain + ' has _R_ as the first part of the sequence characters YOU HAVE TO CHANGE THIS')
     write_fasta(strain, genome)
 
     name_of_virus, our_seq, ref_seq, ref_accession, need_to_rc = blast_n_stuff(strain, strain + SLASH + strain + '.fasta')
