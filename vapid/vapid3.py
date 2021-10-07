@@ -896,11 +896,11 @@ def check_for_stops(sample_name):
     directory = "summary_vapid_output"
     path = os.path.join(output_location, directory)
 
-    for line in open(path + SLASH + sample_name + '.gbf'):
+    for line in open(SLASH + sample_name + SLASH + sample_name + '.gbf'):
         if '*' in line:
             stops += 1
     if stops > 0:
-        print('WARNING: ' + sample_name + ' contains ' + str(stops) + ' stop codon(s)!')
+        # print('WARNING: ' + sample_name + ' contains ' + str(stops) + ' stop codon(s)!')
         return True
     else:
         return False
