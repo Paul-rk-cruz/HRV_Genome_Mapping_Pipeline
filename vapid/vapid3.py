@@ -724,7 +724,7 @@ def annotate_a_virus(strain, genome, metadata, coverage, sbt_loc, full_name, nuc
         pass
     write_tbl(strain, gene_product_list, gene_loc_list, genome, gene_of_interest, extra_stuff, name_of_virus, all_loc_list, all_product_list, full_name, name_of_the_feature_list)
 
-    cmd = 'tbl2asn -p ' + strain + SLASH + ' -t ' + sbt_loc + ' -Y ' + strain + SLASH + 'assembly.cmt -V vb -r ' + path
+    cmd = 'tbl2asn -p ' + strain + SLASH + ' -t ' + sbt_loc + ' -Y ' + strain + SLASH + 'assembly.cmt -V b vb -r ' + path
     try:
         subprocess.call(cmd, shell=True)
     except:
@@ -873,7 +873,7 @@ def do_meta_data(strain, sheet_exists, full_name):
         cov = input('Enter coverage as a number (example 42.3), if unknown just leave this blank and hit enter: ')
         meta_data = col + con + st
         coverage = cov
-        # Here's one line of code to unilaterally standardize defualt naming scheme
+        # Here's one line of code to unilaterally standardize default naming scheme
         if full_name == '':
             full_name = strain + ' (' + con.split('=')[1][:-1] + '/' + col.split('=')[1][:-1] + ')'
 
@@ -884,6 +884,8 @@ def do_meta_data(strain, sheet_exists, full_name):
             print('Automatic strain naming failed but submission will proceed without metadata appended to the fasta header.')
     return meta_data, coverage, full_name
 
+def get_script_path():
+    return os.path.dirname(os.path.realpath(sys.argv[0]))
 
 # Takes the name of a recently created .gbf file and checks it for stop codons (which usually indicate something went
 # wrong. NOTE: requires tbl2asn to have successfully created a .gbf file or this will fail catastrophically
@@ -896,7 +898,9 @@ def check_for_stops(sample_name):
     directory = "summary_vapid_output"
     path = os.path.join(output_location, directory)
 
-    for line in open(SLASH + sample_name + SLASH + sample_name + '.gbf'):
+    path_vapid = get_script_path()
+
+    for line in open(path_vapid + SLASH + sample_name + SLASH + sample_name + '.gbf'):
         if '*' in line:
             stops += 1
     if stops > 0:
