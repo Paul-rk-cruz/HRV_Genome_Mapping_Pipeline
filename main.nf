@@ -1969,7 +1969,7 @@ process Final_Processing {
 if (params.withVapid) {
     if (params.singleEnd) {
 process Vapid_Annotation {
-    // container "docker.io/paulrkcruz/hrv-pl:latest"  
+    container "docker.io/paulrkcruz/hrv-pl:latest"  
     // errorStrategy 'ignore'    
     // errorStrategy 'retry'
     // maxRetries 3
