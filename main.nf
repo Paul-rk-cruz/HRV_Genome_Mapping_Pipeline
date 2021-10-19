@@ -324,7 +324,7 @@ summary['Output directory path:']          = params.outdir
 summary['Work directory path:']         = workflow.workDir
 summary['Metadata:']               = params.withMetadata ? 'True' : 'False'
 summary['Serotyping:']               = params.withSerotype ? 'True' : 'False'
-summary['Fastq type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
+summary['Sequence type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 if (params.singleEnd) {
 summary['Trimmomatic adapters:'] = params.ADAPTERS_SE
@@ -387,7 +387,7 @@ process Trim_Reads {
  * STEP 2: Mapping
  * Viral identification & mapping.
  */
- if (params.singleEnd) {
+if (params.singleEnd) {
 process Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest" 
     errorStrategy 'retry'
@@ -582,7 +582,6 @@ process Mapping {
     mkdir ${params.outdir}/ref_id_mixed_infection/
     mkdir ${params.outdir}/ref_fasta_mixed_infection/
     mkdir ${params.outdir}/ref_size_mixed_infection/
-    mkdir ${params.outdir}/ref_fai_index_mixed_infection/
     mkdir ${params.outdir}/hpv_ref_all/
     mkdir ${params.outdir}/hpv_ref_14/
 
@@ -601,7 +600,6 @@ process Mapping {
     mv ${base}_hpv_all_map1.sam ${params.outdir}/hpv_ref_all/
     mv ${base}_hpv_14_map1.sam ${params.outdir}/hpv_ref_14/
     cp ${base}_most_mapped_ref.txt ${params.outdir}/ref_id_mixed_infection/
-    cp ${base}_mapped_ref2_genome.fai ${params.outdir}/ref_fai_index_mixed_infection/
     cp ${base}_ref2_percent_num_parse.txt ${params.outdir}/hpv_ref_all/
 
     # Summary Statistics
@@ -1577,7 +1575,7 @@ process Serotyping {
     cut -d "-" -f2- <<< "\$serotype" > ${base}_serotype-parse.txt
     serotype_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_serotype-parse.txt)
     rv='Rv'
-    serotype_parse="\${rv} \${serotype_parsed}" 
+    serotype_parse="\${rv} \${serotype_parsed}"
     echo \$serotype_parse > ${base}_sero.txt
     cat ${base}_sero.txt | tr -d " \t\n\r" > ${base}_serot.txt
     serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' ${base}_serot.txt)
@@ -1613,6 +1611,68 @@ process Serotyping {
     printf ",\$bioproject" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary_final.csv
     
+    # Human Coronavirus
+    elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
+    then
+    echo "Accession found in HCoVs multifasta file. hrv_ref_hcov.fa will be used for mapping."
+
+    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
+    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
+    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${BLASTDB_VP1_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
+    cut -d "-" -f2- <<< "\$serotype" > ${base}_serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_serotype-parse.txt)
+    rv='HCoV_'
+    serotype_parse="\${rv} \${serotype_parsed}" 
+    echo \$serotype_parse > ${base}_sero.txt
+    cat ${base}_sero.txt | tr -d " \t\n\r" > ${base}_serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' ${base}_serot.txt)
+    space='/'
+    city='Seattle'
+
+    nomenclature="\${rv}\${serotype_parsed2} \${space} \${country_collected} \${space} \${city} \${space} \${NCBI_Name} \${space} \${collection_year}" 
+    echo \$nomenclature > ${base}_nomenclature.txt
+    cat ${base}_nomenclature.txt | tr -d " \t\n\r" > ${base}_nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > ${base}_serots.txt
+    echo \$nomenclature_parsed | xargs > ${base}_nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
+
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > ${base}_strain.txt
+    sed -i -e 's/<Hit_def>//g'  ${base}_strain.txt
+    awk -F'</Hit_def>' '{print \$1}' ${base}_strain.txt | xargs > ${base}_strain-parsed.txt
+    Reference_Name=\$(head -n 1 ${base}_strain-parsed.txt)
+    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
+    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
+    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
+    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
+    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
+    
+    printf ",\$serots" >> ${base}_final_summary.csv
+    printf ",\$nomen" >> ${base}_final_summary.csv
+    printf ",\$Reference_Name" >> ${base}_final_summary.csv
+    printf ",\$biosample_name" >> ${base}_final_summary.csv
+    printf ",\$biosample_accession" >> ${base}_final_summary.csv
+    printf ",\$sra_accession" >> ${base}_final_summary.csv
+    printf ",\$release_date" >> ${base}_final_summary.csv
+    printf ",\$bioproject" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary_final.csv
     
     # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
@@ -1880,7 +1940,7 @@ process Final_Processing {
 
     sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
 
-    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Bioproject,  Release_date" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
 
     # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
@@ -2076,13 +2136,13 @@ process Vapid_Annotation {
     subname_1="\$quote\$nomen\$quote"
     subname_2="                   subname \$subname_1 } ,"
     sub=\$subname_2
-    sed "100s/.*/"\$sub"/" 4N6KGN_95.txt > 4N6KGN_100.txt
+    sed "100s/.*/"\$sub"/" ${base}_95.txt > ${base}_100.txt
     
     # Edit Line:188 - str - replace nomenclature with ncbi_name
-    subname_1="\$quote\$nomen\$quote"
-    subname_2="                   subname \$subname_1 } ,"
-    sub=\$subname_2
-    sed "100s/.*/"\$sub"/" 4N6KGN_95.txt > 4N6KGN_100.txt
+    subname_1_1="\$quote\$nomen\$quote"
+    subname_2_2="                   subname \$subname_1_1 } ,"
+    sub=\$subname_2_2
+    sed "100s/.*/"\$sub"/" ${base}_95.txt > ${base}_100.txt
 
 
 

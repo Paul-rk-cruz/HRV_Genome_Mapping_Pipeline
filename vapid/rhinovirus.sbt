@@ -65,6 +65,16 @@ Submit-block ::= {
           }
         },
         {
+          name name {
+            last "Lin",
+            first "Michelle",
+            middle "",
+            initials "J.",
+            suffix "",
+            title ""
+          }
+        }
+      },
       affil std {
         affil "UW Virology",
         div "DLMP",

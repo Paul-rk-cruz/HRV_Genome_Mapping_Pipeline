@@ -104,7 +104,7 @@ def blast_n_stuff(strain, our_fasta_loc):
 
         # pull first accession number from our reference database
         for line in open(strain + SLASH + strain + '.blastresults'):
-            ref_seq_gb = line.split('|')[3]
+            ref_seq_gb = line.split()[1]
             break
 
     # online search
@@ -179,7 +179,7 @@ def blast_n_stuff(strain, our_fasta_loc):
 
         # pull first accession number
         for line in open(strain + SLASH + strain + '.blastresults'):
-            ref_seq_gb = line.split('|')[3]
+            ref_seq_gb = line.split()[1]
             break
 
     # Download the reference fasta file from 
@@ -722,9 +722,11 @@ def annotate_a_virus(strain, genome, metadata, coverage, sbt_loc, full_name, nuc
         os.mkdir(path)
     except OSError:
         pass
+    output_location_tbl2asn=output_location + SLASH + directory + SLASH
     write_tbl(strain, gene_product_list, gene_loc_list, genome, gene_of_interest, extra_stuff, name_of_virus, all_loc_list, all_product_list, full_name, name_of_the_feature_list)
-
-    cmd = 'tbl2asn -p ' + strain + SLASH + ' -t ' + sbt_loc + ' -Y ' + strain + SLASH + 'assembly.cmt -V b vb -r ' + path
+    path_vapid = get_script_path()
+    sbt_locs=path_vapid + SLASH + 'rhinovirus.sbt'
+    cmd = 'tbl2asn -p ' + strain + SLASH + ' -t ' + sbt_locs + ' -Y ' + strain + SLASH + 'assembly.cmt -V vb -r ' + output_location_tbl2asn
     try:
         subprocess.call(cmd, shell=True)
     except:
@@ -900,7 +902,8 @@ def check_for_stops(sample_name):
 
     path_vapid = get_script_path()
 
-    for line in open(path_vapid + SLASH + sample_name + SLASH + sample_name + '.gbf'):
+    # for line in open(path_vapid + SLASH + sample_name + SLASH + sample_name + '.gbf'):
+    for line in open(path + SLASH + sample_name + '.gbf'):    
         if '*' in line:
             stops += 1
     if stops > 0:
