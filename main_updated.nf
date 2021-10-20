@@ -127,6 +127,12 @@ def helpMsg() {
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
+// Show help msg
+if (params.helpMsg){
+    helpMsg()
+    
+    exit 0
+}
 // Make sure outdir path ends with trailing slash
 if (!params.outdir.endsWith("/")){
    params.outdir = "${params.outdir}/"
@@ -260,11 +266,6 @@ if(params.ref_hpiv3 != false) {
     Reference_hpiv3 = file(params.ref_hpiv3)
 } else {
 Reference_hpiv3=file("${baseDir}/hrv_ref/hrv_ref_hpiv3.fa")
-}
-// Show help msg
-if (params.helpMsg){
-    helpMsg()
-    exit 0
 }
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
