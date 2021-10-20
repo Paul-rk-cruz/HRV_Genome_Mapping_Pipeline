@@ -116,8 +116,7 @@ def helpMsg() {
       --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
 	  --helpMsg						Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
-	  --withFastQC					Runs a quality control check on fastq files
-      --skipTrimming                Skips the fastq trimmming process   
+	  --withFastQC					Runs a quality control check on fastq files  
     """.stripIndent()
 }
 ////////////////////////////////////////////////////////
@@ -130,7 +129,7 @@ def helpMsg() {
 // Show help msg
 if (params.helpMsg){
     helpMsg()
-    
+
     exit 0
 }
 // Make sure outdir path ends with trailing slash
