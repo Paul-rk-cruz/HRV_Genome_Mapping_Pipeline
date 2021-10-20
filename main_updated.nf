@@ -96,7 +96,7 @@ version = '1.4'
 def helpMsg() {
     log.info"""
 	 _______________________________________________________________________________
-     Human Rhinovirus Genome Mapping Pipeline :  Version ${version}
+     Human Respiratory Virus Pipeline :  Version ${version}
 	________________________________________________________________________________
     
 	Pipeline Usage:
