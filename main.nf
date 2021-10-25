@@ -93,10 +93,11 @@ Setup Trimmomatic Parameters:
 ////////////////////////////////////////////////////////
 // Pipeline version
 version = '1.4'
+params.helpMsg = false
 def helpMsg() {
     log.info"""
 	 _______________________________________________________________________________
-     Human Rhinovirus Genome Mapping Pipeline :  Version ${version}
+     Human Respiratory Virus Pipeline :  Version ${version}
 	________________________________________________________________________________
     
 	Pipeline Usage:
@@ -116,8 +117,7 @@ def helpMsg() {
       --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
 	  --helpMsg						Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads
-	  --withFastQC					Runs a quality control check on fastq files
-      --skipTrimming                Skips the fastq trimmming process   
+	  --withFastQC					Runs a quality control check on fastq files  
     """.stripIndent()
 }
 ////////////////////////////////////////////////////////
@@ -127,6 +127,12 @@ def helpMsg() {
 /*                                                    */
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
+// Show help msg
+if (params.helpMsg){
+    helpMsg()
+
+    exit 0
+}
 // Make sure outdir path ends with trailing slash
 if (!params.outdir.endsWith("/")){
    params.outdir = "${params.outdir}/"
@@ -135,7 +141,6 @@ if (!params.outdir.endsWith("/")){
 if (!params.reads.endsWith("/")){
    params.reads = "${params.outdir}/"
 }
-params.helpMsg = false
 params.virus_index = false
 params.virus_fasta = false
 params.withFastQC = false
@@ -261,11 +266,6 @@ if(params.ref_hpiv3 != false) {
 } else {
 Reference_hpiv3=file("${baseDir}/hrv_ref/hrv_ref_hpiv3.fa")
 }
-// Show help msg
-if (params.helpMsg){
-    helpMsg()
-    exit 0
-}
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 /*                                                    */
@@ -322,8 +322,9 @@ summary['HRV Pipeline directory path:']          = workflow.projectDir
 summary['Input directory path:']               = params.reads
 summary['Output directory path:']          = params.outdir
 summary['Work directory path:']         = workflow.workDir
-summary['Metadata:']               = params.withMetadata ? 'True' : 'False'
+summary['Metadata:']               = params.withMetadata ? params.withMetadata : 'False'
 summary['Serotyping:']               = params.withSerotype ? 'True' : 'False'
+summary['Viral Annotation:']               = params.withVapid ? 'True' : 'False'
 summary['Sequence type:']           	  = params.singleEnd ? 'Single-End' : 'Paired-End'
 if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 if (params.singleEnd) {
@@ -485,138 +486,6 @@ process Mapping {
     then
     echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
 
-    # MAP 1 - HPV REF ALL
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_hpv_all_map1.sam ref=${Reference_hpv} threads=${task.cpus} covstats=${base}_hpv_all_map1_bbmap_out.txt covhist=${base}_hpv_all_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_hpv_all_map1_stats.txt 2>&1
-    # MAP 1 - HPV REF 14 MOST COMMON HPV VIRUS`S
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_hpv_14_map1.sam ref=${Reference_hpv_14} threads=${task.cpus} covstats=${base}_hpv_14_map1_bbmap_out.txt covhist=${base}_hpv_14_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_hpv_14_map1_stats.txt 2>&1
-
-    awk '{print \$5, \$1}' ${base}_hpv_all_map1_bbmap_out.txt  | sort -rn | head -n 2 > ${base}_most_mapped_ref.txt
-    sed -n '2p' < ${base}_most_mapped_ref.txt > ${base}_ref2_percent.txt
-    awk 'FNR == 1 {print \$1}' ${base}_ref2_percent.txt > ${base}_ref2_percent_num_parse.txt
-    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
-    mixed_inf_cov=40
-
-    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
-    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
-
-    echo 'MIXED INFECTION - Mapping TOP TWO Genome References.'
-
-    sed -n '1p' < ${base}_most_mapped_ref.txt > ${base}_ref1_name.txt
-    sed -n '2p' < ${base}_most_mapped_ref.txt > ${base}_ref2_name.txt
-    id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
-    id_ref_1=\$(awk 'FNR==1{print val,\$2}' ${base}_ref1_name.txt | xargs)
-    id_ref_2=\$(awk 'FNR==1{print val,\$2}'  ${base}_ref2_name.txt | xargs)
-
-    ref_coverage_ref1=\$(awk '{print \$1; exit}' ${base}_ref1_name.txt)
-    ref_coverage_ref2=\$(awk '{print \$1; exit}' ${base}_ref2_name.txt)
-
-    samtools faidx ${Reference_hpv} \$id_ref_1 > ${base}_mapped_ref1_genome.fa
-    samtools faidx ${Reference_hpv} \$id_ref_2 > ${base}_mapped_ref2_genome.fa
-
-    # REF 1 MAP2
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_ref1_map2.sam ref=${base}_mapped_ref1_genome.fa threads=${task.cpus} covstats=${base}_ref1_map2_bbmap_out.txt covhist=${base}_ref1_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_ref1_map2_stats.txt 2>&1
-
-    # REF 2 MAP2
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_ref2_map2.sam ref=${base}_mapped_ref2_genome.fa threads=${task.cpus} covstats=${base}_ref2_map2_bbmap_out.txt covhist=${base}_ref2_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_ref2_map2_stats.txt 2>&1
-
-    samtools view -S -b ${base}_ref1_map2.sam > ${base}_ref1_map2.bam
-    samtools view -S -b ${base}_ref2_map2.sam > ${base}_ref2_map2.bam
-
-    samtools sort -@ 4 ${base}_ref1_map2.bam > ${base}_ref1_map2.sorted.bam
-    samtools sort -@ 4 ${base}_ref2_map2.bam > ${base}_ref2_map2.sorted.bam
-
-    samtools index ${base}_ref1_map2.sorted.bam
-    samtools index ${base}_ref2_map2.sorted.bam
-
-    samtools idxstats ${base}_ref1_map2.sorted.bam > ${base}_ref1_map2_idxstats.txt
-    samtools idxstats ${base}_ref2_map2.sorted.bam > ${base}_ref2_map2_idxstats.txt
-
-    head -n 1 ${base}_mapped_ref1_genome.fa > ${base}_mapped_ref1_edited_genome.fa
-    head -n 1 ${base}_mapped_ref2_genome.fa > ${base}_mapped_ref2_edited_genome.fa
-
-    grep -v ">" ${base}_mapped_ref1_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref1_edited_genome.fa
-    grep -v ">" ${base}_mapped_ref2_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref2_edited_genome.fa
-
-    mv ${base}_mapped_ref1_edited_genome.fa ${base}_mapped_ref1_genome.fa
-    mv ${base}_mapped_ref2_edited_genome.fa ${base}_mapped_ref2_genome.fa
-
-    samtools faidx ${base}_mapped_ref1_genome.fa
-    samtools faidx ${base}_mapped_ref2_genome.fa
-    cp ${base}_mapped_ref2_genome.fai ${base}_mapped_ref2_genome.fai
-    cp ${base}_mapped_ref1_genome.fa ${base}_mapped_ref_genome.fa
-    samtools faidx ${base}_mapped_ref_genome.fa
-
-    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_ref1_map2_bbmap_out.txt >  ${base}_ref1_most_mapped_ref_size_out.txt
-    awk 'NR == 2 || \$5 > max {number = \$3; max = \$5} END {if (NR) print number, max}' < ${base}_ref2_map2_bbmap_out.txt >  ${base}_ref2_most_mapped_ref_size_out.txt
-
-    id_ref_size=\$(awk 'FNR==1{print val,\$1}' ${base}_ref1_most_mapped_ref_size_out.txt | xargs)
-    id_ref2_size=\$(awk 'FNR==1{print val,\$1}' ${base}_ref2_most_mapped_ref_size_out.txt | xargs)    
-
-    echo \$id_ref_size >> ${base}_most_mapped_ref_size.txt
-    echo \$id_ref2_size >> ${base}_most_mapped_ref2_size.txt
-
-    reads_mapped=\$(cat ${base}_ref1_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
-    reads_mapped_ref2=\$(cat ${base}_ref2_map2_stats.txt | grep "mapped:" | cut -d\$'\\t' -f3)
-
-    printf "\$reads_mapped" >> ${base}_num_mapped.txt
-
-    cp ${base}_most_mapped_ref.txt ${base}_most_mapped_ref.txt
-    cp ${base}_mapped_ref1_genome.fa ${base}_mapped_ref_genome.fa
-    cp ${base}_ref1_map1.sam ${base}_map1.sam
-    cp ${base}_ref1_map2.sam ${base}_map2.sam
-    cp ${base}_ref1_map2.sorted.bam ${base}.sorted.bam
-    cp ${base}_ref1_map2_idxstats.txt ${base}_idxstats.txt
-    cp ${base}_ref1_most_mapped_ref_size_out.txt ${base}_most_mapped_ref_size_out.txt
-    cp ${base}_hpv_all_map1_bbmap_out.txt ${base}_map1_bbmap_out.txt
-    cp ${base}_ref1_map2_bbmap_out.txt ${base}_map2_bbmap_out.txt
-    cp ${base}_hpv_all_map1_stats.txt ${base}_map1_stats.txt
-    cp ${base}_ref1_map2_stats.txt ${base}_map2_stats.txt
-    cp ${base}_hpv_all_map1_histogram.txt ${base}_map1_histogram.txt   
-    cp ${base}_ref1_map2_histogram.txt ${base}_map2_histogram.txt
-
-    mkdir ${params.outdir}/bam_map2_mixed_infection/
-    mkdir ${params.outdir}/sam_map2_mixed_infection/
-    mkdir ${params.outdir}/txt_bbmap_map1_stats_mixed_infection/
-    mkdir ${params.outdir}/txt_bbmap_map2_stats_mixed_infection/
-    mkdir ${params.outdir}/txt_indxstats_mapped_refs_mixed_infection/
-    mkdir ${params.outdir}/ref_id_mixed_infection/
-    mkdir ${params.outdir}/ref_fasta_mixed_infection/
-    mkdir ${params.outdir}/ref_size_mixed_infection/
-    mkdir ${params.outdir}/hpv_ref_all/
-    mkdir ${params.outdir}/hpv_ref_14/
-
-    mv ${base}_ref1_map2_bbmap_out.txt ${params.outdir}/txt_bbmap_map1_stats_mixed_infection/
-    mv ${base}_most_mapped_ref2_size.txt ${params.outdir}/ref_size_mixed_infection/
-    mv ${base}_ref2_map2.sam ${params.outdir}/sam_map2_mixed_infection/
-    mv ${base}_mapped_ref2_genome.fa ${params.outdir}/ref_fasta_mixed_infection/
-    mv ${base}_ref2_map2.sorted.bam ${params.outdir}/bam_map2_mixed_infection/
-    mv ${base}_ref2_map2_idxstats.txt ${params.outdir}/txt_indxstats_mapped_refs_mixed_infection/
-    mv ${base}_hpv_all_map1_stats.txt ${params.outdir}/hpv_ref_all/
-    mv ${base}_hpv_14_map1_stats.txt ${params.outdir}/hpv_ref_14/
-    mv ${base}_hpv_all_map2_stats.txt ${params.outdir}/hpv_ref_all/
-    mv ${base}_hpv_14_map2_stats.txt ${params.outdir}/hpv_ref_14/
-    mv ${base}_ref2_map2_bbmap_out.txt ${params.outdir}/txt_bbmap_map2_stats_mixed_infection/
-    mv ${base}_ref2_map2_stats.txt ${params.outdir}/txt_bbmap_map2_stats_mixed_infection/
-    mv ${base}_hpv_all_map1.sam ${params.outdir}/hpv_ref_all/
-    mv ${base}_hpv_14_map1.sam ${params.outdir}/hpv_ref_14/
-    cp ${base}_most_mapped_ref.txt ${params.outdir}/ref_id_mixed_infection/
-    cp ${base}_ref2_percent_num_parse.txt ${params.outdir}/hpv_ref_all/
-
-    # Summary Statistics
-    cp ${base}_summary.csv ${base}_summary2.csv
-    printf ",\$id_ref_1" >> ${base}_summary2.csv
-    printf ",\$id_ref_2" >> ${base}_summary2.csv
-    printf ",\$id_ref_size" >> ${base}_summary2.csv
-    printf ",\$id_ref2_size" >> ${base}_summary2.csv
-    printf ",\$reads_mapped" >> ${base}_summary2.csv
-    printf ",\$reads_mapped_ref2" >> ${base}_summary2.csv
-    printf ",\$ref_coverage_ref1" >> ${base}_summary2.csv
-    printf ",\$ref_coverage_ref2" >> ${base}_summary2.csv
-
-    else
-
-    echo 'NOT A MIXED INFECTION - Mapping TOP Genome Reference.'
-
     # MAP 1
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map1.sam ref=${Reference_hpv} threads=${task.cpus} covstats=${base}_map1_bbmap_out.txt covhist=${base}_map1_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map1_stats.txt 2>&1
     samtools view -S -b ${base}_map1.sam > ${base}_map1.bam
@@ -628,7 +497,7 @@ process Mapping {
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
     samtools faidx ${Reference_hpv} \$id > ${base}_mapped_ref_genome.fa
     # MAP 2    
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=20 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
+    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
     grep -v ">" ${base}_mapped_ref_genome.fa | sed 's/U/T/g' >> ${base}_mapped_ref_genome_edited.fa
     mv ${base}_mapped_ref_genome_edited.fa ${base}_mapped_ref_genome.fa
@@ -643,8 +512,6 @@ process Mapping {
     printf ",\$id_ref_size" >> ${base}_summary2.csv
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
-
-    fi
 
 
     # Influenza B
@@ -711,6 +578,7 @@ process Mapping {
     printf ",\$id_ref_size" >> ${base}_summary2.csv
     printf ",\$reads_mapped" >> ${base}_summary2.csv
     printf ",\$ref_coverage" >> ${base}_summary2.csv
+
 
     # HPIV3 - Human parainfluenza virus 3
     elif grep -q \$all_ref_id "${base}_hpiv3.txt";
@@ -902,99 +770,6 @@ process Generate_Consensus {
     then
     echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
 
-    cp ${params.outdir}/hpv_ref_all/${base}_ref2_percent_num_parse.txt ${base}_ref2_percent_num_parse.txt
-    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
-    mixed_inf_cov=40
-
-    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
-    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
-
-    echo 'MIXED INFECTION - Consensus will be generated for 2 genomes'
-
-    REF #1 - HIGHEST REF GENOME PERCENT COVERAGE
-
-        samtools mpileup \\
-        --count-orphans \\
-        --no-BAQ \\
-        --max-depth 50000 \\
-        --fasta-ref ${base}_mapped_ref_genome.fa \\
-        --min-BQ 15 \\
-        --output ${base}.mpileup \\
-        ${base}.sorted.bam
-    cat ${base}.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final
-    bedtools genomecov \\
-        -bga \\
-        -ibam ${base}.sorted.bam \\
-        -g ${base}_mapped_ref_genome.fa \\
-        | awk '\$4 < 10' | bedtools merge > ${base}.mask.bed
-    bedtools maskfasta \\
-        -fi ${base}.consensus_final.fa \\
-        -bed ${base}.mask.bed \\
-        -fo ${base}.consensus.masked.fa
-    sed -i 's/>.*/>${base}.ivar.masked.consensus/' ${base}.consensus.masked.fa
-    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final.fa
-    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final.fa > bases.txt
-    num_bases=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final.fa > ${base}.consensusfinal.fa
-    sed 's/>.*/>${base}/' ${base}.consensusfinal.fa > ${base}.consensusfinal-renamed-header.fa
-    grep -v "^>" ${base}.consensusfinal-renamed-header.fa | tr -cd N | wc -c > N.txt
-    cp ${base}.consensusfinal-renamed-header.fa ${base}.consensus_final.fa
-    num_ns=\$(awk 'FNR==1{print val,\$1}' N.txt)
-    echo "\$num_ns/\$num_bases*100" | bc -l > n_percent.txt
-    percent_n=\$(awk 'FNR==1{print val,\$1}' n_percent.txt)
-    printf ",\$num_bases" >> ${base}_summary.csv
-    printf ",\$percent_n" >> ${base}_summary.csv
-    cp ${base}_summary.csv ${base}_final_summary.csv
-
-    REF 2 - OVER 40 PERCENT REF GENOME COVERAGE
-    
-    cp ${params.outdir}/bam_map2_mixed_infection/${base}_ref2_map2.sorted.bam ${base}_ref2_map2.sorted.bam
-    cp ${params.outdir}/ref_fasta_mixed_infection/${base}_mapped_ref2_genome.fa ${base}_mapped_ref2_genome.fa
-
-        samtools mpileup \\
-        --count-orphans \\
-        --no-BAQ \\
-        --max-depth 50000 \\
-        --fasta-ref ${base}_mapped_ref2_genome.fa \\
-        --min-BQ 15 \\
-        --output ${base}_ref2.mpileup \\
-        ${base}_ref2_map2.sorted.bam
-    cat ${base}_ref2.mpileup | ivar consensus -q 15 -t 0.6 -m 3 -n N -p ${base}.consensus_final_ref2
-    bedtools genomecov \\
-        -bga \\
-        -ibam ${base}_ref2_map2.sorted.bam \\
-        -g ${base}_mapped_ref2_genome.fa \\
-        | awk '\$4 < 10' | bedtools merge > ${base}.mask_ref2.bed
-    bedtools maskfasta \\
-        -fi ${base}.consensus_final_ref2.fa \\
-        -bed ${base}.mask_ref2.bed \\
-        -fo ${base}.consensus.masked_ref2.fa
-    sed -i 's/>.*/>${base}.ivar.masked_ref2.consensus/' ${base}.consensus.masked_ref2.fa
-    sed -i 's/>.*/>${base}.ivar.consensus/' ${base}.consensus_final_ref2.fa
-    awk '/^>/{if (l!="") print l; print; l=0; next}{l+=length(\$0)}END{print l}' ${base}.consensus_final_ref2.fa > bases.txt
-    num_bases_ref2=\$(awk 'FNR==2{print val,\$1}' bases.txt)
-    seqkit -is replace -p "^n+|n+\$" -r "" ${base}.consensus_final_ref2.fa > ${base}.consensusfinal_ref2.fa
-    sed 's/>.*/>${base}/' ${base}.consensusfinal_ref2.fa > ${base}.consensusfinal_ref2-renamed-header.fa
-    grep -v "^>" ${base}.consensusfinal_ref2-renamed-header.fa | tr -cd N | wc -c > N_ref2.txt
-    cp ${base}.consensusfinal_ref2-renamed-header.fa ${base}.consensusfinal_ref2.fa
-    num_ns_ref2=\$(awk 'FNR==1{print val,\$1}' N_ref2.txt)
-    echo "\$num_ns_ref2/\$num_bases_ref2*100" | bc -l > n_percent_ref2.txt
-    percent_n_ref2=\$(awk 'FNR==1{print val,\$1}' n_percent_ref2.txt)
-    printf ",\$num_bases_ref2" >> ${base}_summary.csv
-    printf ",\$percent_n_ref2" >> ${base}_summary.csv
-    cp ${base}_summary.csv ${base}_final_summary.csv
-
-    # Create new directories for REF 2 consensus and mpileup files
-    mkdir ${params.outdir}/consensus-final_mixed_infection/
-    mkdir ${params.outdir}/consensus_mpileup_mixed_infection/
-
-    # Move consensus and mpileup files to respective directories
-    mv ${base}.consensusfinal_ref2.fa ${params.outdir}/consensus-final_mixed_infection/
-    mv ${base}_ref2.mpileup ${params.outdir}/consensus_mpileup_mixed_infection/
-
-    else
-
-    echo 'NOT A MIXED INFECTION - Consensus will be generated for 1 Genome.'
 
     samtools mpileup \\
         --count-orphans \\
@@ -1032,8 +807,6 @@ process Generate_Consensus {
     printf ",\$num_bases" >> ${base}_summary.csv
     printf ",\$percent_n" >> ${base}_summary.csv
     cp ${base}_summary.csv ${base}_final_summary.csv
-
-    fi
 
 
     # Influenza B
@@ -1255,122 +1028,13 @@ process Final_Mapping {
     then
     echo "< Accession found in HPV multifasta file. hrv_ref_hpv.fa will be used for mapping."
 
-    cp ${params.outdir}/hpv_ref_all/${base}_ref2_percent_num_parse.txt ${base}_ref2_percent_num_parse.txt
-    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
-    mixed_inf_cov=40
-
-    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
-    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
-
-    echo 'MIXED INFECTION - FINAL MAPPING; 2 Genomes'
-
-    # REF 1
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} covstats=${base}_map3_bbmap_out.txt covhist=${base}_map3_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
-
-    samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
-    samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
-    samtools index ${base}_map3.sorted.bam 
-
-    picard MarkDuplicates -I ${base}_map3.sorted.bam -O ${base}_map3.sorted.deduplicated.bam -M ${base}_map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
-
-    samtools view -F 0x40 ${base}_map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.deduplicated.txt
-    samtools view -F 0x40 ${base}_map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.txt
-
-    deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.deduplicated.txt)
-    non_deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.txt)
-    
-    num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
-    echo "\$non_deduplicated_reads/\$num_trimmed*100" | bc -l > reads-on-t_percent_nondedup.txt
-    reads_on_target_nondedup=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent_nondedup.txt)
-    
-    mkdir ${params.outdir}/bam_map3_deduplicated/
-    cp ${base}_map3.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated/
-
-    printf ",\$non_deduplicated_reads" >> ${base}_final_summary.csv
-    printf ",\$deduplicated_reads" >> ${base}_final_summary.csv
-    printf ",\$reads_on_target_nondedup" >> ${base}_final_summary.csv    
-    printf ",\$reads_on_target_dedup" >> ${base}_final_summary.csv
-
-    # REF 2
-    # Retrieve consensus fasta from output directory
-    cp ${params.outdir}/consensus-final_mixed_infection/${base}.consensusfinal_ref2.fa ${base}.consensus_final_ref2.fa
-
-    ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3_ref2.sam ref=${base}.consensus_final_ref2.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_ref2_map3.txt 2>&1
-
-    samtools view -S -b ${base}_map3_ref2.sam > ${base}_map3_ref2.bam
-    samtools sort -@ 4 ${base}_map3_ref2.bam > ${base}_map3_ref2.sorted.bam
-    samtools index ${base}_map3_ref2.sorted.bam
-
-    # Mark Duplicate Reads - output deduplicated bam
-    picard MarkDuplicates -I ${base}_map3_ref2.sorted.bam -O ${base}_map3_ref2.sorted.deduplicated.bam -M ${base}_map3_ref2.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
-
-    samtools view -F 0x40 ${base}_map3_ref2.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3_ref2.sorted.deduplicated.txt
-    samtools view -F 0x40 ${base}_map3_ref2.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3_ref2.sorted.txt
-    
-    deduplicated_reads_ref2=\$(head -n 1 ${base}_map3_ref2.sorted.deduplicated.txt)
-    non_deduplicated_reads_ref2=\$(head -n 1 ${base}_map3_ref2.sorted.txt)
-    num_trimmed_ref2=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
-    echo "\$deduplicated_reads_ref2/\$num_trimmed*100" | bc -l > reads-on-t_ref2_percent_dedup.txt
-    reads_on_target_dedup_ref2=\$(awk 'FNR==1{print val,\$1}' reads-on-t_ref2_percent_dedup.txt)
-
-    non_deduplicated_reads_ref2=\$(head -n 1 ${base}_map3_ref2.sorted.txt)
-    num_trimmed_ref2=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
-    echo "\$non_deduplicated_reads_ref2/\$num_trimmed*100" | bc -l > reads-on-t_ref2_percent_nondedup.txt    
-    reads_on_target_non_dedup_ref2=\$(awk 'FNR==1{print val,\$1}' reads-on-t_ref2_percent_nondedup.txt)
-
-    # Create new directories for REF 2 files
-    mkdir ${params.outdir}/bam_map3_deduplicated_mixed_infection/
-    mkdir ${params.outdir}/bam_map3_mixed_infection/
-    mkdir ${params.outdir}/sam_map3_mixed_infection/
-
-    # Move files to respective directories
-    cp ${base}_map3_ref2.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated_mixed_infection/
-    cp ${base}_map3_ref2.sorted.bam ${params.outdir}/bam_map3_mixed_infection/
-    cp ${base}_map3_ref2.sam ${params.outdir}/sam_map3_mixed_infection/
-
-    # Print statistics to summary file
-    printf ",\$non_deduplicated_reads_ref2" >> ${base}_final_summary.csv
-    printf ",\$deduplicated_reads_ref2" >> ${base}_final_summary.csv
-    printf ",\$reads_on_target_non_dedup_ref2" >> ${base}_final_summary.csv    
-    printf ",\$reads_on_target_dedup_ref2" >> ${base}_final_summary.csv
-
-    # Rename summary file to retain file caching/-resume functionality
-    cp ${base}_final_summary.csv ${base}_summary.csv
-
-    else
-
-    echo 'NOT A MIXED INFECTION - FINAL MAPPING; 1 Genome'
-
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map3.sam ref=${base}.consensus_final.fa threads=${task.cpus} local=true interleaved=false maxindel=9 -Xmx6g > ${base}_final_mapping_stats_map3.txt 2>&1
 
     samtools view -S -b ${base}_map3.sam > ${base}_map3.bam
     samtools sort -@ 4 ${base}_map3.bam > ${base}_map3.sorted.bam
     samtools index ${base}_map3.sorted.bam
-
-    picard MarkDuplicates -I ${base}_map3.sorted.bam -O ${base}_map3.sorted.deduplicated.bam -M ${base}_map3.sorted.metrics.txt -REMOVE_DUPLICATES  TRUE -ASSUME_SORTED TRUE -VALIDATION_STRINGENCY  SILENT
-
-    samtools view -F 0x40 ${base}_map3.sorted.deduplicated.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.deduplicated.txt
-    samtools view -F 0x40 ${base}_map3.sorted.bam | cut -f1 | sort | uniq | wc -l > ${base}_map3.sorted.txt
-
-    deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.deduplicated.txt)
-    non_deduplicated_reads=\$(head -n 1 ${base}_map3.sorted.txt)
-
-    num_trimmed=\$(cat ${base}_num_trimmed.txt | tr -d " \t\n\r" | sed -n '1 p')
-    echo "\$non_deduplicated_reads/\$num_trimmed*100" | bc -l > reads-on-t_percent_nondedup.txt
-    reads_on_target_nondedup=\$(awk 'FNR==1{print val,\$1}' reads-on-t_percent_nondedup.txt)
-    
-    mkdir ${params.outdir}/bam_map3_deduplicated/
-    mv ${base}_map3.sorted.deduplicated.bam ${params.outdir}/bam_map3_deduplicated/
-
-    printf ",\$non_deduplicated_reads" >> ${base}_final_summary.csv
-    printf ",\$deduplicated_reads" >> ${base}_final_summary.csv
-    printf ",\$reads_on_target_nondedup" >> ${base}_final_summary.csv    
-    printf ",\$reads_on_target_dedup" >> ${base}_final_summary.csv
-
     # Rename summary file to retain file caching/-resume functionality
     cp ${base}_final_summary.csv ${base}_summary.csv
-
-    fi
 
 
     # Influenza B
@@ -1611,6 +1275,69 @@ process Serotyping {
     printf ",\$bioproject" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary_final.csv
     
+    
+    # HPV
+    elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
+    then
+    echo "< Accession found in HPV multifasta file; HPV typing."
+    
+    csvgrep -c sample_id -r \$NCBI_Name ${METADATA_INFO} > ${base}_sample_stats.csv
+    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
+    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
+    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
+    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
+    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
+    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
+    csvcut -c 10 ${base}_sample_stats.csv > ${base}_release_date.txt
+    csvcut -c 9 ${base}_sample_stats.csv > ${base}_bioproject.txt
+
+    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
+    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
+    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
+
+    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${hpv_db_1} -outfmt 6 -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    serotype=\$(awk 'FNR==1{print val,\$2}' ${base}_blast_db_vp1.txt)
+    cut -d "-" -f2- <<< "\$serotype" > ${base}_serotype-parse.txt
+    serotype_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_serotype-parse.txt)
+    rv='Human Papilloma Virus '
+    serotype_parse="\${rv} \${serotype_parsed}"
+    echo \$serotype_parse > ${base}_sero.txt
+    cat ${base}_sero.txt | tr -d " \t\n\r" > ${base}_serot.txt
+    serotype_parsed2=\$(awk 'FNR==1{print val,\$1}' ${base}_serot.txt)
+    space='/'
+    nomenclature="\${serotype_parsed2} \${space} \${country_collected} \${space} \${collection_year} \${space} \${NCBI_Name}" 
+    echo \$nomenclature > ${base}_nomenclature.txt
+    cat ${base}_nomenclature.txt | tr -d " \t\n\r" > ${base}_nomenclature_parsed.txt
+    nomenclature_parsed=\$(awk 'FNR==1{print val,\$1}' ${base}_nomenclature_parsed.txt)	
+    echo \$serotype_parsed2 | xargs > ${base}_serots.txt
+    echo \$nomenclature_parsed | xargs > ${base}_nomen.txt
+    serots=\$(awk 'FNR==1{print val,\$1}' ${base}_serots.txt)	
+    nomen=\$(awk 'FNR==1{print val,\$1}' ${base}_nomen.txt)	
+
+    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
+
+    awk 'NR==31' ${base}_blast_db_all_ref.txt > ${base}_strain.txt
+    sed -i -e 's/<Hit_def>//g'  ${base}_strain.txt
+    awk -F'</Hit_def>' '{print \$1}' ${base}_strain.txt | xargs > ${base}_strain-parsed.txt
+    Reference_Name=\$(head -n 1 ${base}_strain-parsed.txt)
+    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
+    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
+    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
+    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
+    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
+    
+    printf ",\$serots" >> ${base}_final_summary.csv
+    printf ",\$nomen" >> ${base}_final_summary.csv
+    printf ",\$Reference_Name" >> ${base}_final_summary.csv
+    printf ",\$biosample_name" >> ${base}_final_summary.csv
+    printf ",\$biosample_accession" >> ${base}_final_summary.csv
+    printf ",\$sra_accession" >> ${base}_final_summary.csv
+    printf ",\$release_date" >> ${base}_final_summary.csv
+    printf ",\$bioproject" >> ${base}_final_summary.csv
+    cp ${base}_final_summary.csv ${base}_summary_final.csv
+
+
     # Human Coronavirus
     elif grep -q \$all_ref_id "${base}_hcov_ids.txt";
     then
@@ -1674,173 +1401,6 @@ process Serotyping {
     printf ",\$bioproject" >> ${base}_final_summary.csv
     cp ${base}_final_summary.csv ${base}_summary_final.csv
     
-    # HPV
-    elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
-    then
-    echo "< Accession found in HPV multifasta file; HPV typing."
-    
-
-    cp ${params.outdir}/hpv_ref_all/${base}_ref2_percent_num_parse.txt ${base}_ref2_percent_num_parse.txt
-    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
-    mixed_inf_cov=40
-
-    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
-    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
-
-    echo 'MIXED INFECTION - Typing 2 Files.'
-    
-    REF 1
-    csvgrep -c sample_id -r \$char_edit ${METADATA_INFO} > ${base}_sample_stats.csv
-    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    csvcut -c 2 ${base}_sample_stats.csv > ${base}_ct.txt
-    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt
-    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
-    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
-    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
-    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
-    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
-    csvcut -c 9 ${base}_sample_stats.csv > ${base}_release_date.txt
-    csvcut -c 10 ${base}_sample_stats.csv > ${base}_bioproject.txt
-
-    ct=\$(cat ${base}_ct.txt | sed -n '2 p')
-    method=\$(cat ${base}_method.txt | sed -n '2 p')
-    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
-    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
-    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
-
-    blastn -out ${base}_blast_result_ref1.txt -query ${base}.consensus_final.fa -db ${hpv_db_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    sed -n '31p' < ${base}_blast_result_ref1.txt > ${base}_genotype.txt
-    sed -n '32p' < ${base}_blast_result_ref1.txt > ${base}_ref_id.txt
-
-    ref_id_hpv=\$(awk -F'<Hit_accession>' '{print \$2}' ${base}_ref_id.txt > ${base}_ref_id_parsed_1.txt)
-    ref_id_parse_1=\$(sed -n '1p' < ${base}_ref_id_parsed_1.txt) 
-    echo "\$ref_id_parse_1" | cut -f1 -d"<" > ${base}_ref_id_parsed_2.txt
-    ref_id_parsed=\$(sed -n '1p' < ${base}_ref_id_parsed_2.txt)
-
-    genotype_hpv=\$(awk -F'<Hit_def>' '{print \$2}' ${base}_genotype.txt > ${base}_genotype_parsed_1.txt) 
-    genotype_parse_1=\$(sed -n '1p' < ${base}_genotype_parsed_1.txt)
-    echo "\$genotype_parse_1" | cut -f1 -d"<" > ${base}_genotype_parsed_2.txt
-    genotype_parsed_2=\$(sed -n '1p' < ${base}_genotype_parsed_2.txt)
-
-
-    cp ${base}_genotype_parsed_2.txt ${base}_serots.txt
-    cp ${base}_ref_id_parsed_2.txt ${base}_nomen.txt
-    cp ${base}_blast_result_ref1.txt ${base}_blast_db_vp1.txt
-
-    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
-    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
-    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
-    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
-    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
-
-    REF 2
-
-    cp ${params.outdir}/consensus-final_mixed_infection/${base}.consensusfinal_ref2.fa ${base}.consensus_final_ref2.fa
-
-    blastn -out ${base}_blast_result_ref2.txt -query ${base}.consensus_final_ref2.fa -db ${hpv_db_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    sed -n '31p' < ${base}_blast_result_ref2.txt > ${base}_genotype_ref2.txt
-    sed -n '32p' < ${base}_blast_result_ref2.txt > ${base}_ref_id_ref2.txt
-
-    ref_id_hpv_ref2=\$(awk -F'<Hit_accession>' '{print \$2}' ${base}_ref_id_ref2.txt > ${base}_ref_id_parsed_1_ref2.txt)
-    ref_id_parse_1_ref2=\$(sed -n '1p' < ${base}_ref_id_parsed_1_ref2.txt) 
-    echo "\$ref_id_parse_1_ref2" | cut -f1 -d"<" > ${base}_ref_id_parsed_2_ref2.txt
-    ref_id_parsed_ref2=\$(sed -n '1p' < ${base}_ref_id_parsed_2_ref2.txt)
-
-    genotype_hpv_ref2=\$(awk -F'<Hit_def>' '{print \$2}' ${base}_genotype_ref2.txt > ${base}_genotype_parsed_1_ref2.txt) 
-    genotype_parse_1_ref2=\$(sed -n '1p' < ${base}_genotype_parsed_1_ref2.txt)
-    echo "\$genotype_parse_1_ref2" | cut -f1 -d"<" > ${base}_genotype_parsed_2_ref2.txt
-    genotype_parsed_2_ref2=\$(sed -n '1p' < ${base}_genotype_parsed_2_ref2.txt)
-
-    # Create new directories for REF 2 files
-    mkdir ${params.outdir}/genotyping_mixed_infection/
-
-    # Move files to respective directories
-    mv ${base}_blast_result_ref2.txt ${params.outdir}/genotyping_mixed_infection/
-    mv ${base}_genotype_parsed_2_ref2.txt ${params.outdir}/genotyping_mixed_infection/
-    mv ${base}_ref_id_parsed_2_ref2.txt ${params.outdir}/genotyping_mixed_infection/
-    cp ${base}_blast_result_ref1.txt ${params.outdir}/genotyping_mixed_infection/
-    cp ${base}_genotype_parsed_2.txt ${params.outdir}/genotyping_mixed_infection/
-    cp ${base}_ref_id_parsed.txt ${params.outdir}/genotyping_mixed_infection/
-    
-    printf ",\$ct" >> ${base}_final_summary.csv
-    printf ",\$method" >> ${base}_final_summary.csv
-    printf ",\$ref_id_parsed" >> ${base}_final_summary.csv
-    printf ",\$genotype_parsed_2" >> ${base}_final_summary.csv
-    printf ",\$ref_id_parsed_ref2" >> ${base}_final_summary.csv
-    printf ",\$genotype_parsed_2_ref2" >> ${base}_final_summary.csv
-    printf ",\$biosample_name" >> ${base}_final_summary.csv
-    printf ",\$biosample_accession" >> ${base}_final_summary.csv
-    printf ",\$sra_accession" >> ${base}_final_summary.csv
-    printf ",\$release_date" >> ${base}_final_summary.csv
-    printf ",\$bioproject" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary_final.csv
-
-
-    else
-
-    echo 'NOT A MIXED INFECTION - Genotyping 1 File.'
-
-    csvgrep -c sample_id -r \$SAMPLEName ${METADATA_INFO} > ${base}_sample_stats.csv
-    csvcut -c 1 ${base}_sample_stats.csv > ${base}_sample_id.txt
-    csvcut -c 4 ${base}_sample_stats.csv > ${base}_collection_year.txt
-    csvcut -c 2 ${base}_sample_stats.csv > ${base}_ct.txt
-    csvcut -c 3 ${base}_sample_stats.csv > ${base}_method.txt    
-    csvcut -c 5 ${base}_sample_stats.csv > ${base}_country_collected.txt
-    csvcut -c 6 ${base}_sample_stats.csv > ${base}_biosample_name.txt
-    csvcut -c 7 ${base}_sample_stats.csv > ${base}_biosample_accession.txt
-    csvcut -c 8 ${base}_sample_stats.csv > ${base}_sra_accession.txt
-    csvcut -c 9 ${base}_sample_stats.csv > ${base}_release_date.txt
-    csvcut -c 10 ${base}_sample_stats.csv > ${base}_bioproject.txt
-
-    ct=\$(cat ${base}_ct.txt | sed -n '2 p')
-    method=\$(cat ${base}_method.txt | sed -n '2 p')
-    sample_id=\$(cat ${base}_sample_id.txt | sed -n '2 p')
-    collection_year=\$(cat ${base}_collection_year.txt | sed -n '2 p')
-    country_collected=\$(cat ${base}_country_collected.txt | sed -n '2 p')
-
-    blastn -out ${base}_blast_db_vp1.txt -query ${base}.consensus_final.fa -db ${hpv_db_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    blastn -out ${base}_blast_db_all_ref.txt -query ${base}.consensus_final.fa -db ${BLASTDB_ALL_1} -outfmt "5 std qlen" -task blastn -max_target_seqs 1 -evalue 1e-5
-
-    sed -n '31p' < ${base}_blast_db_vp1.txt > ${base}_genotype.txt
-    sed -n '32p' < ${base}_blast_db_vp1.txt > ${base}_ref_id.txt
-
-    ref_id_hpv=\$(awk -F'<Hit_accession>' '{print \$2}' ${base}_ref_id.txt > ${base}_ref_id_parsed_1.txt)
-    ref_id_parse_1=\$(sed -n '1p' < ${base}_ref_id_parsed_1.txt) 
-    echo "\$ref_id_parse_1" | cut -f1 -d"<" > ${base}_ref_id_parsed_2.txt
-    ref_id_parsed=\$(sed -n '1p' < ${base}_ref_id_parsed_2.txt)
-
-    genotype_hpv=\$(awk -F'<Hit_def>' '{print \$2}' ${base}_genotype.txt > ${base}_genotype_parsed_1.txt) 
-    genotype_parse_1=\$(sed -n '1p' < ${base}_genotype_parsed_1.txt)
-    echo "\$genotype_parse_1" | cut -f1 -d"<" > ${base}_genotype_parsed_2.txt
-    genotype_parsed_2=\$(sed -n '1p' < ${base}_genotype_parsed_2.txt)
-
-    cp ${base}_genotype_parsed_2.txt ${base}_serots.txt
-    cp ${base}_ref_id_parsed_2.txt ${base}_nomen.txt
-
-    biosample_name=\$(cat ${base}_biosample_name.txt | sed -n '2 p')
-    biosample_accession=\$(cat ${base}_biosample_accession.txt | sed -n '2 p')
-    sra_accession=\$(cat ${base}_sra_accession.txt | sed -n '2 p')
-    release_date=\$(cat ${base}_release_date.txt | sed -n '2 p')
-    bioproject=\$(cat ${base}_bioproject.txt | sed -n '2 p')
-
-    printf ",\$ct" >> ${base}_final_summary.csv
-    printf ",\$method" >> ${base}_final_summary.csv
-    printf ",\$ref_id_parsed" >> ${base}_final_summary.csv
-    printf ",\$genotype_parsed_2" >> ${base}_final_summary.csv
-    printf ",\$biosample_name" >> ${base}_final_summary.csv
-    printf ",\$biosample_accession" >> ${base}_final_summary.csv
-    printf ",\$sra_accession" >> ${base}_final_summary.csv
-    printf ",\$release_date" >> ${base}_final_summary.csv
-    printf ",\$bioproject" >> ${base}_final_summary.csv
-    cp ${base}_final_summary.csv ${base}_summary_final.csv
-
-    fi
-
 
     # Influenza B
     elif grep -q \$all_ref_id "${base}_inbflb_ids.txt";
@@ -1931,6 +1491,7 @@ process Final_Processing {
     SAMPLEName=\${R1:2:5}
     all_ref_id=\$(awk '{print \$1}' ${base}_all_ref_id.txt)
 
+
     # Rhinovirus
     if grep -q \$all_ref_id "${base}_rv_ids.txt"; 
     then
@@ -1942,35 +1503,17 @@ process Final_Processing {
 
     echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Bioproject,  Release_date" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
 
+
     # HPV
     elif grep -q \$all_ref_id "${base}_hpv_ids.txt";
     then
     echo "< Accession found in HPV multifasta file. HPV final processing."
 
-    cp ${params.outdir}/hpv_ref_all/${base}_ref2_percent_num_parse.txt ${base}_ref2_percent_num_parse.txt
-    ref_2_percent=\$(sed -n '1p' < ${base}_ref2_percent_num_parse.txt | xargs)
-    mixed_inf_cov=40
-
-    # Check if Ref #2 has percent genome coverage higher than 40%. If true, Map Ref2 as a mixed infection.
-    if [ "\$ref_2_percent" > "\$mixed_inf_cov" ]; then
-
-    echo 'MIXED INFECTION - Processing summary for mixed infections.'
-    
     awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
 
     sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
 
-    echo -e "Sample_Name, Raw_Reads, Trimmed_Reads, Percent_Trimmed, Reference_Genome_Ref1, Reference_Genome_Ref2, Reference_Length_Ref1, Reference_Length_Ref2, Mapped_Reads_Ref1, Mapped_Reads_Ref2, Percent_Ref_Coverage_Ref1, Percent_Ref_Coverage_Ref2, Min_Coverage, Mean_Coverage,Max_Coverage, Bam_Size, Consensus_Length, Percent_N, Mapped_Reads_non-deduplicated_Ref1, Mapped_Reads_Deduplicated_Ref1, %_Reads_On_Target_nondeduplicated_Ref1, %_Reads_On_Target_deduplicated_Ref1, Mapped_Reads_non-deduplicated_Ref2, Mapped_Reads_Deduplicated_Ref2, %_Reads_On_Target_nondeduplicated_Ref2, %_Reads_On_Target_deduplicated_Ref2, %_Reads_On_Target, PCR_CT, Method, Reference_Name_Ref1, Genotype_Ref1, Genome_Ref1, Reference_Name_Ref2, Genotype_Ref2, Genome_Ref2, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
-
-    else
-
-    echo 'NOT A MIXED INFECTION - Processing summary for non-mixed infection.'
-
-    awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
-    sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
-    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N, Mapped_Reads_non-deduplicated, Mapped_Reads_Deduplicated, %_Reads_On_Target_deduplicated, %_Reads_On_Target_non-deduplicated, PCR_CT,Method, NCBI_Name, Reference_Name, Genotype, Genome, Biosample_name, Biosample_accession, SRA_Accession, Release_date, Bioproject" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
-
-    fi
+    echo -e "Sample_Name,Raw_Reads,Trimmed_Reads,Percent_Trimmed,Reference_Genome,Reference_Length,Mapped_Reads,Percent_Ref_Coverage,Min_Coverage,Mean_Coverage,Max_Coverage,Bam_Size,Consensus_Length,Percent_N,%_Reads_On_Target, PCR_CT,Method, NCBI_Name, Serotype, Nomenclature, Reference_Name, Reference_Genome, Biosample_name, Biosample_accession, SRA_Accession, Bioproject,  Release_date" | cat - Run_Summary_catted.csv > Run_Summary_Final_cat.csv
 
 
     # Influenza B
@@ -2010,7 +1553,6 @@ process Final_Processing {
 
     else
 
-
     awk '(NR == 1) || (FNR > 1)' *.csv >  Run_Summary_cat.csv
 
     sed '1d' Run_Summary_cat.csv > Run_Summary_catted.csv
@@ -2029,7 +1571,7 @@ process Final_Processing {
 if (params.withVapid) {
     if (params.singleEnd) {
 process Vapid_Annotation {
-    container "docker.io/paulrkcruz/hrv-pl:latest"  
+    // container "docker.io/paulrkcruz/hrv-pl:latest"  
     // errorStrategy 'ignore'    
     // errorStrategy 'retry'
     // maxRetries 3
