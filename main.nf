@@ -391,8 +391,8 @@ process Trim_Reads {
 if (params.singleEnd) {
 process Mapping {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest" 
-    errorStrategy 'retry'
-    maxRetries 3
+    // errorStrategy 'retry'
+    // maxRetries 3
     // echo true
 
     input: 
@@ -447,7 +447,7 @@ process Mapping {
     grep -B 0 ">" ${Reference_hcov} | tr -d ">" > ${base}_hcov_ids.txt
     grep -B 0 ">" ${Reference_hpiv3} | tr -d ">" > ${base}_hpiv3.txt
 
-    # Rhinovirus
+    # Rhinovirus`s
     if grep -q \$all_ref_id "${base}_rv_ids.txt";
     then
     echo "< Accession found in Rhinovirus multifasta file. hrv_ref_rhinovirus.fa will be used for mapping."
@@ -462,7 +462,6 @@ process Mapping {
     id=\$(awk 'FNR==1{print val,\$1}' ${base}_most_mapped_ref.txt)
     ref_coverage=\$(awk 'FNR==1{print val,\$2}' ${base}_most_mapped_ref.txt)
     samtools faidx ${Reference_rv} \$id > ${base}_mapped_ref_genome.fa
-
     # MAP 2
     ${BBMAP_PATH}bbmap.sh in=${base}.trimmed.fastq.gz outm=${base}_map2.sam ref=${base}_mapped_ref_genome.fa threads=${task.cpus} covstats=${base}_map2_bbmap_out.txt covhist=${base}_map2_histogram.txt local=true interleaved=false maxindel=9 strictmaxindel -Xmx6g > ${base}_map2_stats.txt 2>&1
     head -n 1 ${base}_mapped_ref_genome.fa > ${base}_mapped_ref_genome_edited.fa
