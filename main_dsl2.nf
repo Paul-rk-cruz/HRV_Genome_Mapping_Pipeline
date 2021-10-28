@@ -39,6 +39,7 @@ def helpMsg() {
     REQUIRED:
         --reads                       Path to input fastq.gz folder).
         --outdir                      The output directory where the results will be saved
+        --singleEnd                   Specifies that the input fastq files are single end reads    
     OPTIONAL:
         --withMetadata                Adds Metadata information to Final Run Report Summary
         --withVapid                   Annotate the resulting consensus fasta for GenBank submission         
@@ -47,7 +48,7 @@ def helpMsg() {
         --ref_hpv                     Overwrite set multi-fasta HPV reference file
         --ref_inflb                   Overwrite set multi-fasta Influenza B reference file
         --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
-        --helpMsg						Displays help message in terminal
+        --helpMsg					  Displays help message in terminal
         --singleEnd                   Specifies that the input fastq files are single end reads
         --withFastQC					Runs a quality control check on fastq files  
     """.stripIndent()
