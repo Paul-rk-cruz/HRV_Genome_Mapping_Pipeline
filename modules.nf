@@ -744,7 +744,7 @@ process Aligning_Final {
 process Summary_Generation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"
     // errorStrategy 'retry'        
-    errorStrategy 'ignore'
+    // errorStrategy 'ignore'
     // maxRetries 3
     // echo true
 
