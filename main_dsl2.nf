@@ -302,7 +302,6 @@ workflow {
     }
     if(params.withSerotype == true) {
     Serotyping (
-        Summary_Generation.out[0]
     )
     Final_Processing (
         Serotyping.out[1].collect(),

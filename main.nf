@@ -347,11 +347,11 @@ log.info "______________________________________________________________________
 ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////
 /*
- * STEP 1: Trim_Reads
+ * STEP 1: Trimming
  * Trimming of low quality and short NGS sequences.
  */
 if (params.singleEnd) {
-process Trim_Reads {
+process Trimming {
     container "docker.io/paulrkcruz/hrv-pipeline:latest"
     errorStrategy 'retry'
     maxRetries 3
@@ -385,11 +385,11 @@ process Trim_Reads {
 }
 }
 /*
- * STEP 2: Mapping
+ * STEP 2: Aligning
  * Viral identification & mapping.
  */
 if (params.singleEnd) {
-process Mapping {
+process Aligning {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest" 
     // errorStrategy 'retry'
     // maxRetries 3
@@ -653,7 +653,7 @@ process Mapping {
  * Sorting, indexing, and collecting of summary statistics from BAM files.
  */
 if (params.singleEnd) {
-process Sort_Bam {
+process Bam_Sorting {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"
     // errorStrategy 'retry'        
 	errorStrategy 'ignore'
@@ -694,11 +694,11 @@ process Sort_Bam {
 }
 }
 /*
- * STEP 3: Generate_Consensus
+ * STEP 3: Consensus_Generation
  * Consensus fasta generation.
  */
 if (params.singleEnd) {
-process Generate_Consensus {
+process Consensus_Generation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
     // errorStrategy 'retry'
 	// errorStrategy 'ignore'
@@ -982,11 +982,11 @@ process Generate_Consensus {
 }
 }
 /*
- * STEP 4: Final_Mapping
+ * STEP 4: Aligning_Final
  * Final round of mapping.
  */
 if (params.singleEnd) {
-process Final_Mapping {
+process Aligning_Final {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"     
     // errorStrategy 'retry'	
     errorStrategy 'ignore'
