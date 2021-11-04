@@ -35,12 +35,12 @@ License: MIT
       --withVapid                   IN-PROGRESS
       --ref_rv                      Overwrite set multi-fasta Rhinovirus reference file
       --ref_hcov                    Overwrite set multi-fasta Human Coronavirus reference file
-      --ref_respp                   Overwrite set multi-fasta Influenza B reference file
-      --ref_inflb                   Overwrite set multi-fasta Respiratory Panel reference file
+      --ref_hpv                     Overwrite set multi-fasta HPV reference file
+      --ref_inflb                   Overwrite set multi-fasta Influenza B reference file
       --ref_hpiv3                   Overwrite set multi-fasta HPIV3 reference file
-	  --helpMsg		    Displays help message in terminal
+      --helpMsg		    	    Displays help message in terminal
       --singleEnd                   Specifies that the input fastq files are single end reads. Pipeline assumes paired-end reads if this flag is not specified.
-	  --withFastQC		    Runs a quality control check on fastq files
+      --withFastQC		    Runs a quality control check on fastq files
       --skipTrimming                Skips the fastq trimmming process (not available in v1.3; will be released in v1.4)
 
       Example Run:
