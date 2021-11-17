@@ -227,21 +227,19 @@ summary["Trimmomatic Trailing:"] = params.TRAILING
 log.info summary.collect { k,v -> "${k.padRight(21)}: $v" }.join("\n")
 log.info "_______________________________________________________________________________"
 
-
 //
 // Import processes
-// 
-
-include { Trimming } from './modules.nf'
-include { Aligning } from './modules.nf'
-include { Bam_Sorting } from './modules.nf'
-include { Consensus_Generation } from './modules.nf'
-include { Aligning_Final } from './modules.nf'
-include { Final_Processing } from './modules.nf'
-include { Summary_Generation } from './modules.nf'
-include { Serotyping } from './modules.nf'
-include { Vapid_Annotation } from './modules.nf'
-include { FastQC } from './modules.nf'
+//
+include { Trimming } from './modules_dsl2.nf'
+include { Aligning } from './modules_dsl2.nf'
+include { Bam_Sorting } from './modules_dsl2.nf'
+include { Consensus_Generation } from './modules_dsl2.nf'
+include { Aligning_Final } from './modules_dsl2.nf'
+include { Final_Processing } from './modules_dsl2.nf'
+include { Summary_Generation } from './modules_dsl2.nf'
+include { Serotyping } from './modules_dsl2.nf'
+include { Vapid_Annotation } from './modules_dsl2.nf'
+include { FastQC } from './modules_dsl2.nf'
 
 // Create channel for input reads: single-end or paired-end
 if(params.singleEnd == false) {
@@ -297,19 +295,54 @@ workflow {
     )
     if(params.withMetadata == true) {
     Summary_Generation (
-        Aligning_Final.out[0]
+        Aligning_Final.out[0],
+        METADATA
     )
     }
     if(params.withSerotype == true) {
     Serotyping (
+        Summary_Generation.out[0],
+        Summary_Generation.out[1],
+        METADATA,
+        BLAST_DB_VP1_1,
+        BLAST_DB_VP1_2,
+        BLAST_DB_VP1_3,
+        BLAST_DB_VP1_4,
+        BLAST_DB_VP1_5,
+        BLAST_DB_VP1_6,
+        BLAST_DB_VP1_7,
+        BLAST_DB_VP1_8,
+        BLAST_DB_ALL_1,
+        BLAST_DB_ALL_2,
+        BLAST_DB_ALL_3,
+        BLAST_DB_ALL_4,
+        BLAST_DB_ALL_5,
+        BLAST_DB_ALL_6,
+        BLAST_DB_ALL_7,
+        BLAST_DB_ALL_8,
+        BLAST_DB_ALL_9,
+        BLAST_DB_ALL_10
     )
     Final_Processing (
-        Serotyping.out[1].collect(),
+        Serotyping.out[0].collect(),
+        Summary_Generation.out[0]
     )
     }
     if(params.withVapid == true) {
     Vapid_Annotation (
         Serotyping.out[0]
+        VAPID_DB_ALL_1,
+        VAPID_DB_ALL_2,
+        VAPID_DB_ALL_3,
+        VAPID_DB_ALL_4,
+        VAPID_DB_ALL_5,
+        VAPID_DB_ALL_6,
+        VAPID_DB_ALL_7,
+        VAPID_DB_ALL_8,
+        tbl2asn,
+        vapid_python,
+        vapid_python3,
+        vapid_rhinovirus_sbt
     )
     }   
     } else {

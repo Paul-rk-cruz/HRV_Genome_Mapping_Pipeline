@@ -743,23 +743,22 @@ process Aligning_Final {
  */
 process Summary_Generation {
     // container "docker.io/paulrkcruz/hrv-pipeline:latest"
-    // errorStrategy 'retry'        
+    errorStrategy 'retry'        
     // errorStrategy 'ignore'
     // maxRetries 3
     // echo true
 
     input:
     file SAMPLE_LIST from METADATA
-
     tuple val(base), file("${base}.mpileup"), file("${base}.bam"), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}_summary.csv"),file("${base}.consensus_final.fa"),file("${base}_map3.sam"),file("${base}_map3.sorted.bam")// from Mapping_Final_ch
-
+    
     output:
-    tuple val(base), file("${base}.mpileup"), file("${base}.bam"), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}_final_summary.csv"), file("${base}.consensus_final.fa"), file("${base}_map3.sam"), file("${base}_map3.sorted.bam")// into Final_Processing_final_ch
+    tuple val(base), file("${base}.mpileup"), file("${base}.bam"), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}.consensus_final.fa"),file("${base}_map3.sam"),file("${base}_map3.sorted.bam"),file("${base}_sample_stats.csv")// into Final_Processing_final_ch
+    tuple val(base), fisle("${base}_final_summary.csv")// into Final_Processing_summary_final_ch
 
     publishDir "${params.outdir}summary_withMetadata", mode: 'copy', pattern:'*_final_summary.csv*'
 
     script:
-
     """
     #!/bin/bash
     R1=${base}
@@ -793,39 +792,27 @@ process Serotyping {
     // echo true
 
     input:
-    file METADATA_INFO from METADATA
-    file BLASTDB_VP1_1 from BLAST_DB_VP1_1
-    file BLASTDB_VP1_2 from BLAST_DB_VP1_2
-    file BLASTDB_VP1_3 from BLAST_DB_VP1_3
-    file BLASTDB_VP1_4 from BLAST_DB_VP1_4
-    file BLASTDB_VP1_5 from BLAST_DB_VP1_5
-    file BLASTDB_VP1_6 from BLAST_DB_VP1_6
-    file BLASTDB_VP1_7 from BLAST_DB_VP1_7
-    file BLASTDB_VP1_8 from BLAST_DB_VP1_8
-
-    file hpv_db_1 from BLAST_DB_ALL_1hpv
-    file hpv_db_2 from BLAST_DB_ALL_2hpv
-    file hpv_db_3 from BLAST_DB_ALL_3hpv
-    file hpv_db_4 from BLAST_DB_ALL_4hpv
-    file hpv_db_5 from BLAST_DB_ALL_5hpv
-    file hpv_db_6 from BLAST_DB_ALL_6hpv
-    file hpv_db_7 from BLAST_DB_ALL_7hpv
-    file hpv_db_8 from BLAST_DB_ALL_8hpv
-    file hpv_db_9 from BLAST_DB_ALL_9hpv
-    file hpv_db_10 from BLAST_DB_ALL_10hpv
-
-    file BLASTDB_ALL_1 from BLAST_DB_ALL_1
-    file BLASTDB_ALL_2 from BLAST_DB_ALL_2
-    file BLASTDB_ALL_3 from BLAST_DB_ALL_3
-    file BLASTDB_ALL_4 from BLAST_DB_ALL_4
-    file BLASTDB_ALL_5 from BLAST_DB_ALL_5
-    file BLASTDB_ALL_6 from BLAST_DB_ALL_6
-    file BLASTDB_ALL_7 from BLAST_DB_ALL_7
-    file BLASTDB_ALL_8 from BLAST_DB_ALL_8
-    file BLASTDB_ALL_9 from BLAST_DB_ALL_9
-    file BLASTDB_ALL_10 from BLAST_DB_ALL_10
-
-    tuple val(base), file("${base}.mpileup"), file("${base}.bam"), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}_final_summary.csv"),file("${base}.consensus_final.fa"),file("${base}_map3.sam"),file("${base}_map3.sorted.bam"),file("${base}_sample_stats.csv")// from Final_Processing_final_ch  
+        tuple val(base), file("${base}.mpileup"), file("${base}.bam"), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}.consensus_final.fa"),file("${base}_map3.sam"),file("${base}_map3.sorted.bam"),file("${base}_sample_stats.csv")// from Final_Processing_final_ch
+        tuple val(base), file("${base}_final_summary.csv")// from Final_Processing_summary_final_ch
+        file METADATA_INFO from METADATA
+        file BLASTDB_VP1_1 from BLAST_DB_VP1_1
+        file BLASTDB_VP1_2 from BLAST_DB_VP1_2
+        file BLASTDB_VP1_3 from BLAST_DB_VP1_3
+        file BLASTDB_VP1_4 from BLAST_DB_VP1_4
+        file BLASTDB_VP1_5 from BLAST_DB_VP1_5
+        file BLASTDB_VP1_6 from BLAST_DB_VP1_6
+        file BLASTDB_VP1_7 from BLAST_DB_VP1_7
+        file BLASTDB_VP1_8 from BLAST_DB_VP1_8
+        file BLASTDB_ALL_1 from BLAST_DB_ALL_1
+        file BLASTDB_ALL_2 from BLAST_DB_ALL_2
+        file BLASTDB_ALL_3 from BLAST_DB_ALL_3
+        file BLASTDB_ALL_4 from BLAST_DB_ALL_4
+        file BLASTDB_ALL_5 from BLAST_DB_ALL_5
+        file BLASTDB_ALL_6 from BLAST_DB_ALL_6
+        file BLASTDB_ALL_7 from BLAST_DB_ALL_7
+        file BLASTDB_ALL_8 from BLAST_DB_ALL_8
+        file BLASTDB_ALL_9 from BLAST_DB_ALL_9
+        file BLASTDB_ALL_10 from BLAST_DB_ALL_10
 
     output:
     tuple val(base), file("${base}.mpileup"), file("${base}.bam"), file("${base}.sorted.bam"),file("${base}_flagstats.txt"),val(bamsize),file("${base}_map2.sam"), file("${base}_most_mapped_ref.txt"),file("${base}_most_mapped_ref_size.txt"),file("${base}_most_mapped_ref_size_out.txt"),val(id_ref_size),file("${base}_idxstats.txt"),file("${base}_mapped_ref_genome.fa"),val(id),file("${base}_map1_bbmap_out.txt"),file("${base}_map2_bbmap_out.txt"),file("${base}_map1_stats.txt"),file("${base}_map2_stats.txt"),file("${base}_mapped_ref_genome.fa.fai"),file("${base}.trimmed.fastq.gz"), file("${base}_num_trimmed.txt"), file("${base}_num_mapped.txt"), file("${base}_sample_id.txt"), file("${base}_pcr_ct.txt"), file("${base}_method.txt"), file("${base}_rv_ids.txt"), file("${base}_hpv_ids.txt"), file("${base}_inbflb_ids.txt"), file("${base}_hcov_ids.txt"), file("${base}_hpiv3.txt"), file("${base}_all_ref_id.txt"), file("${base}.consensus_final.fa"),file("${base}_map3.sam"),file("${base}_map3.sorted.bam"),file("${base}_sample_stats.csv"), file("${base}_collection_year.txt"), file("${base}_country_collected.txt"), file("${base}_blast_db_vp1.txt"), file("${base}_blast_db_all_ref.txt"), file("${base}_sample_stats.csv"), file("${base}_all_ref_id.txt"), file("${base}_nomen.txt")// into Serotype_ch
