@@ -14,24 +14,18 @@ OPTIONAL
 -withMetadata				Requires SRA submission for SRA data migration. Metadata including sample_id, pcr_ct, collection_year, country_collected, Biosample_name, Biosample accession, SRA accession
 sdf
 
-
--withSerotype				
--withVapid
+-withSerotype			Serotyping (RV only)			
+-withVapid			NOT WORKING YET
 
 LOCAL:
 nextflow run PATH_PIPELINE/HRV_Pipeline/main.nf --reads 'PATH_INPUT/' --outdir 'PATH_OUTPUT/'  -with-trace -with-timeline -with-report PATH_OUTPUT/report.html --singleEnd -resume
 
-IN TESTING:
-CLOUD:
-nextflow run PATH_PIPELINE/HRV_Pipeline/main.nf --input 'PATH_INPUT/' --outdir 'PATH_OUTPUT/' --runName 'RUN_NAME/' --ref 'REF/'  -profile cloud_big -with-docker ubuntu:18.04 -with-trace -with-timeline -with-report PATH_OUTPUT/report.html -c PATH_PIPELINE/HPV_Pipeline/config/nextflow.config -profile cloud_big -with-tower --singleEnd -resume
 
-* /HPV_Pipeline/config/nextflow.config includes AWS cloud cluster settings vital for utilizing the aws cluster
-* CLOUD Mode allows for input and outdir to be in AWS S3.
 
 EXAMPLE PIPELINE LAUNCH:
 
 LOCAL:
-nextflow run /Users/greningerlab/Documents/KC/Pipelines/HPV_Pipeline/main.nf --input '/Users/greningerlab/Documents/KC/Pipeline_Runs/HPV-PL_Testing/hpv-pl_input/' --outdir '/Users/greningerlab/Documents/KC/Pipeline_Runs/HPV-PL_Testing/hpv-pl_output/' --runName 'hpv-pl_testing' --ref 'all' -with-trace -with-timeline -with-report Users/greningerlab/Documents/KC/Pipeline_Runs/HRV-PL_Testing/hrv_pl_output/report.html --singleEnd -resume
+nextflow run /Users/greningerlab/Documents/KC/Pipelines/HRV_Pipeline/main.nf --reads '/Users/greningerlab/Documents/KC/Pipeline_Runs/211031_A01152_0129_AHT5VHDRXY/RhV/' --outdir '/Users/greningerlab/Documents/KC/Pipeline_Runs/211031_A01152_0129_AHT5VHDRXY/hrv-pl_output/' --withMetadata '/Users/greningerlab/Documents/KC/Pipeline_Runs/HRVMasterSheet-latest.csv' --withSerotype --singleEnd -resume -with-trace -with-timeline -with-report Users/greningerlab/Documents/KC/Pipeline_Runs/HRV-PL_Testing/hrv_pl_output/report.html --singleEnd -resume
 
 CLOUD:
-nextflow run /Users/greningerlab/Documents/KC/Pipelines/HPV_Pipeline/main_aws.nf --input '/Users/greningerlab/Documents/KC/Pipeline_Runs/HPV-PL_Testing/hpv-pl_input/' --outdir '/Users/greningerlab/Documents/KC/Pipeline_Runs/HPV-PL_Testing/hpv-pl_output/' --runName 'hpv_test_aws' --ref 'all' -with-docker ubuntu:18.04 -with-trace -with-timeline -with-report /Users/greningerlab/Documents/KC/Pipeline_Runs/HPV-PL_Testing/hpv-pl_output/report.html -c /Users/greningerlab/Documents/KC/Pipelines/HPV_Pipeline/config/nextflow.config -profile cloud_big -with-tower --singleEnd -resume
+nextflow run /Users/greningerlab/Documents/KC/Pipelines/HRV_Pipeline/main.nf --reads '/Users/greningerlab/Documents/KC/Pipeline_Runs/211031_A01152_0129_AHT5VHDRXY/RhV/' --outdir '/Users/greningerlab/Documents/KC/Pipeline_Runs/211031_A01152_0129_AHT5VHDRXY/hrv-pl_output/' --withMetadata '/Users/greningerlab/Documents/KC/Pipeline_Runs/HRVMasterSheet-latest.csv' --withSerotype -with-docker ubuntu:18.04 -with-trace -with-timeline -with-report Users/greningerlab/Documents/KC/Pipeline_Runs/211031_A01152_0129_AHT5VHDRXY/hrv-pl_output/report.html --singleEnd -resume
