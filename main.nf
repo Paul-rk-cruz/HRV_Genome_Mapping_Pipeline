@@ -218,7 +218,8 @@ if(params.withSerotype != false) {
 // File paths
 BLAST_DB_VP1 = file("${baseDir}/blast_db/VP1_164_annotated_nospaces.fasta")
 BLAST_DB_ALL = file("${baseDir}/blast_db/allref.fasta")
-BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
+// BBMAP_PATH="/Users/greningerlab/Documents/bbmap/"
+BBMAP_PATH="/Users/kurtiscruz/Documents/bbmap/"
 params.MINLEN = "35"
 MINLEN = "35"
 ////////////////////////////////////////////////////////
