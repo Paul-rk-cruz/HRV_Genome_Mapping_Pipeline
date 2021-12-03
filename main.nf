@@ -1453,7 +1453,6 @@ process Serotyping {
     """
     }
     }
-}
 /*
  * STEP 5: Final_Processing
  * Final data summary statistic data processing.
@@ -1563,6 +1562,7 @@ process Final_Processing {
 
 
     """
+    }
     }
 /*
  * OPTIONAL: withVapid - Viral_Annotation
